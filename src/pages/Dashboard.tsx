@@ -126,12 +126,17 @@ export default function Dashboard() {
       await db.run('DELETE FROM deposits')
       await db.run('DELETE FROM depositors')
       await db.run('DELETE FROM blacklist')
+      await db.run('DELETE FROM waitlist')
+      await db.run('DELETE FROM expenses')
+      await db.run('DELETE FROM guarantorLoans')
       
       setClearConfirmOpen(false)
       setClearConfirmText('')
+      setSnackbar({ open: true, message: 'כל הנתונים נמחקו בהצלחה', severity: 'success' })
       loadData()
     } catch (error) {
       console.error('Error clearing data:', error)
+      setSnackbar({ open: true, message: 'שגיאה במחיקת הנתונים', severity: 'error' })
     }
   }
 

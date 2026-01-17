@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { borrowersService, guarantorsService, loansService, donorsService, depositorsService, repaymentsService, db } from './database'
 
 // סוגי נתונים לייבוא
-export type ImportType = 'borrowers' | 'guarantors' | 'loans' | 'repayments' | 'donations' | 'deposits'
+export type ImportType = 'borrowers' | 'guarantors' | 'loans' | 'repayments' | 'donations' | 'deposits' | 'waitlist'
 
 // תוצאת ולידציה לשורה
 export interface ValidationResult {
@@ -105,6 +105,21 @@ const COLUMN_MAPPINGS: Record<ImportType, Record<string, string>> = {
     'מחזורית': 'is_recurring',
     'יום בחודש': 'recurring_day',
     'הערות': 'notes'
+  },
+  waitlist: {
+    'מיקום': 'position',
+    'שם לווה': 'borrower_name',
+    'שורת לווה': 'borrower_row',
+    'ת.ז. לווה': 'borrower_id_number',
+    'סכום מבוקש': 'requested_amount',
+    'תאריך בקשה': 'request_date',
+    'סוג הלוואה': 'loan_type',
+    'סוג': 'loan_type',
+    'תקופה מבוקשת (חודשים)': 'requested_months',
+    'תקופה מבוקשת': 'requested_months',
+    'עדיפות': 'priority',
+    'סטטוס': 'status',
+    'הערות': 'notes'
   }
 }
 
@@ -139,6 +154,10 @@ const REQUIRED_FIELDS: Record<ImportType, { field: string; label: string }[]> = 
     { field: 'phone', label: 'טלפון' },
     { field: 'amount', label: 'סכום' },
     { field: 'deposit_date', label: 'תאריך הפקדה' }
+  ],
+  waitlist: [
+    { field: 'requested_amount', label: 'סכום מבוקש' },
+    { field: 'request_date', label: 'תאריך בקשה' }
   ]
 }
 
@@ -187,7 +206,8 @@ const SHEET_NAMES: Record<ImportType, string> = {
   loans: 'הלוואות',
   repayments: 'פירעונות',
   donations: 'תרומות',
-  deposits: 'הפקדות'
+  deposits: 'הפקדות',
+  waitlist: 'תור הלוואות'
 }
 
 /**
@@ -394,6 +414,27 @@ async function validateRow(
     const amount = parseFloat(row.amount)
     if (isNaN(amount) || amount <= 0) {
       errors.push('סכום לא תקין')
+    }
+  }
+  
+  if (importType === 'waitlist') {
+    // בדיקה שיש זיהוי לווה - או שורה או ת.ז.
+    const hasBorrowerRow = row.borrower_row && !isNaN(parseInt(row.borrower_row))
+    const hasBorrowerId = row.borrower_id_number && row.borrower_id_number.toString().trim() !== ''
+    
+    if (!hasBorrowerRow && !hasBorrowerId) {
+      errors.push('חסר זיהוי לווה (שורת לווה או ת.ז.)')
+    }
+    
+    // בדיקת תאריך
+    if (row.request_date && !parseDate(row.request_date)) {
+      errors.push('תאריך בקשה לא תקין')
+    }
+    
+    // בדיקת סכום
+    const amount = parseFloat(row.requested_amount)
+    if (isNaN(amount) || amount <= 0) {
+      errors.push('סכום מבוקש לא תקין')
     }
   }
   
@@ -714,13 +755,107 @@ async function importDeposits(rows: ValidationResult[]): Promise<number> {
 }
 
 /**
+ * ייבוא תור הלוואות
+ * מקושר ללווים לפי שורת לווה או ת.ז.
+ */
+async function importWaitlist(
+  rows: ValidationResult[],
+  borrowerIds?: Map<number, number> // מיפוי שורה -> ID של לווה (אופציונלי - רק בייבוא מלא)
+): Promise<number> {
+  let count = 0
+  const { waitlistService } = await import('./database')
+  const borrowers = await borrowersService.getAll()
+  
+  // אם אין מיפוי (ייבוא בודד), ננסה למצוא לווים לפי ת.ז. או שם
+  // אם יש מיפוי (ייבוא מלא), נשתמש בו
+  
+  for (const row of rows) {
+    if (row.status === 'error') continue
+    
+    const data = row.data
+    let borrowerId: number | undefined
+    
+    // מציאת הלווה - קודם לפי שורה (אם יש מיפוי), אחר כך לפי ת.ז.
+    if (data.borrower_row && borrowerIds) {
+      const rowNum = parseInt(data.borrower_row)
+      borrowerId = borrowerIds.get(rowNum)
+    }
+    
+    // אם לא מצאנו לפי שורה, ננסה לפי ת.ז.
+    if (!borrowerId && data.borrower_id_number) {
+      const borrower = borrowers.find((b: any) => b.id_number === data.borrower_id_number?.toString())
+      if (borrower) borrowerId = borrower.id
+    }
+    
+    // אם עדיין לא מצאנו, ננסה לפי שם (אם יש שם לווה בנתונים)
+    if (!borrowerId && data.borrower_name) {
+      const nameParts = data.borrower_name.toString().split(' ')
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
+      const borrower = borrowers.find((b: any) => 
+        b.first_name === firstName && b.last_name === lastName
+      )
+      if (borrower) borrowerId = borrower.id
+    }
+    
+    if (!borrowerId) {
+      console.warn(`לא נמצא לווה לשורה ${row.row}`)
+      continue
+    }
+    
+    // קביעת סוג הלוואה
+    let loanType: 'fixed' | 'flexible' = 'flexible'
+    if (data.loan_type) {
+      const type = data.loan_type.toString().toLowerCase()
+      if (type.includes('קבוע') || type === 'fixed') {
+        loanType = 'fixed'
+      }
+    }
+    
+    // קביעת עדיפות
+    let priority: 'normal' | 'urgent' = 'normal'
+    if (data.priority) {
+      const p = data.priority.toString().toLowerCase()
+      if (p.includes('דחוף') || p === 'urgent') {
+        priority = 'urgent'
+      }
+    }
+    
+    // קביעת סטטוס
+    let status: 'waiting' | 'processing' | 'approved' | 'rejected' = 'waiting'
+    if (data.status) {
+      const s = data.status.toString().toLowerCase()
+      if (s.includes('ממתין') || s === 'waiting') status = 'waiting'
+      else if (s.includes('טיפול') || s === 'processing') status = 'processing'
+      else if (s.includes('אושר') || s === 'approved') status = 'approved'
+      else if (s.includes('נדחה') || s === 'rejected') status = 'rejected'
+    }
+    
+    await waitlistService.create({
+      borrower_id: borrowerId,
+      requested_amount: parseFloat(data.requested_amount) || 0,
+      request_date: parseDate(data.request_date) || new Date().toISOString().split('T')[0],
+      loan_type: loanType,
+      requested_months: data.requested_months ? parseInt(data.requested_months) : undefined,
+      notes: data.notes?.toString() || '',
+      priority,
+      status
+    })
+    count++
+  }
+  
+  return count
+}
+
+/**
  * ביצוע הייבוא
  */
 export async function executeImport(
   validationResults: ValidationResult[],
   importType: ImportType,
   skipErrors: boolean = true,
-  loanIds?: Map<number, number> // למיפוי פירעונות להלוואות
+  loanIds?: Map<number, number>, // למיפוי פירעונות להלוואות
+  borrowerIds?: Map<number, number> // למיפוי תור הלוואות ללווים
 ): Promise<ImportResult> {
   const rowsToImport = skipErrors 
     ? validationResults.filter(r => r.status !== 'error')
@@ -749,6 +884,9 @@ export async function executeImport(
       break
     case 'deposits':
       successCount = await importDeposits(rowsToImport)
+      break
+    case 'waitlist':
+      successCount = await importWaitlist(rowsToImport, borrowerIds)
       break
   }
   
@@ -812,13 +950,21 @@ export function generateFullTemplate(): Blob {
   const wsDeposits = XLSX.utils.json_to_sheet(depositsData)
   XLSX.utils.book_append_sheet(wb, wsDeposits, 'הפקדות')
   
+  // גליון תור הלוואות
+  const waitlistData = [
+    { 'שורה': 2, 'שורת לווה': 2, 'סכום מבוקש': 5000, 'תאריך בקשה': '01/01/2026', 'סוג הלוואה': 'גמישה', 'תקופה מבוקשת (חודשים)': 12, 'עדיפות': 'רגילה', 'סטטוס': 'ממתין', 'הערות': 'בקשה לדוגמה' },
+    { 'שורה': 3, 'שורת לווה': 3, 'סכום מבוקש': 8000, 'תאריך בקשה': '02/01/2026', 'סוג הלוואה': 'קבועה', 'תקופה מבוקשת (חודשים)': 6, 'עדיפות': 'דחופה', 'סטטוס': 'ממתין', 'הערות': 'דחוף - מצב קשה' }
+  ]
+  const wsWaitlist = XLSX.utils.json_to_sheet(waitlistData)
+  XLSX.utils.book_append_sheet(wb, wsWaitlist, 'תור הלוואות')
+  
   // גליון הוראות
   const instructionsData = [
     { 'הוראות שימוש': '📋 הוראות לייבוא נתונים מאקסל' },
     { 'הוראות שימוש': '' },
     { 'הוראות שימוש': '🔗 קישור בין גליונות:' },
     { 'הוראות שימוש': '• עמודת "שורה" בגליון לווים/ערבים - מספר השורה לשימוש בגליונות אחרים' },
-    { 'הוראות שימוש': '• עמודת "שורת לווה" בהלוואות - מפנה לשורה בגליון לווים' },
+    { 'הוראות שימוש': '• עמודת "שורת לווה" בהלוואות/תור - מפנה לשורה בגליון לווים' },
     { 'הוראות שימוש': '• עמודת "שורת הלוואה" בפירעונות - מפנה לשורה בגליון הלוואות' },
     { 'הוראות שימוש': '' },
     { 'הוראות שימוש': '🔄 הלוואות/הפקדות מחזוריות:' },
@@ -832,13 +978,14 @@ export function generateFullTemplate(): Blob {
     { 'הוראות שימוש': '4. גליון "פירעונות" - פירעונות עם קישור להלוואות' },
     { 'הוראות שימוש': '5. גליון "תרומות" - שם תורם מלא, טלפון וסכום' },
     { 'הוראות שימוש': '6. גליון "הפקדות" - שם מפקיד מלא, טלפון, סכום ותאריכים' },
+    { 'הוראות שימוש': '7. גליון "תור הלוואות" - בקשות להלוואות עם קישור ללווים' },
     { 'הוראות שימוש': '' },
     { 'הוראות שימוש': '⚠️ חשוב:' },
     { 'הוראות שימוש': '• הייבוא מוסיף נתונים חדשים ולא דורס נתונים קיימים' },
     { 'הוראות שימוש': '• תאריכים בפורמט DD/MM/YYYY (למשל: 01/01/2026)' },
     { 'הוראות שימוש': '• ת.ז. אינה חובה אך מומלצת לזיהוי כפילויות' },
     { 'הוראות שימוש': '• ניתן לייבא כל גליון בנפרד או את כולם יחד' },
-    { 'הוראות שימוש': '• יש לייבא לפי הסדר: לווים → ערבים → הלוואות → פירעונות' }
+    { 'הוראות שימוש': '• יש לייבא לפי הסדר: לווים → ערבים → הלוואות → פירעונות → תור' }
   ]
   const wsInstructions = XLSX.utils.json_to_sheet(instructionsData)
   XLSX.utils.book_append_sheet(wb, wsInstructions, 'הוראות')
@@ -869,6 +1016,9 @@ export function generateTemplate(importType: ImportType): Blob {
     ],
     deposits: [
       { 'שם מפקיד': 'שרה כהן', 'ת.ז.': '111222333', 'טלפון': '0541234567', 'כתובת': 'רחוב דיזנגוף 20', 'סכום': '50000', 'תאריך': '01/01/2026', 'תאריך סיום': '01/01/2027', 'תקופה': 'קבועה', 'מחזורית': 'לא', 'יום בחודש': '', 'הערות': '' }
+    ],
+    waitlist: [
+      { 'שורת לווה': '2 (מספר השורה בגליון לווים)', 'סכום מבוקש': '5000', 'תאריך בקשה': '01/01/2026', 'סוג הלוואה': 'גמישה', 'תקופה מבוקשת (חודשים)': '12', 'עדיפות': 'רגילה', 'סטטוס': 'ממתין', 'הערות': '' }
     ]
   }
   
@@ -899,6 +1049,7 @@ export interface FullImportResult {
   repayments: { success: number; errors: number }
   donations: { success: number; errors: number }
   deposits: { success: number; errors: number }
+  waitlist?: { success: number; errors: number }
   total: { success: number; errors: number }
   errorDetails: ImportError[]
 }
@@ -1120,13 +1271,33 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
     }
   } catch (e) { console.log('No deposits sheet or error:', e) }
   
+  // 7. ייבוא תור הלוואות
+  try {
+    const waitlistRows = await readExcelFile(file, 'תור הלוואות')
+    if (waitlistRows.length > 0) {
+      const mapped = mapColumns(waitlistRows, 'waitlist')
+      const validated = await validateData(mapped, 'waitlist')
+      for (const row of validated) {
+        if (row.status === 'error') {
+          errorDetails.push({ sheet: 'תור הלוואות', row: row.row, message: row.message || 'שגיאה לא ידועה' })
+        }
+      }
+      const importRes = await executeImport(validated, 'waitlist', true, undefined, borrowerIds)
+      if (!result.waitlist) result.waitlist = { success: 0, errors: 0 }
+      result.waitlist.success = importRes.success
+      result.waitlist.errors = importRes.errors
+    }
+  } catch (e) { console.log('No waitlist sheet or error:', e) }
+  
   // סיכום
   result.total.success = result.borrowers.success + result.guarantors.success + 
     result.loans.success + result.repayments.success + 
-    result.donations.success + result.deposits.success
+    result.donations.success + result.deposits.success + 
+    (result.waitlist?.success || 0)
   result.total.errors = result.borrowers.errors + result.guarantors.errors + 
     result.loans.errors + result.repayments.errors + 
-    result.donations.errors + result.deposits.errors
+    result.donations.errors + result.deposits.errors + 
+    (result.waitlist?.errors || 0)
   result.errorDetails = errorDetails
   
   return result
@@ -1278,6 +1449,29 @@ export async function exportToExcel(): Promise<Blob> {
   if (depositsData.length > 0) {
     const wsDeposits = XLSX.utils.json_to_sheet(depositsData)
     XLSX.utils.book_append_sheet(wb, wsDeposits, 'הפקדות')
+  }
+  
+  // 7. יצוא תור הלוואות
+  const { waitlistService } = await import('./database')
+  const waitlist = await waitlistService.getAll()
+  const waitlistData = waitlist.map((w: any) => {
+    const borrower = borrowers.find((b: any) => b.id === w.borrower_id)
+    return {
+      'מיקום': w.position,
+      'שם לווה': borrower ? `${borrower.first_name} ${borrower.last_name}` : '',
+      'שורת לווה': borrowerIdToRow.get(w.borrower_id) || '',
+      'סכום מבוקש': w.requested_amount,
+      'תאריך בקשה': formatDateForExcel(w.request_date),
+      'סוג הלוואה': w.loan_type === 'fixed' ? 'קבועה' : 'גמישה',
+      'תקופה מבוקשת (חודשים)': w.requested_months || '',
+      'עדיפות': w.priority === 'urgent' ? 'דחופה' : 'רגילה',
+      'סטטוס': w.status === 'waiting' ? 'ממתין' : w.status === 'processing' ? 'בטיפול' : w.status === 'approved' ? 'אושר' : 'נדחה',
+      'הערות': w.notes || ''
+    }
+  })
+  if (waitlistData.length > 0) {
+    const wsWaitlist = XLSX.utils.json_to_sheet(waitlistData)
+    XLSX.utils.book_append_sheet(wb, wsWaitlist, 'תור הלוואות')
   }
   
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })

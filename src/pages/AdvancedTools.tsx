@@ -313,6 +313,7 @@ export default function AdvancedTools() {
           blacklist: {},
           expenses: {},
           guarantorLoans: {},
+          waitlist: {},
         }
 
         // Handle settings
@@ -348,6 +349,7 @@ export default function AdvancedTools() {
         if (data.blacklist) importData.blacklist = convertToObject(data.blacklist)
         if (data.expenses) importData.expenses = convertToObject(data.expenses)
         if (data.guarantorLoans) importData.guarantorLoans = convertToObject(data.guarantorLoans)
+        if (data.waitlist) importData.waitlist = convertToObject(data.waitlist)
 
         await importAllData(importData)
         

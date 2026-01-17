@@ -171,6 +171,9 @@ export const db = {
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (sql.includes('DELETE FROM blacklist') && !sql.includes('WHERE')) { clearStore('blacklist'); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM waitlist') && !sql.includes('WHERE')) { clearStore('waitlist'); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM expenses') && !sql.includes('WHERE')) { clearStore('expenses'); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM guarantorLoans') && !sql.includes('WHERE')) { clearStore('guarantorLoans'); return { lastInsertRowid: 0, changes: 1 } }
 
     if (sql.includes('INSERT INTO blacklist') && params) { const id = generateId('blacklist'); setItem('blacklist', String(id), { id, entity_type: params[0], entity_id: params[1], reason: params[2], added_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (sql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
