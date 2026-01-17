@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ממיר גיבוי גמ"ח - מעבר לגרסה החדשה</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    }
+    
+    body {
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 28px;
+    }
+    
+    .header p {
+      margin: 0;
+      opacity: 0.9;
+      font-size: 16px;
+    }
+    
+    .content {
+      padding: 30px;
+    }
+    
+    .step {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-right: 4px solid #1976d2;
+    }
+    
+    .step-number {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background: #1976d2;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    
+    .step-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 15px;
+    }
+    
+    .drop-zone {
+      border: 3px dashed #ccc;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: white;
+    }
+    
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #1976d2;
+      background: #e3f2fd;
+    }
+    
+    .drop-zone.has-file {
+      border-color: #4caf50;
+      background: #e8f5e9;
+    }
+    
+    .drop-zone-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    
+    .file-input {
+      display: none;
+    }
+    
+    .btn {
+      display: inline-block;
+      padding: 12px 30px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-decoration: none;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+    }
+    
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+      color: white;
+    }
+    
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .stat-card {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #1976d2;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    
+    .success-message {
+      background: #e8f5e9;
+      border: 1px solid #4caf50;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-top: 20px;
+    }
+    
+    .success-message h3 {
+      color: #2e7d32;
+      margin: 0 0 10px 0;
+    }
+    
+    .error-message {
+      background: #ffebee;
+      border: 1px solid #f44336;
+      border-radius: 8px;
+      padding: 15px;
+      color: #c62828;
+      margin-top: 15px;
+    }
+    
+    .info-box {
+      background: #fff3e0;
+      border: 1px solid #ff9800;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .info-box h4 {
+      margin: 0 0 10px 0;
+      color: #e65100;
+    }
+    
+    .info-box ul {
+      margin: 0;
+      padding-right: 20px;
+    }
+    
+    .info-box li {
+      margin-bottom: 5px;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .footer {
+      text-align: center;
+      padding: 20px;
+      background: #f5f5f5;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .progress-bar {
+      height: 4px;
+      background: #e0e0e0;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 15px;
+    }
+    
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #1976d2, #4caf50);
+      width: 0%;
+      transition: width 0.5s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔄 ממיר גיבוי גמ"ח</h1>
+      <p>כלי למעבר מהגרסה הישנה לגרסה החדשה של מערכת ניהול הגמ"ח</p>
+    </div>
+    
+    <div class="content">
+      <!-- שלב 1: בחירת קובץ -->
+      <div class="step">
+        <div class="step-title">
+          <span class="step-number">1</span>
+          בחר את קובץ הגיבוי מהמערכת הישנה
+        </div>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <div class="drop-zone-icon">📁</div>
+          <div id="dropZoneText">גרור קובץ JSON לכאן או לחץ לבחירה</div>
+        </div>
+        <input type="file" id="fileInput" class="file-input" accept=".json" onchange="handleFileSelect(event)">
+      </div>
+      
+      <!-- שלב 2: תצוגה מקדימה -->
+      <div class="step hidden" id="previewStep">
+        <div class="step-title">
+          <span class="step-number">2</span>
+          תצוגה מקדימה של הנתונים
+        </div>
+        <div class="stats" id="statsContainer"></div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+      </div>
+      
+      <!-- שלב 3: המרה והורדה -->
+      <div class="step hidden" id="convertStep">
+        <div class="step-title">
+          <span class="step-number">3</span>
+          המר והורד את הקובץ החדש
+        </div>
+        <p>הנתונים מוכנים להמרה. לחץ על הכפתור להמרה והורדת הקובץ החדש.</p>
+        <button class="btn btn-primary" id="convertBtn" onclick="convertAndDownload()">
+          🔄 המר והורד קובץ חדש
+        </button>
+      </div>
+      
+      <!-- הודעת הצלחה -->
+      <div class="success-message hidden" id="successMessage">
+        <h3>✅ ההמרה הושלמה בהצלחה!</h3>
+        <p>הקובץ הומר והורד למחשב שלך.</p>
+        <p><strong>השלב הבא:</strong> פתח את המערכת החדשה, עבור ל"כלים מתקדמים" ובחר "ייבוא מגיבוי".</p>
+        <button class="btn btn-success" onclick="location.reload()">🔄 המר קובץ נוסף</button>
+      </div>
+      
+      <!-- הודעת שגיאה -->
+      <div class="error-message hidden" id="errorMessage"></div>
+      
+      <!-- מידע נוסף -->
+      <div class="info-box">
+        <h4>💡 מידע חשוב</h4>
+        <ul>
+          <li>הכלי ממיר את כל הנתונים: לווים, הלוואות, פירעונות, הפקדות, תרומות והגדרות</li>
+          <li>הקובץ המקורי לא משתנה - נוצר קובץ חדש</li>
+          <li>לאחר ההמרה, ייבא את הקובץ החדש במערכת החדשה</li>
+          <li>מומלץ לגבות את הנתונים לפני הייבוא</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="footer">
+      ממיר גיבוי גמ"ח | גרסה 1.0
+    </div>
+  </div>
+
+  <script>
+    let oldData = null;
+    let fileName = '';
+    
+    // Drag and drop
+    const dropZone = document.getElementById('dropZone');
+    
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) processFile(file);
+    });
+    
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) processFile(file);
+    }
+    
+    function processFile(file) {
+      if (!file.name.endsWith('.json')) {
+        showError('נא לבחור קובץ JSON בלבד');
+        return;
+      }
+      
+      fileName = file.name.replace('.json', '');
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          oldData = JSON.parse(e.target.result);
+          showPreview();
+        } catch (error) {
+          showError('שגיאה בקריאת הקובץ. וודא שזהו קובץ JSON תקין.');
+        }
+      };
+      reader.readAsText(file);
+    }
+    
+    function showPreview() {
+      // עדכון אזור הגרירה
+      dropZone.classList.add('has-file');
+      document.getElementById('dropZoneText').innerHTML = `<strong>✅ ${fileName}.json</strong><br>לחץ לבחירת קובץ אחר`;
+      
+      // חישוב סטטיסטיקות
+      const stats = {
+        borrowers: oldData.borrowers?.length || 0,
+        loans: oldData.loans?.length || 0,
+        payments: oldData.payments?.length || 0,
+        depositors: oldData.depositors?.length || 0,
+        deposits: oldData.deposits?.length || 0,
+        donations: oldData.donations?.length || 0,
+        guarantors: oldData.guarantors?.length || 0,
+      };
+      
+      // קריאת הגדרות
+      const gemachName = oldData.gemachName || oldData.settings?.gemachName || oldData.settings?.gemach_name || 'לא צוין';
+      const currency = oldData.settings?.currency || 'ILS';
+      const showHebrewDates = oldData.settings?.showHebrewDates ? 'כן' : 'לא';
+      const enableRecurring = oldData.settings?.enableRecurringLoans ? 'כן' : 'לא';
+      const trackPayments = oldData.settings?.trackPaymentMethods ? 'כן' : 'לא';
+      const defaultPeriod = oldData.settings?.defaultLoanPeriod || 12;
+      
+      // הצגת סטטיסטיקות
+      const statsHtml = `
+        <div class="stat-card"><div class="stat-value">${stats.borrowers}</div><div class="stat-label">לווים</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.loans}</div><div class="stat-label">הלוואות</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.payments}</div><div class="stat-label">פירעונות</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.depositors}</div><div class="stat-label">מפקידים</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.deposits}</div><div class="stat-label">הפקדות</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.donations}</div><div class="stat-label">תרומות</div></div>
+      `;
+      
+      // הצגת הגדרות
+      const settingsHtml = `
+        <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px;">
+          <h4 style="margin: 0 0 15px 0; color: #1565c0;">⚙️ הגדרות מערכת שזוהו</h4>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #bbdefb;">
+              <td style="padding: 8px; font-weight: bold;">שם הגמ"ח:</td>
+              <td style="padding: 8px;">${gemachName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #bbdefb;">
+              <td style="padding: 8px; font-weight: bold;">מטבע:</td>
+              <td style="padding: 8px;">${currency === 'ILS' ? '₪ שקל' : currency === 'USD' ? '$ דולר' : currency === 'EUR' ? '€ יורו' : currency}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #bbdefb;">
+              <td style="padding: 8px; font-weight: bold;">תקופת הלוואה ברירת מחדל:</td>
+              <td style="padding: 8px;">${defaultPeriod} חודשים</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #bbdefb;">
+              <td style="padding: 8px; font-weight: bold;">תאריכים עבריים:</td>
+              <td style="padding: 8px;">${showHebrewDates}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #bbdefb;">
+              <td style="padding: 8px; font-weight: bold;">הלוואות מחזוריות:</td>
+              <td style="padding: 8px;">${enableRecurring}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">מעקב אמצעי תשלום:</td>
+              <td style="padding: 8px;">${trackPayments}</td>
+            </tr>
+          </table>
+        </div>
+      `;
+      
+      document.getElementById('statsContainer').innerHTML = statsHtml + settingsHtml;
+      document.getElementById('previewStep').classList.remove('hidden');
+      document.getElementById('convertStep').classList.remove('hidden');
+      document.getElementById('errorMessage').classList.add('hidden');
+      
+      // אנימציית progress bar
+      setTimeout(() => {
+        document.getElementById('progressBar').style.width = '100%';
+      }, 100);
+    }
+    
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = '❌ ' + message;
+      errorEl.classList.remove('hidden');
+    }
+    
+    function convertAndDownload() {
+      if (!oldData) return;
+      
+      const btn = document.getElementById('convertBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ ממיר...';
+      
+      try {
+        const newData = convertData(oldData);
+        
+        // יצירת קובץ להורדה
+        const blob = new Blob([JSON.stringify(newData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileName}-converted.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        // הצגת הודעת הצלחה
+        document.getElementById('successMessage').classList.remove('hidden');
+        document.getElementById('convertStep').classList.add('hidden');
+        
+      } catch (error) {
+        showError('שגיאה בהמרה: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = '🔄 המר והורד קובץ חדש';
+      }
+    }
+    
+    function convertData(oldData) {
+      const newData = {
+        settings: {},
+        borrowers: {},
+        guarantors: {},
+        loans: {},
+        repayments: {},
+        donors: {},
+        donations: {},
+        depositors: {},
+        deposits: {},
+        blacklist: {},
+        expenses: {}
+      };
+      
+      // המרת הגדרות
+      if (oldData.settings) {
+        newData.settings = {
+          gemach_name: oldData.gemachName || oldData.settings?.gemachName || oldData.settings?.gemach_name || 'גמ"ח שלי',
+          currency: oldData.settings.currency || 'ILS',
+          risk_threshold: '50000',
+          default_loan_period: String(oldData.settings.defaultLoanPeriod || 12),
+          date_format: oldData.settings.showHebrewDates ? 'combined' : 'gregorian',
+          show_recurring_options: oldData.settings.enableRecurringLoans ? 'yes' : 'no',
+          show_payment_method: oldData.settings.trackPaymentMethods ? 'yes' : 'no',
+        };
+      } else {
+        newData.settings = {
+          gemach_name: oldData.gemachName || 'גמ"ח שלי',
+          currency: 'ILS',
+          risk_threshold: '50000',
+          default_loan_period: '12',
+          date_format: 'gregorian',
+          show_recurring_options: 'yes',
+          show_payment_method: 'yes',
+        };
+      }
+      
+      // המרת לווים
+      if (oldData.borrowers && Array.isArray(oldData.borrowers)) {
+        oldData.borrowers.forEach(b => {
+          newData.borrowers[String(b.id)] = {
+            id: b.id,
+            first_name: b.firstName || '',
+            last_name: b.lastName || '',
+            phone: b.phone || '',
+            phone2: b.phone2 || '',
+            id_number: b.idNumber || '',
+            city: b.city || '',
+            address: b.address || '',
+            email: b.email || '',
+            notes: b.notes || '',
+            created_at: b.createdDate || new Date().toISOString()
+          };
+        });
+      }
+      
+      // המרת ערבים
+      if (oldData.guarantors && Array.isArray(oldData.guarantors)) {
+        oldData.guarantors.forEach(g => {
+          newData.guarantors[String(g.id)] = {
+            id: g.id,
+            first_name: g.firstName || g.name || '',
+            last_name: g.lastName || '',
+            phone: g.phone || '',
+            id_number: g.idNumber || '',
+            address: g.address || '',
+            email: g.email || '',
+            notes: g.notes || '',
+            is_blacklisted: 0,
+            created_at: g.createdDate || new Date().toISOString()
+          };
+        });
+      }
+      
+      // המרת הלוואות
+      if (oldData.loans && Array.isArray(oldData.loans)) {
+        oldData.loans.forEach(l => {
+          let status = 'active';
+          if (l.status === 'completed') status = 'completed';
+          else if (l.status === 'planned') status = 'planned';
+          
+          newData.loans[String(l.id)] = {
+            id: l.id,
+            borrower_id: l.borrowerId,
+            amount: l.amount || 0,
+            loan_date: l.loanDate || '',
+            loan_type: l.loanType || 'flexible',
+            due_date: l.returnDate || '',
+            is_recurring: l.isRecurring ? 1 : 0,
+            recurring_months: l.recurringMonths || 0,
+            recurring_day: l.recurringDay || 1,
+            auto_repayment: l.autoPayment ? 1 : 0,
+            repayment_amount: l.autoPaymentAmount || 0,
+            repayment_day: l.autoPaymentDay || 1,
+            repayment_frequency: String(l.autoPaymentFrequency || 1),
+            repayment_start_date: l.autoPaymentStartDate || '',
+            guarantor1_id: null,
+            guarantor2_id: null,
+            notes: l.notes || '',
+            status: status,
+            payment_method: l.loanPaymentMethod || '',
+            payment_details: l.loanPaymentDetails || '',
+            created_at: l.createdDate || new Date().toISOString()
+          };
+        });
+      }
+      
+      // המרת פירעונות
+      if (oldData.payments && Array.isArray(oldData.payments)) {
+        oldData.payments.forEach(p => {
+          newData.repayments[String(p.id)] = {
+            id: p.id,
+            loan_id: p.loanId,
+            amount: p.amount || 0,
+            payment_date: p.date || '',
+            payment_method: p.paymentMethod || '',
+            payment_details: p.paymentDetails || '',
+            notes: p.notes || '',
+            created_at: new Date().toISOString()
+          };
+        });
+      }
+      
+      // המרת מפקידים
+      if (oldData.depositors && Array.isArray(oldData.depositors)) {
+        oldData.depositors.forEach(d => {
+          const nameParts = (d.name || '').trim().split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+          
+          newData.depositors[String(d.id)] = {
+            id: d.id,
+            first_name: firstName,
+            last_name: lastName,
+            phone: d.phone || '',
+            id_number: d.idNumber || '',
+            address: d.address || '',
+            email: d.email || '',
+            notes: d.notes || '',
+            created_at: new Date().toISOString()
+          };
+        });
+      }
+      
+      // המרת הפקדות
+      if (oldData.deposits && Array.isArray(oldData.deposits)) {
+        oldData.deposits.forEach(d => {
+          let dueDate = '';
+          if (d.depositDate && d.depositPeriod) {
+            const startDate = new Date(d.depositDate);
+            startDate.setMonth(startDate.getMonth() + d.depositPeriod);
+            dueDate = startDate.toISOString().split('T')[0];
+          }
+          
+          newData.deposits[String(d.id)] = {
+            id: d.id,
+            depositor_id: d.depositorId,
+            amount: d.amount || 0,
+            deposit_date: d.depositDate || '',
+            period_type: d.depositPeriod ? 'fixed' : 'flexible',
+            due_date: dueDate,
+            is_recurring: d.isRecurring ? 1 : 0,
+            recurring_day: new Date(d.depositDate || Date.now()).getDate(),
+            notes: d.notes || '',
+            status: d.status || 'active',
+            payment_method: '',
+            payment_details: '',
+            withdrawal_date: '',
+            created_at: new Date().toISOString()
+          };
+        });
+      }
+      
+      // המרת תרומות
+      if (oldData.donations && Array.isArray(oldData.donations)) {
+        const donorMap = new Map();
+        let donorId = 1;
+        
+        oldData.donations.forEach(d => {
+          const donorKey = `${d.donorName || ''}_${d.donorLastName || ''}_${d.phone || ''}`;
+          
+          if (!donorMap.has(donorKey)) {
+            donorMap.set(donorKey, {
+              id: donorId,
+              first_name: d.donorName || '',
+              last_name: d.donorLastName || '',
+              phone: d.phone || '',
+              address: d.address || '',
+              notes: '',
+              created_at: new Date().toISOString()
+            });
+            donorId++;
+          }
+        });
+        
+        donorMap.forEach((donor, key) => {
+          newData.donors[String(donor.id)] = donor;
+        });
+        
+        oldData.donations.forEach((d, index) => {
+          const donorKey = `${d.donorName || ''}_${d.donorLastName || ''}_${d.phone || ''}`;
+          const donor = donorMap.get(donorKey);
+          
+          let paymentMethod = '';
+          if (d.method === 'cash') paymentMethod = 'cash';
+          else if (d.method === 'credit') paymentMethod = 'credit';
+          else if (d.method === 'transfer') paymentMethod = 'transfer';
+          else if (d.method === 'check') paymentMethod = 'check';
+          
+          newData.donations[String(d.id || index + 1)] = {
+            id: d.id || index + 1,
+            donor_id: donor ? donor.id : 1,
+            amount: d.amount || 0,
+            donation_date: d.donationDate || new Date().toISOString().split('T')[0],
+            payment_method: paymentMethod,
+            payment_details: d.paymentDetails || '',
+            notes: d.notes || '',
+            created_at: new Date().toISOString()
+          };
+        });
+      }
+      
+      // המרת רשימה שחורה
+      if (oldData.blacklist && Array.isArray(oldData.blacklist)) {
+        oldData.blacklist.forEach(b => {
+          if (b.isActive) {
+            newData.blacklist[String(b.id)] = {
+              id: b.id,
+              entity_type: b.type || 'borrower',
+              entity_id: b.personId,
+              reason: b.reason || '',
+              added_at: b.blockedDate || new Date().toISOString()
+            };
+          }
+        });
+      }
+      
+      // המרת הוצאות
+      if (oldData.expenses && Array.isArray(oldData.expenses)) {
+        oldData.expenses.forEach(e => {
+          newData.expenses[String(e.id)] = {
+            id: e.id,
+            description: e.description || '',
+            amount: e.amount || 0,
+            expense_date: e.date || e.expenseDate || new Date().toISOString().split('T')[0],
+            category: e.category || 'other',
+            paid_by: e.paidBy || 'gemach',
+            borrower_id: e.borrowerId || null,
+            payment_method: e.paymentMethod || '',
+            payment_details: e.paymentDetails || '',
+            notes: e.notes || '',
+            created_at: new Date().toISOString()
+          };
+        });
+      }
+      
+      return newData;
+    }
+  </script>
+</body>
+</html>

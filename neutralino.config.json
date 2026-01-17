@@ -1,0 +1,43 @@
+{
+  "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
+  "applicationId": "com.gemach.manager",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "documentRoot": "/dist/",
+  "url": "/index.html",
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "tokenSecurity": "none",
+  "nativeAllowList": ["app.*", "os.*", "filesystem.*", "storage.*"],
+  "logging": {
+    "enabled": false,
+    "writeToLogFile": false
+  },
+  "modes": {
+    "window": {
+      "title": "מערכת ניהול גמ\"ח",
+      "width": 1200,
+      "height": 800,
+      "minWidth": 800,
+      "minHeight": 600,
+      "fullScreen": false,
+      "alwaysOnTop": false,
+      "icon": "/dist/favicon.ico",
+      "enableInspector": true,
+      "borderless": false,
+      "maximize": false,
+      "hidden": false,
+      "resizable": true,
+      "exitProcessOnClose": true,
+      "center": true,
+      "useSavedState": true
+    }
+  },
+  "cli": {
+    "binaryName": "gemach-manager",
+    "resourcesPath": "/dist/",
+    "extensionsPath": "/",
+    "binaryVersion": "6.4.0",
+    "clientVersion": "5.0.0"
+  }
+}
