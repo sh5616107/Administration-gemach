@@ -202,6 +202,10 @@ interface LoanDocumentData {
   guarantor2Name?: string
   dateFormat?: string
   customText?: string
+  repayments?: Array<{
+    amount: number
+    payment_date: string
+  }>
 }
 
 function formatCurrency(amount: number): string {
@@ -249,6 +253,40 @@ export function generateLoanDocument(data: LoanDocumentData) {
   const isValidCustomText = data.customText && !data.customText.includes('{שם_') && !data.customText.includes('{סכום}')
   const commitmentText = isValidCustomText ? data.customText : 'מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע.'
 
+  // חישוב פירעונות
+  const totalRepaid = data.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
+  const remaining = data.amount - totalRepaid
+  
+  // HTML לפירעונות
+  const repaymentsHtml = data.repayments && data.repayments.length > 0 ? `
+    <div style="margin-top: 30px; padding: 15px; background: #e8f5e9; border-radius: 8px;">
+      <h3 style="margin: 0 0 15px 0; color: #2e7d32;">פירעונות שבוצעו:</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #4caf50;">
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">תאריך פירעון</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">סכום</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.repayments.map(r => `
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(r.amount)}</td>
+            </tr>
+          `).join('')}
+          <tr style="background: #f1f8e9; font-weight: bold;">
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נפרע</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(totalRepaid)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 15px; font-size: 18px; font-weight: bold; color: ${remaining > 0 ? '#d32f2f' : '#2e7d32'};">
+        יתרת חוב: ${formatCurrency(remaining)}
+      </p>
+    </div>
+  ` : ''
+
   const htmlContent = `
     <div style="text-align: center; padding: 20px;">
       ${logoHtml}
@@ -261,7 +299,7 @@ export function generateLoanDocument(data: LoanDocumentData) {
         <p>אני הח"מ <strong>${data.borrowerName}</strong></p>
         <p>${commitmentText}</p>
         <p style="font-size: 20px; margin: 20px 0;">
-          סכום של: <strong>${formatCurrency(data.amount)}</strong>
+          סכום הלוואה מקורי: <strong>${formatCurrency(data.amount)}</strong>
         </p>
         <p>בתאריך: <strong>${loanDateDisplay}</strong>${loanDateHebrew ? ` <span style="color: #666;">(${loanDateHebrew})</span>` : ''}</p>
         <p style="margin-top: 20px;">
@@ -271,6 +309,8 @@ export function generateLoanDocument(data: LoanDocumentData) {
           }
         </p>
       </div>
+      
+      ${repaymentsHtml}
       
       <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
       
@@ -975,6 +1015,10 @@ export function createLoanEmailData(params: {
   guarantor1Name?: string
   guarantor2Name?: string
   dateFormat?: string
+  repayments?: Array<{
+    amount: number
+    payment_date: string
+  }>
 }): EmailData {
   const formattedAmount = formatCurrency(params.amount)
   const formattedDate = new Date(params.loanDate).toLocaleDateString('he-IL')
@@ -997,6 +1041,40 @@ export function createLoanEmailData(params: {
     </div>
   ` : ''
 
+  // חישוב פירעונות
+  const totalRepaid = params.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
+  const remaining = params.amount - totalRepaid
+  
+  // HTML לפירעונות
+  const repaymentsHtml = params.repayments && params.repayments.length > 0 ? `
+    <div style="margin-top: 30px; padding: 15px; background: #e8f5e9; border-radius: 8px;">
+      <h3 style="margin: 0 0 15px 0; color: #2e7d32;">פירעונות שבוצעו:</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #4caf50;">
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">תאריך פירעון</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">סכום</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${params.repayments.map(r => `
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(r.amount)}</td>
+            </tr>
+          `).join('')}
+          <tr style="background: #f1f8e9; font-weight: bold;">
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נפרע</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(totalRepaid)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 15px; font-size: 18px; font-weight: bold; color: ${remaining > 0 ? '#d32f2f' : '#2e7d32'};">
+        יתרת חוב: ${formatCurrency(remaining)}
+      </p>
+    </div>
+  ` : ''
+
   const htmlContent = `
     <div style="text-align: center; padding: 20px;">
       ${logoHtml}
@@ -1006,7 +1084,7 @@ export function createLoanEmailData(params: {
       <div style="text-align: right; font-size: 16px; line-height: 2;">
         <p>אני הח"מ <strong>${params.borrowerName}</strong></p>
         <p>מאשר בזה כי לוויתי מגמ"ח "<strong>${params.gemachName}</strong>"</p>
-        <p style="font-size: 20px; margin: 20px 0;">סכום של: <strong>${formattedAmount}</strong></p>
+        <p style="font-size: 20px; margin: 20px 0;">סכום הלוואה מקורי: <strong>${formattedAmount}</strong></p>
         <p>בתאריך: <strong>${formattedDate}</strong>${loanDateHebrew ? ` <span style="color: #666;">(${loanDateHebrew})</span>` : ''}</p>
         <p style="margin-top: 20px;">
           ${params.loanType === 'fixed' && dueDateDisplay 
@@ -1015,6 +1093,7 @@ export function createLoanEmailData(params: {
           }
         </p>
       </div>
+      ${repaymentsHtml}
       ${guarantorsHtml}
     </div>
   `

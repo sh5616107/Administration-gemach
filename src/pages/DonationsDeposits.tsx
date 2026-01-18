@@ -27,7 +27,7 @@ interface Depositor {
 }
 
 export default function DonationsDeposits() {
-  const [tabValue, setTabValue] = useState(0)
+  const [tabValue, setTabValue] = useState(1) // ברירת מחדל: מפקידים
   const [selectedDepositor, setSelectedDepositor] = useState<Depositor | null>(null)
 
   const handleSelectDepositor = (depositor: Depositor) => {

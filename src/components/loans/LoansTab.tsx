@@ -610,11 +610,14 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
     }
   }
 
-  const handleGenerateDocument = () => {
+  const handleGenerateDocument = async () => {
     if (!selectedLoan || !selectedBorrower) return
     
     const guarantor1 = guarantors.find(g => g.id === formData.guarantor1_id)
     const guarantor2 = guarantors.find(g => g.id === formData.guarantor2_id)
+    
+    // טעינת פירעונות להלוואה
+    const loanRepayments = selectedLoan.id ? await repaymentsService.getByLoan(selectedLoan.id) : []
     
     generateLoanDocument({
       gemachName: settings.gemach_name,
@@ -628,15 +631,22 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
       customText: settings.loan_document_text,
+      repayments: loanRepayments.map(r => ({
+        amount: r.amount,
+        payment_date: r.payment_date
+      })),
     })
   }
 
   // הפקת שטר ישירות מהטבלה
-  const handleGenerateDocumentForLoan = (loan: Loan) => {
+  const handleGenerateDocumentForLoan = async (loan: Loan) => {
     if (!selectedBorrower) return
     
     const guarantor1 = guarantors.find(g => g.id === loan.guarantor1_id)
     const guarantor2 = guarantors.find(g => g.id === loan.guarantor2_id)
+    
+    // טעינת פירעונות להלוואה
+    const loanRepayments = loan.id ? await repaymentsService.getByLoan(loan.id) : []
     
     generateLoanDocument({
       gemachName: settings.gemach_name,
@@ -650,6 +660,10 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
       customText: settings.loan_document_text,
+      repayments: loanRepayments.map(r => ({
+        amount: r.amount,
+        payment_date: r.payment_date
+      })),
     })
   }
 
@@ -664,6 +678,9 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
     const guarantor1 = guarantors.find(g => g.id === formData.guarantor1_id)
     const guarantor2 = guarantors.find(g => g.id === formData.guarantor2_id)
     
+    // טעינת פירעונות להלוואה
+    const loanRepayments = selectedLoan.id ? await repaymentsService.getByLoan(selectedLoan.id) : []
+    
     const emailData = createLoanEmailData({
       gemachName: settings.gemach_name || 'גמ"ח',
       borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
@@ -676,6 +693,10 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
+      repayments: loanRepayments.map(r => ({
+        amount: r.amount,
+        payment_date: r.payment_date
+      })),
     })
     
     const provider = (settings.email_provider || 'gmail') as EmailProvider
@@ -699,6 +720,9 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
     const guarantor1 = guarantors.find(g => g.id === loan.guarantor1_id)
     const guarantor2 = guarantors.find(g => g.id === loan.guarantor2_id)
     
+    // טעינת פירעונות להלוואה
+    const loanRepayments = loan.id ? await repaymentsService.getByLoan(loan.id) : []
+    
     const emailData = createLoanEmailData({
       gemachName: settings.gemach_name || 'גמ"ח',
       borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
@@ -711,6 +735,10 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
+      repayments: loanRepayments.map(r => ({
+        amount: r.amount,
+        payment_date: r.payment_date
+      })),
     })
     
     const provider = (settings.email_provider || 'gmail') as EmailProvider
