@@ -35,8 +35,9 @@ import {
   Delete as DeleteIcon,
   Description as DocIcon,
   Email as EmailIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material'
-import { db } from '../../services/database'
+import { db, depositWithdrawalsService, type DepositWithdrawal } from '../../services/database'
 import { generateDepositDocument, openEmailWithDocument, createDepositEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
@@ -102,6 +103,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
   const [withdrawingDeposit, setWithdrawingDeposit] = useState<Deposit | null>(null)
   const [withdrawPaymentMethod, setWithdrawPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' })
   const [withdrawAmount, setWithdrawAmount] = useState(0)
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
+  const [selectedDepositForHistory, setSelectedDepositForHistory] = useState<Deposit | null>(null)
+  const [withdrawalHistory, setWithdrawalHistory] = useState<DepositWithdrawal[]>([])
 
   useEffect(() => {
     loadDepositors()
@@ -132,7 +136,20 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
       const data = await db.query(`
         SELECT * FROM deposits WHERE depositor_id = ? ORDER BY deposit_date DESC
       `, [selectedDepositor.id]) as Deposit[]
-      setDeposits(data)
+      
+      // חישוב סכום נמשך מההיסטוריה לכל הפקדה
+      const depositsWithWithdrawals = await Promise.all(
+        data.map(async (deposit) => {
+          const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+          const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+          return {
+            ...deposit,
+            withdrawn_amount: totalWithdrawn
+          }
+        })
+      )
+      
+      setDeposits(depositsWithWithdrawals)
     } catch (error) {
       console.error('Error loading deposits:', error)
     }
@@ -179,8 +196,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
   }
 
   const handleWithdraw = async (deposit: Deposit) => {
-    // חישוב היתרה הזמינה למשיכה
-    const alreadyWithdrawn = deposit.withdrawn_amount || 0
+    // חישוב היתרה הזמינה למשיכה מההיסטוריה
+    const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+    const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
     const availableToWithdraw = deposit.amount - alreadyWithdrawn
     
     if (availableToWithdraw <= 0) {
@@ -197,8 +215,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
   const handleConfirmWithdraw = async () => {
     if (!withdrawingDeposit) return
 
-    // ולידציה
-    const alreadyWithdrawn = withdrawingDeposit.withdrawn_amount || 0
+    // ולידציה - חישוב מחדש מההיסטוריה
+    const withdrawals = await depositWithdrawalsService.getByDeposit(withdrawingDeposit.id)
+    const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
     const availableToWithdraw = withdrawingDeposit.amount - alreadyWithdrawn
     
     if (withdrawAmount <= 0) {
@@ -213,12 +232,24 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
 
     try {
       const withdrawalDate = new Date().toISOString().split('T')[0]
+      
+      // יצירת רשומת משיכה חדשה
+      await depositWithdrawalsService.create({
+        deposit_id: withdrawingDeposit.id,
+        amount: withdrawAmount,
+        withdrawal_date: withdrawalDate,
+        payment_method: withdrawPaymentMethod.payment_method,
+        payment_details: JSON.stringify(withdrawPaymentMethod),
+        notes: ''
+      })
+      
+      // עדכון סטטוס ההפקדה
       const totalWithdrawn = alreadyWithdrawn + withdrawAmount
       const newStatus = totalWithdrawn >= withdrawingDeposit.amount ? 'withdrawn' : 'active'
       
       await db.run(
-        'UPDATE deposits SET status = ?, withdrawal_date = ?, withdrawn_amount = ?, withdrawal_payment_method = ?, withdrawal_payment_details = ? WHERE id = ?', 
-        [newStatus, withdrawalDate, totalWithdrawn, withdrawPaymentMethod.payment_method, JSON.stringify(withdrawPaymentMethod), withdrawingDeposit.id]
+        'UPDATE deposits SET status = ? WHERE id = ?', 
+        [newStatus, withdrawingDeposit.id]
       )
       
       const message = newStatus === 'withdrawn' 
@@ -305,8 +336,12 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
     }
   }
 
-  const handleGenerateDocument = (deposit: Deposit) => {
+  const handleGenerateDocument = async (deposit: Deposit) => {
     if (!selectedDepositor) return
+    
+    // טעינת היסטוריית משיכות
+    const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+    
     generateDepositDocument({
       gemachName: settings.gemach_name || 'גמ"ח שלי',
       gemachLogo: settings.gemach_logo,
@@ -317,6 +352,10 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
       dueDate: deposit.due_date,
       dateFormat: settings.date_format,
       customText: settings.deposit_document_text,
+      withdrawals: withdrawals.map(w => ({
+        amount: w.amount,
+        withdrawal_date: w.withdrawal_date
+      }))
     })
   }
 
@@ -328,6 +367,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
       return
     }
     
+    // טעינת היסטוריית משיכות
+    const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+    
     const emailData = createDepositEmailData({
       gemachName: settings.gemach_name || 'גמ"ח',
       depositorName: `${selectedDepositor.first_name} ${selectedDepositor.last_name}`,
@@ -338,6 +380,10 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
       dueDate: deposit.due_date,
       gemachLogo: settings.gemach_logo,
       dateFormat: settings.date_format,
+      withdrawals: withdrawals.map(w => ({
+        amount: w.amount,
+        withdrawal_date: w.withdrawal_date
+      }))
     })
     
     const provider = (settings.email_provider || 'gmail') as EmailProvider
@@ -347,6 +393,13 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
       message: result.message, 
       severity: result.success ? 'success' : 'error' 
     })
+  }
+
+  const handleShowHistory = async (deposit: Deposit) => {
+    const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+    setWithdrawalHistory(withdrawals)
+    setSelectedDepositForHistory(deposit)
+    setHistoryDialogOpen(true)
   }
 
   const formatCurrency = (amount: number) => {
@@ -580,6 +633,16 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
                       </TableCell>
                       <TableCell>{deposit.notes || '-'}</TableCell>
                       <TableCell align="center">
+                        {withdrawn > 0 && (
+                          <IconButton
+                            size="small"
+                            color="warning"
+                            onClick={() => handleShowHistory(deposit)}
+                            title="היסטוריית משיכות"
+                          >
+                            <HistoryIcon />
+                          </IconButton>
+                        )}
                         <IconButton
                           size="small"
                           color="primary"
@@ -787,6 +850,84 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
           <Button variant="contained" color="warning" onClick={handleConfirmWithdraw}>
             בצע משיכה
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Withdrawal History Dialog */}
+      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          היסטוריית משיכות - הפקדה #{selectedDepositForHistory?.id}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            {selectedDepositForHistory && (
+              <>
+                <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                  <Typography variant="body1">
+                    <strong>סכום הפקדה מקורי:</strong> {formatCurrency(selectedDepositForHistory.amount)}
+                  </Typography>
+                  <Typography variant="body1" color="warning.main">
+                    <strong>סה"כ נמשך:</strong> {formatCurrency(selectedDepositForHistory.withdrawn_amount || 0)}
+                  </Typography>
+                  <Typography variant="body1" color="success.main">
+                    <strong>יתרה נוכחית:</strong> {formatCurrency(selectedDepositForHistory.amount - (selectedDepositForHistory.withdrawn_amount || 0))}
+                  </Typography>
+                </Box>
+
+                {withdrawalHistory.length === 0 ? (
+                  <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+                    אין משיכות להפקדה זו
+                  </Typography>
+                ) : (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'warning.light' }}>
+                          <TableCell align="center"><strong>#</strong></TableCell>
+                          <TableCell align="center"><strong>תאריך משיכה</strong></TableCell>
+                          <TableCell align="center"><strong>סכום</strong></TableCell>
+                          <TableCell align="center"><strong>אמצעי תשלום</strong></TableCell>
+                          <TableCell><strong>הערות</strong></TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {withdrawalHistory.map((withdrawal, index) => (
+                          <TableRow key={withdrawal.id} hover>
+                            <TableCell align="center">{index + 1}</TableCell>
+                            <TableCell align="center">
+                              {formatDisplayDate(withdrawal.withdrawal_date, settings.date_format)}
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+                              {formatCurrency(withdrawal.amount)}
+                            </TableCell>
+                            <TableCell align="center">
+                              {withdrawal.payment_method === 'cash' && '💵 מזומן'}
+                              {withdrawal.payment_method === 'credit' && '💳 אשראי'}
+                              {withdrawal.payment_method === 'transfer' && '🏦 העברה'}
+                              {withdrawal.payment_method === 'check' && '📝 צ׳ק'}
+                              {withdrawal.payment_method === 'other' && '📋 אחר'}
+                              {!withdrawal.payment_method && '-'}
+                            </TableCell>
+                            <TableCell>{withdrawal.notes || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow sx={{ bgcolor: 'grey.100' }}>
+                          <TableCell colSpan={2} align="center"><strong>סה"כ</strong></TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'warning.main' }}>
+                            {formatCurrency(withdrawalHistory.reduce((sum, w) => sum + w.amount, 0))}
+                          </TableCell>
+                          <TableCell colSpan={2}></TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryDialogOpen(false)}>סגור</Button>
         </DialogActions>
       </Dialog>
         </>

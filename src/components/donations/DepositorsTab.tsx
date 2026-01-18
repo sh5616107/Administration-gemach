@@ -32,7 +32,7 @@ import {
   Description as DocIcon,
   Email as EmailIcon,
 } from '@mui/icons-material'
-import { db } from '../../services/database'
+import { db, depositWithdrawalsService } from '../../services/database'
 import { generateDepositorReport, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 
@@ -191,17 +191,34 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
   const handleGenerateReport = async (depositor: Depositor) => {
     try {
       const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [depositor.id]) as any[]
-      const activeDeposits = deposits.filter(d => d.status === 'active')
-      const withdrawnDeposits = deposits.filter(d => d.status === 'withdrawn')
+      
+      // טעינת היסטוריית משיכות לכל הפקדה
+      const depositsWithWithdrawals = await Promise.all(
+        deposits.map(async (deposit) => {
+          const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+          const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+          return {
+            ...deposit,
+            withdrawals,
+            withdrawn_amount: totalWithdrawn,
+            remaining: deposit.amount - totalWithdrawn
+          }
+        })
+      )
+      
+      const activeDeposits = depositsWithWithdrawals.filter(d => d.remaining > 0)
+      const totalActive = activeDeposits.reduce((sum, d) => sum + d.remaining, 0)
+      const totalWithdrawn = depositsWithWithdrawals.reduce((sum, d) => sum + (d.withdrawn_amount || 0), 0)
       
       generateDepositorReport({
         gemachName: settings.gemach_name || 'גמ"ח שלי',
+        gemachLogo: settings.gemach_logo,
         depositorName: `${depositor.first_name} ${depositor.last_name}`,
         depositorPhone: depositor.phone,
         depositorIdNumber: depositor.id_number,
-        deposits: deposits.sort((a, b) => new Date(b.deposit_date).getTime() - new Date(a.deposit_date).getTime()),
-        totalActive: activeDeposits.reduce((sum, d) => sum + (d.amount || 0), 0),
-        totalWithdrawn: withdrawnDeposits.reduce((sum, d) => sum + (d.amount || 0), 0),
+        deposits: depositsWithWithdrawals.sort((a, b) => new Date(b.deposit_date).getTime() - new Date(a.deposit_date).getTime()),
+        totalActive,
+        totalWithdrawn,
         dateFormat: settings.date_format,
       })
     } catch (error) {

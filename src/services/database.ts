@@ -11,6 +11,7 @@ interface DataStore {
   donations: Record<string, any>
   depositors: Record<string, any>
   deposits: Record<string, any>
+  depositWithdrawals: Record<string, any>
   blacklist: Record<string, any>
   expenses: Record<string, any>
   guarantorLoans: Record<string, any>
@@ -29,6 +30,7 @@ const defaultData: DataStore = {
   donations: {},
   depositors: {},
   deposits: {},
+  depositWithdrawals: {},
   blacklist: {},
   expenses: {},
   guarantorLoans: {},
@@ -174,6 +176,7 @@ export const db = {
     if (sql.includes('DELETE FROM waitlist') && !sql.includes('WHERE')) { clearStore('waitlist'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM expenses') && !sql.includes('WHERE')) { clearStore('expenses'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM guarantorLoans') && !sql.includes('WHERE')) { clearStore('guarantorLoans'); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM depositWithdrawals') && !sql.includes('WHERE')) { clearStore('depositWithdrawals'); return { lastInsertRowid: 0, changes: 1 } }
 
     if (sql.includes('INSERT INTO blacklist') && params) { const id = generateId('blacklist'); setItem('blacklist', String(id), { id, entity_type: params[0], entity_id: params[1], reason: params[2], added_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (sql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
@@ -735,6 +738,53 @@ export const waitlistService = {
       status: 'approved',
       notes: (entry.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] אושר - הלוואה #${loanId}`
     })
+  }
+}
+
+// Deposit Withdrawals Service - משיכות הפקדות
+export interface DepositWithdrawal {
+  id: number
+  deposit_id: number
+  amount: number
+  withdrawal_date: string
+  payment_method?: string
+  payment_details?: string
+  notes?: string
+  created_at: string
+}
+
+export const depositWithdrawalsService = {
+  async getAll(): Promise<DepositWithdrawal[]> {
+    return getAllItems<DepositWithdrawal>('depositWithdrawals').sort((a, b) => 
+      new Date(b.withdrawal_date).getTime() - new Date(a.withdrawal_date).getTime()
+    )
+  },
+  
+  async getById(id: number): Promise<DepositWithdrawal | null> {
+    return getItem<DepositWithdrawal>('depositWithdrawals', String(id))
+  },
+  
+  async getByDeposit(depositId: number): Promise<DepositWithdrawal[]> {
+    return (await this.getAll()).filter(w => w.deposit_id === depositId)
+  },
+  
+  async create(withdrawal: Omit<DepositWithdrawal, 'id' | 'created_at'>): Promise<{ id: number }> {
+    const id = generateId('depositWithdrawals')
+    setItem('depositWithdrawals', String(id), {
+      ...withdrawal,
+      id,
+      created_at: new Date().toISOString()
+    })
+    return { id }
+  },
+  
+  async delete(id: number): Promise<void> {
+    removeItem('depositWithdrawals', String(id))
+  },
+  
+  async getTotalWithdrawn(depositId: number): Promise<number> {
+    const withdrawals = await this.getByDeposit(depositId)
+    return withdrawals.reduce((sum, w) => sum + w.amount, 0)
   }
 }
 

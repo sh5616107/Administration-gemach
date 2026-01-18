@@ -123,6 +123,7 @@ export default function Dashboard() {
       await db.run('DELETE FROM guarantors')
       await db.run('DELETE FROM donations')
       await db.run('DELETE FROM donors')
+      await db.run('DELETE FROM depositWithdrawals')
       await db.run('DELETE FROM deposits')
       await db.run('DELETE FROM depositors')
       await db.run('DELETE FROM blacklist')

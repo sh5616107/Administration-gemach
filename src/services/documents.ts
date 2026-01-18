@@ -403,6 +403,10 @@ export function generateDepositDocument(data: {
   dueDate?: string
   dateFormat?: string
   customText?: string
+  withdrawals?: Array<{
+    amount: number
+    withdrawal_date: string
+  }>
 }) {
   const today = new Date().toLocaleDateString('he-IL')
   const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
@@ -420,6 +424,40 @@ export function generateDepositDocument(data: {
   // Custom text - only use if provided and not containing old template variables
   const isValidCustomText = data.customText && !data.customText.includes('{שם_') && !data.customText.includes('{סכום}')
   const commitmentText = isValidCustomText ? data.customText : ''
+  
+  // חישוב משיכות
+  const totalWithdrawn = data.withdrawals?.reduce((sum, w) => sum + w.amount, 0) || 0
+  const remaining = data.amount - totalWithdrawn
+  
+  // HTML למשיכות
+  const withdrawalsHtml = data.withdrawals && data.withdrawals.length > 0 ? `
+    <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 8px;">
+      <h3 style="margin: 0 0 15px 0; color: #856404;">משיכות שבוצעו:</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #ffc107;">
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">תאריך משיכה</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">סכום</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.withdrawals.map(w => `
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(w.withdrawal_date).toLocaleDateString('he-IL')}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(w.amount)}</td>
+            </tr>
+          `).join('')}
+          <tr style="background: #f8f9fa; font-weight: bold;">
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נמשך</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(totalWithdrawn)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 15px; font-size: 18px; font-weight: bold; color: ${remaining > 0 ? '#28a745' : '#6c757d'};">
+        יתרה נוכחית: ${formatCurrency(remaining)}
+      </p>
+    </div>
+  ` : ''
 
   const htmlContent = `
     <div style="text-align: center; padding: 20px;">
@@ -433,7 +471,7 @@ export function generateDepositDocument(data: {
         <p>אני הח"מ מנהל גמ"ח "<strong>${data.gemachName}</strong>"</p>
         <p>מאשר בזה כי קיבלתי הפקדה מאת: <strong>${data.depositorName}</strong></p>
         <p style="font-size: 20px; margin: 20px 0;">
-          סכום של: <strong>${formatCurrency(data.amount)}</strong>
+          סכום הפקדה מקורי: <strong>${formatCurrency(data.amount)}</strong>
         </p>
         <p>בתאריך: <strong>${depositDateDisplay}</strong>${depositDateHebrew ? ` <span style="color: #666;">(${depositDateHebrew})</span>` : ''}</p>
         <p style="margin-top: 20px;">
@@ -442,6 +480,8 @@ export function generateDepositDocument(data: {
         </p>
         ${commitmentText ? `<p style="margin-top: 20px;">${commitmentText}</p>` : ''}
       </div>
+      
+      ${withdrawalsHtml}
       
       <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
       
@@ -757,6 +797,12 @@ export function generateDepositorReport(data: {
     status: string
     withdrawal_date?: string
     is_recurring: number
+    withdrawals?: Array<{
+      amount: number
+      withdrawal_date: string
+    }>
+    withdrawn_amount?: number
+    remaining?: number
   }>
   totalActive: number
   totalWithdrawn: number
@@ -769,16 +815,49 @@ export function generateDepositorReport(data: {
     ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
 
-  const depositsHtml = data.deposits.map(dep => `
-    <tr style="background: ${dep.status === 'withdrawn' ? '#f5f5f5' : 'white'};">
+  const depositsHtml = data.deposits.map(dep => {
+    const withdrawn = dep.withdrawn_amount || 0
+    const remaining = dep.remaining !== undefined ? dep.remaining : (dep.amount - withdrawn)
+    const hasWithdrawals = dep.withdrawals && dep.withdrawals.length > 0
+    const lastWithdrawalDate = hasWithdrawals && dep.withdrawals!.length > 0 
+      ? new Date(dep.withdrawals![0].withdrawal_date).toLocaleDateString('he-IL')
+      : '-'
+    
+    return `
+    <tr style="background: ${remaining === 0 ? '#f5f5f5' : 'white'};">
       <td style="padding: 8px; border: 1px solid #ddd;">${dep.id}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(dep.amount)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${withdrawn > 0 ? `<span style="color: #f57c00;">${formatCurrency(withdrawn)}</span>` : '-'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${remaining > 0 ? `<span style="color: #2e7d32; font-weight: bold;">${formatCurrency(remaining)}</span>` : `<span style="color: #666;">-</span>`}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${new Date(dep.deposit_date).toLocaleDateString('he-IL')}${showHebrew ? `<br/><small style="color:#666;">${toHebrewDate(dep.deposit_date)}</small>` : ''}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${dep.period_type === 'flexible' ? 'גמישה' : 'קבועה'}${dep.is_recurring ? ' 🔄' : ''}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.status === 'active' ? '<span style="color: green; font-weight: bold;">פעילה</span>' : '<span style="color: gray;">נמשכה</span>'}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.withdrawal_date ? new Date(dep.withdrawal_date).toLocaleDateString('he-IL') : '-'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${lastWithdrawalDate}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${remaining > 0 ? '<span style="color: green; font-weight: bold;">פעילה</span>' : '<span style="color: gray;">נמשכה</span>'}</td>
     </tr>
-  `).join('')
+    ${hasWithdrawals ? `
+    <tr style="background: #fff3e0;">
+      <td colspan="8" style="padding: 8px; border: 1px solid #ddd;">
+        <strong>פירוט משיכות:</strong>
+        <table style="width: 100%; margin-top: 5px; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #ffc107;">
+              <th style="padding: 4px; border: 1px solid #ddd; font-size: 12px;">תאריך</th>
+              <th style="padding: 4px; border: 1px solid #ddd; font-size: 12px;">סכום</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dep.withdrawals!.map(w => `
+              <tr>
+                <td style="padding: 4px; border: 1px solid #ddd; font-size: 12px; text-align: center;">${new Date(w.withdrawal_date).toLocaleDateString('he-IL')}</td>
+                <td style="padding: 4px; border: 1px solid #ddd; font-size: 12px; text-align: center;">${formatCurrency(w.amount)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+    ` : ''}
+  `}).join('')
 
   const htmlContent = `
     <div style="padding: 20px;">
@@ -800,10 +879,10 @@ export function generateDepositorReport(data: {
       <div style="display: flex; gap: 20px; margin: 20px 0; text-align: center;">
         <div style="flex: 1; background: #e8f5e9; padding: 15px; border-radius: 8px;">
           <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">${formatCurrency(data.totalActive)}</div>
-          <div style="color: #666;">סה"כ הפקדות פעילות</div>
+          <div style="color: #666;">יתרה פעילה</div>
         </div>
-        <div style="flex: 1; background: #f5f5f5; padding: 15px; border-radius: 8px;">
-          <div style="font-size: 24px; font-weight: bold; color: #666;">${formatCurrency(data.totalWithdrawn)}</div>
+        <div style="flex: 1; background: #fff3e0; padding: 15px; border-radius: 8px;">
+          <div style="font-size: 24px; font-weight: bold; color: #f57c00;">${formatCurrency(data.totalWithdrawn)}</div>
           <div style="color: #666;">סה"כ נמשך</div>
         </div>
       </div>
@@ -814,15 +893,17 @@ export function generateDepositorReport(data: {
         <thead>
           <tr style="background: #e3f2fd;">
             <th style="padding: 10px; border: 1px solid #ddd;">מס'</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">סכום מקורי</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">נמשך</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">יתרה</th>
             <th style="padding: 10px; border: 1px solid #ddd;">תאריך הפקדה</th>
             <th style="padding: 10px; border: 1px solid #ddd;">סוג</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">משיכה אחרונה</th>
             <th style="padding: 10px; border: 1px solid #ddd;">סטטוס</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">תאריך משיכה</th>
           </tr>
         </thead>
         <tbody>
-          ${depositsHtml || '<tr><td colspan="6" style="padding: 20px; text-align: center;">אין הפקדות</td></tr>'}
+          ${depositsHtml || '<tr><td colspan="8" style="padding: 20px; text-align: center;">אין הפקדות</td></tr>'}
         </tbody>
       </table>
       
@@ -969,6 +1050,10 @@ export function createDepositEmailData(params: {
   dueDate?: string
   gemachLogo?: string
   dateFormat?: string
+  withdrawals?: Array<{
+    amount: number
+    withdrawal_date: string
+  }>
 }): EmailData {
   const formattedAmount = formatCurrency(params.amount)
   const formattedDate = new Date(params.depositDate).toLocaleDateString('he-IL')
@@ -981,6 +1066,40 @@ export function createDepositEmailData(params: {
   const logoHtml = params.gemachLogo 
     ? `<img src="${params.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
+  
+  // חישוב משיכות
+  const totalWithdrawn = params.withdrawals?.reduce((sum, w) => sum + w.amount, 0) || 0
+  const remaining = params.amount - totalWithdrawn
+  
+  // HTML למשיכות
+  const withdrawalsHtml = params.withdrawals && params.withdrawals.length > 0 ? `
+    <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 8px;">
+      <h3 style="margin: 0 0 15px 0; color: #856404;">משיכות שבוצעו:</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #ffc107;">
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">תאריך משיכה</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">סכום</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${params.withdrawals.map(w => `
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(w.withdrawal_date).toLocaleDateString('he-IL')}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(w.amount)}</td>
+            </tr>
+          `).join('')}
+          <tr style="background: #f8f9fa; font-weight: bold;">
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נמשך</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(totalWithdrawn)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 15px; font-size: 18px; font-weight: bold; color: ${remaining > 0 ? '#28a745' : '#6c757d'};">
+        יתרה נוכחית: ${formatCurrency(remaining)}
+      </p>
+    </div>
+  ` : ''
 
   const htmlContent = `
     <div style="text-align: center; padding: 20px;">
@@ -991,13 +1110,14 @@ export function createDepositEmailData(params: {
       <div style="text-align: right; font-size: 16px; line-height: 2;">
         <p>אני הח"מ מנהל גמ"ח "<strong>${params.gemachName}</strong>"</p>
         <p>מאשר בזה כי קיבלתי הפקדה מאת: <strong>${params.depositorName}</strong></p>
-        <p style="font-size: 20px; margin: 20px 0;">סכום של: <strong>${formattedAmount}</strong></p>
+        <p style="font-size: 20px; margin: 20px 0;">סכום הפקדה מקורי: <strong>${formattedAmount}</strong></p>
         <p>בתאריך: <strong>${formattedDate}</strong>${depositDateHebrew ? ` <span style="color: #666;">(${depositDateHebrew})</span>` : ''}</p>
         <p style="margin-top: 20px;">
           סוג הפקדה: <strong>${params.periodType === 'fixed' ? 'קבועה' : 'גמישה'}</strong>
           ${dueDateDisplay ? `<br/>תאריך סיום: <strong>${dueDateDisplay}</strong>${dueDateHebrew ? ` <span style="color: #666;">(${dueDateHebrew})</span>` : ''}` : ''}
         </p>
       </div>
+      ${withdrawalsHtml}
     </div>
   `
   

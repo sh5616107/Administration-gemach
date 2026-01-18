@@ -46,7 +46,7 @@ import {
   Edit as EditIcon,
   Description as ReceiptDocIcon,
 } from '@mui/icons-material'
-import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService } from '../services/database'
+import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService } from '../services/database'
 import { generateFullReport, generateBorrowerReport, generateExpenseReceipt } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
@@ -310,6 +310,7 @@ export default function AdvancedTools() {
           donations: {},
           depositors: {},
           deposits: {},
+          depositWithdrawals: {},
           blacklist: {},
           expenses: {},
           guarantorLoans: {},
@@ -350,6 +351,7 @@ export default function AdvancedTools() {
         if (data.expenses) importData.expenses = convertToObject(data.expenses)
         if (data.guarantorLoans) importData.guarantorLoans = convertToObject(data.guarantorLoans)
         if (data.waitlist) importData.waitlist = convertToObject(data.waitlist)
+        if (data.depositWithdrawals) importData.depositWithdrawals = convertToObject(data.depositWithdrawals)
 
         await importAllData(importData)
         
@@ -600,16 +602,30 @@ export default function AdvancedTools() {
 
   const handleDepositorsReport = async () => {
     try {
-      const deposits = await db.query(`
+      const allDeposits = await db.query(`
         SELECT d.*, dp.first_name || ' ' || dp.last_name as depositor_name
         FROM deposits d
         JOIN depositors dp ON d.depositor_id = dp.id
-        WHERE d.status = 'active'
       `) as any[]
 
-      const totalAmount = deposits.reduce((sum, d) => sum + d.amount, 0)
+      // טעינת היסטוריית משיכות לכל הפקדה
+      const depositsWithWithdrawals = await Promise.all(
+        allDeposits.map(async (deposit) => {
+          const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+          const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+          return {
+            ...deposit,
+            withdrawn_amount: totalWithdrawn,
+            remaining: deposit.amount - totalWithdrawn
+          }
+        })
+      )
+
+      // סינון רק הפקדות עם יתרה
+      const activeDeposits = depositsWithWithdrawals.filter(d => d.remaining > 0)
+      const totalAmount = activeDeposits.reduce((sum, d) => sum + d.remaining, 0)
       
-      setDepositorsReportData({ deposits, totalAmount })
+      setDepositorsReportData({ deposits: activeDeposits, totalAmount })
       setDepositorsReportDialogOpen(true)
     } catch (error) {
       console.error('Error loading depositors report:', error)
@@ -1726,16 +1742,17 @@ export default function AdvancedTools() {
                       <TableRow sx={{ bgcolor: 'grey.100' }}>
                         <TableCell align="center">#</TableCell>
                         <TableCell>מפקיד</TableCell>
-                        <TableCell align="center">סכום</TableCell>
+                        <TableCell align="center">סכום מקורי</TableCell>
+                        <TableCell align="center">נמשך</TableCell>
+                        <TableCell align="center">יתרה</TableCell>
                         <TableCell align="center">תאריך הפקדה</TableCell>
                         <TableCell align="center">סוג תקופה</TableCell>
-                        <TableCell align="center">תאריך פירעון</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {depositorsReportData.deposits.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                          <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                             אין הפקדות פעילות
                           </TableCell>
                         </TableRow>
@@ -1745,6 +1762,12 @@ export default function AdvancedTools() {
                             <TableCell align="center">{i + 1}</TableCell>
                             <TableCell>{d.depositor_name}</TableCell>
                             <TableCell align="center">{formatCurrency(d.amount)}</TableCell>
+                            <TableCell align="center" sx={{ color: d.withdrawn_amount > 0 ? 'warning.main' : 'text.secondary' }}>
+                              {d.withdrawn_amount > 0 ? formatCurrency(d.withdrawn_amount) : '-'}
+                            </TableCell>
+                            <TableCell align="center" sx={{ color: 'success.main', fontWeight: 'bold' }}>
+                              {formatCurrency(d.remaining)}
+                            </TableCell>
                             <TableCell align="center">{formatDisplayDate(d.deposit_date, settings.date_format)}</TableCell>
                             <TableCell align="center">
                               <Chip 
@@ -1753,9 +1776,6 @@ export default function AdvancedTools() {
                                 color={d.period_type === 'fixed' ? 'primary' : 'default'}
                               />
                             </TableCell>
-                            <TableCell align="center">
-                              {d.due_date ? formatDisplayDate(d.due_date, settings.date_format) : '-'}
-                            </TableCell>
                           </TableRow>
                         ))
                       )}
@@ -1763,9 +1783,15 @@ export default function AdvancedTools() {
                         <TableRow sx={{ bgcolor: 'grey.50' }}>
                           <TableCell colSpan={2}><strong>סה"כ</strong></TableCell>
                           <TableCell align="center">
+                            <strong>{formatCurrency(depositorsReportData.deposits.reduce((sum, d) => sum + d.amount, 0))}</strong>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: 'warning.main' }}>
+                            <strong>{formatCurrency(depositorsReportData.deposits.reduce((sum, d) => sum + (d.withdrawn_amount || 0), 0))}</strong>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: 'success.main' }}>
                             <strong>{formatCurrency(depositorsReportData.totalAmount)}</strong>
                           </TableCell>
-                          <TableCell colSpan={3} />
+                          <TableCell colSpan={2} />
                         </TableRow>
                       )}
                     </TableBody>
