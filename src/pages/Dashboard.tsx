@@ -129,6 +129,7 @@ export default function Dashboard() {
       await db.run('DELETE FROM blacklist')
       await db.run('DELETE FROM waitlist')
       await db.run('DELETE FROM expenses')
+      await db.run('DELETE FROM guarantorLoanRepayments')
       await db.run('DELETE FROM guarantorLoans')
       
       setClearConfirmOpen(false)

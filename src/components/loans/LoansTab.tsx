@@ -382,9 +382,10 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       for (const gl of guarantorLoans) {
         if ((gl.total_repaid || 0) > 0) {
           // Guarantor paid something - they deserve a refund
+          const refundAmount = gl.total_repaid
           await guarantorLoansService.update(gl.id, { 
             status: 'paid',
-            notes: (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע את החוב. מגיע החזר לערב: ${gl.total_repaid}₪`
+            notes: (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע את החוב במלואו. מגיע החזר לערב: ${refundAmount}₪ ⚠️`
           })
         } else {
           await guarantorLoansService.update(gl.id, { status: 'paid' })
@@ -408,7 +409,7 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
             await guarantorLoansService.update(gl.id, { 
               amount: gl.total_repaid || 0,
               status: 'paid',
-              notes: (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪`
+              notes: (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע חלק מהחוב. מגיע החזר לערב: ${refund}₪ ⚠️`
             })
           } else {
             await guarantorLoansService.update(gl.id, { 
@@ -417,10 +418,49 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
             })
           }
         } else {
-          await guarantorLoansService.update(gl.id, { amount: newAmount })
+          // עדכון הסכום והסטטוס בהתאם לפירעונות
+          await guarantorLoansService.update(gl.id, { 
+            amount: newAmount,
+            status: (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active'
+          })
         }
       }
       return true
+    }
+  }
+  
+  // Helper function to recalculate guarantor loans after repayment edit/delete
+  const recalculateGuarantorLoans = async (loanId: number): Promise<void> => {
+    const guarantorLoans = await guarantorLoansService.getByOriginalLoan(loanId)
+    if (guarantorLoans.length === 0) return
+    
+    const updatedLoan = await loansService.getById(loanId)
+    if (!updatedLoan) return
+    
+    const totalGuarantorAmount = guarantorLoans.reduce((sum, gl) => sum + gl.amount, 0)
+    const totalBorrowerRepaid = updatedLoan.amount - updatedLoan.remaining
+    
+    for (const gl of guarantorLoans) {
+      const guarantorShare = gl.amount / totalGuarantorAmount
+      const borrowerCoverage = Math.round(totalBorrowerRepaid * guarantorShare)
+      const newAmount = Math.max(0, gl.amount - borrowerCoverage)
+      
+      // בדיקה אם הערב שילם יותר מהנדרש
+      if ((gl.total_repaid || 0) > newAmount) {
+        const refund = (gl.total_repaid || 0) - newAmount
+        const hasRefundNote = (gl.notes || '').includes('מגיע החזר לערב')
+        
+        await guarantorLoansService.update(gl.id, { 
+          amount: Math.max(gl.total_repaid || 0, newAmount),
+          status: newAmount === 0 ? 'paid' : 'active',
+          notes: hasRefundNote ? gl.notes : (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪ ⚠️`
+        })
+      } else {
+        await guarantorLoansService.update(gl.id, { 
+          amount: newAmount,
+          status: newAmount === 0 || (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active'
+        })
+      }
     }
   }
 
@@ -573,6 +613,12 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
         payment_method: editRepaymentPaymentMethod.payment_method,
         payment_details: JSON.stringify(editRepaymentPaymentMethod),
       })
+      
+      // עדכון הלוואות ערבים אחרי שינוי פירעון
+      if (selectedLoan?.id) {
+        await recalculateGuarantorLoans(selectedLoan.id)
+      }
+      
       setSnackbar({ open: true, message: 'הפירעון עודכן בהצלחה', severity: 'success' })
       setEditRepaymentDialogOpen(false)
       setEditingRepayment(null)
@@ -595,6 +641,12 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
 
     try {
       await repaymentsService.delete(repaymentId)
+      
+      // עדכון הלוואות ערבים אחרי מחיקת פירעון
+      if (selectedLoan?.id) {
+        await recalculateGuarantorLoans(selectedLoan.id)
+      }
+      
       setSnackbar({ open: true, message: 'הפירעון נמחק', severity: 'success' })
       if (selectedLoan?.id) {
         loadRepayments(selectedLoan.id)

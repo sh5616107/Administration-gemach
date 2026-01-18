@@ -64,3 +64,25 @@
 - `src/__tests__/depositWithdrawals.test.ts` - טסטים מקיפים (14 טסטים, כולם עוברים ✅)
 
 **סטטוס**: ✅ הושלם - כולל UI מלא להצגת היסטוריה
+
+
+## 12. ✅ היסטוריית פירעונות ערבים + תזכורת החזר
+**בעיה**: 
+1. כשערב משלם, רשום רק סה"כ שפרע, אבל לא מתי ובאיזה תאריכים
+2. כשלווה פורע אחרי שערב שילם, לא מתריעים שמגיע החזר לערב
+3. כשמעדכנים/מוחקים פירעון של לווה, הסטטוס של הלוואת הערב לא מתעדכן
+
+**פתרון**:
+1. יצירת טבלה חדשה `guarantorLoanRepayments` לשמירת היסטוריית פירעונות ערבים
+2. כל פירעון של ערב נשמר עם: תאריך, סכום, אמצעי תשלום, הערות
+3. הוספת פונקציה `recalculateGuarantorLoans` שמחשבת מחדש את מצב הלוואות הערבים
+4. קריאה לפונקציה הזו כשמעדכנים או מוחקים פירעון של לווה
+5. כשערב שילם יותר מהנדרש, מתווסף לשדה `notes` הודעה: "מגיע החזר לערב: X₪ ⚠️"
+6. הסטטוס מתעדכן אוטומטית בהתאם לפירעונות (active/paid)
+
+**קבצים שעודכנו**:
+- `src/services/database.ts` - הוספת `guarantorLoanRepaymentsService`
+- `src/components/loans/LoansTab.tsx` - הוספת `recalculateGuarantorLoans` וקריאה לה בעדכון/מחיקת פירעון
+- `src/components/loans/GuarantorsTab.tsx` - ייבוא `guarantorLoanRepaymentsService`
+- `src/pages/Dashboard.tsx` - הוספת מחיקת `guarantorLoanRepayments` ב-"מחק הכל"
+- `src/pages/AdvancedTools.tsx` - הוספת `guarantorLoanRepayments` לייצוא/ייבוא

@@ -15,6 +15,7 @@ interface DataStore {
   blacklist: Record<string, any>
   expenses: Record<string, any>
   guarantorLoans: Record<string, any>
+  guarantorLoanRepayments: Record<string, any>
   waitlist: Record<string, any>
 }
 
@@ -34,6 +35,7 @@ const defaultData: DataStore = {
   blacklist: {},
   expenses: {},
   guarantorLoans: {},
+  guarantorLoanRepayments: {},
   waitlist: {},
 }
 
@@ -474,13 +476,15 @@ export const guarantorLoansService = {
     removeItem('guarantorLoans', String(id))
   },
   async addRepayment(guarantorLoanId: number, amount: number, paymentDate: string, paymentMethod?: string, paymentDetails?: string, notes?: string): Promise<void> {
-    const gl = await this.getById(guarantorLoanId)
-    if (!gl) return
-    gl.total_repaid = (gl.total_repaid || 0) + amount
-    if (gl.total_repaid >= gl.amount) {
-      gl.status = 'paid'
-    }
-    setItem('guarantorLoans', String(guarantorLoanId), gl)
+    // שימוש ב-guarantorLoanRepaymentsService במקום עדכון ישיר
+    await guarantorLoanRepaymentsService.create({
+      guarantor_loan_id: guarantorLoanId,
+      amount,
+      payment_date: paymentDate,
+      payment_method: paymentMethod,
+      payment_details: paymentDetails,
+      notes: notes
+    })
   },
   async deleteByOriginalLoan(loanId: number): Promise<void> {
     const loans = await this.getByOriginalLoan(loanId)
@@ -508,6 +512,83 @@ export const guarantorLoansService = {
         remaining: gl.amount - (gl.total_repaid || 0)
       }
     })
+  }
+}
+
+// Guarantor Loan Repayments Service
+export const guarantorLoanRepaymentsService = {
+  async getAll(): Promise<GuarantorLoanRepayment[]> {
+    return getAllItems<GuarantorLoanRepayment>('guarantorLoanRepayments').sort((a, b) => 
+      new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+    )
+  },
+  async getById(id: number): Promise<GuarantorLoanRepayment | null> {
+    return getItem<GuarantorLoanRepayment>('guarantorLoanRepayments', String(id))
+  },
+  async getByGuarantorLoan(guarantorLoanId: number): Promise<GuarantorLoanRepayment[]> {
+    return (await this.getAll()).filter(r => r.guarantor_loan_id === guarantorLoanId)
+  },
+  async getTotalRepaid(guarantorLoanId: number): Promise<number> {
+    const repayments = await this.getByGuarantorLoan(guarantorLoanId)
+    return repayments.reduce((sum, r) => sum + r.amount, 0)
+  },
+  async create(repayment: Omit<GuarantorLoanRepayment, 'id' | 'created_at'>): Promise<{ id: number; lastInsertRowid: number }> {
+    const id = generateId('guarantorLoanRepayments')
+    setItem('guarantorLoanRepayments', String(id), { 
+      ...repayment, 
+      id, 
+      created_at: new Date().toISOString() 
+    })
+    
+    // עדכון total_repaid בהלוואת הערב
+    const guarantorLoan = await guarantorLoansService.getById(repayment.guarantor_loan_id)
+    if (guarantorLoan) {
+      const newTotalRepaid = await this.getTotalRepaid(repayment.guarantor_loan_id)
+      await guarantorLoansService.update(repayment.guarantor_loan_id, { 
+        total_repaid: newTotalRepaid,
+        status: newTotalRepaid >= guarantorLoan.amount ? 'paid' : 'active'
+      })
+    }
+    
+    return { id, lastInsertRowid: id }
+  },
+  async update(id: number, data: Partial<GuarantorLoanRepayment>): Promise<void> {
+    const existing = await this.getById(id)
+    if (existing) {
+      setItem('guarantorLoanRepayments', String(id), { ...existing, ...data })
+      
+      // עדכון total_repaid בהלוואת הערב
+      const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
+      if (guarantorLoan) {
+        const newTotalRepaid = await this.getTotalRepaid(existing.guarantor_loan_id)
+        await guarantorLoansService.update(existing.guarantor_loan_id, { 
+          total_repaid: newTotalRepaid,
+          status: newTotalRepaid >= guarantorLoan.amount ? 'paid' : 'active'
+        })
+      }
+    }
+  },
+  async delete(id: number): Promise<void> {
+    const existing = await this.getById(id)
+    if (existing) {
+      removeItem('guarantorLoanRepayments', String(id))
+      
+      // עדכון total_repaid בהלוואת הערב
+      const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
+      if (guarantorLoan) {
+        const newTotalRepaid = await this.getTotalRepaid(existing.guarantor_loan_id)
+        await guarantorLoansService.update(existing.guarantor_loan_id, { 
+          total_repaid: newTotalRepaid,
+          status: newTotalRepaid >= guarantorLoan.amount ? 'paid' : 'active'
+        })
+      }
+    }
+  },
+  async deleteByGuarantorLoan(guarantorLoanId: number): Promise<void> {
+    const repayments = await this.getByGuarantorLoan(guarantorLoanId)
+    for (const repayment of repayments) {
+      removeItem('guarantorLoanRepayments', String(repayment.id))
+    }
   }
 }
 

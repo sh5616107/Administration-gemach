@@ -314,6 +314,7 @@ export default function AdvancedTools() {
           blacklist: {},
           expenses: {},
           guarantorLoans: {},
+          guarantorLoanRepayments: {},
           waitlist: {},
         }
 
@@ -350,6 +351,7 @@ export default function AdvancedTools() {
         if (data.blacklist) importData.blacklist = convertToObject(data.blacklist)
         if (data.expenses) importData.expenses = convertToObject(data.expenses)
         if (data.guarantorLoans) importData.guarantorLoans = convertToObject(data.guarantorLoans)
+        if (data.guarantorLoanRepayments) importData.guarantorLoanRepayments = convertToObject(data.guarantorLoanRepayments)
         if (data.waitlist) importData.waitlist = convertToObject(data.waitlist)
         if (data.depositWithdrawals) importData.depositWithdrawals = convertToObject(data.depositWithdrawals)
 

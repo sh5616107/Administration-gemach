@@ -34,7 +34,7 @@ import {
   Link as LinkIcon,
   Email as EmailIcon,
 } from '@mui/icons-material'
-import { guarantorsService, guarantorLoansService, loansService, repaymentsService, type GuarantorLoan } from '../../services/database'
+import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, loansService, repaymentsService, type GuarantorLoan } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate } from '../../utils/dateUtils'
 import { openEmailWithDocument, createGuarantorDebtEmailData, type EmailProvider } from '../../services/documents'
