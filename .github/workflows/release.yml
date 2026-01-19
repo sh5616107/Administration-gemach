@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*' # מופעל כשדוחפים tag שמתחיל ב-v (למשל v3.4.0)
 
+permissions:
+  contents: write
+
 jobs:
   build-tauri:
     runs-on: windows-latest
