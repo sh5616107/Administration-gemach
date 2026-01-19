@@ -9,8 +9,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Build successful!" -ForegroundColor Green
     
     # Copy to release folder
-    $source = "src-tauri\target\release\bundle\nsis\gemach-manager_3.3.0_x64-setup.exe"
-    $dest = "release\gemach-manager_3.3.0_x64-setup.exe"
+    $source = "src-tauri\target\release\bundle\nsis\gemach-manager_3.5.0_x64-setup.exe"
+    $dest = "release\gemach-manager_3.5.0_x64-setup.exe"
     
     if (Test-Path $source) {
         Copy-Item $source $dest -Force
