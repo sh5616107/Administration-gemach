@@ -1,6 +1,6 @@
 {
   "name": "gemach-manager",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "מינהל הגמ\"ח - מערכת ניהול גמ\"ח כספים",
   "type": "module",
   "scripts": {
@@ -33,6 +33,7 @@
     "dayjs": "^1.11.10",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
+    "jspdf-autotable": "^5.0.7",
     "localforage": "^1.10.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

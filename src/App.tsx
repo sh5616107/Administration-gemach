@@ -18,6 +18,7 @@ import Settings from './pages/Settings'
 import Help from './pages/Help'
 import { exportAllData } from './services/database'
 import { isProtectionEnabled, checkAuthenticated } from './services/protection'
+import { runPendingMigrations } from './services/migrations'
 import localforage from 'localforage'
 
 const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
@@ -83,6 +84,11 @@ function App() {
       setLoading(false)
     }
     checkProtection()
+    
+    // Run pending migrations
+    runPendingMigrations().catch(err => {
+      console.error('Migration error:', err)
+    })
     
     // Check auto backup on app start
     checkAutoBackup()

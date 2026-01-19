@@ -33,11 +33,13 @@ import {
   Payment as PaymentIcon,
   Link as LinkIcon,
   Email as EmailIcon,
+  History as HistoryIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material'
-import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, loansService, repaymentsService, type GuarantorLoan } from '../../services/database'
+import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, loansService, repaymentsService, borrowersService, type GuarantorLoan } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate } from '../../utils/dateUtils'
-import { openEmailWithDocument, createGuarantorDebtEmailData, type EmailProvider } from '../../services/documents'
+import { openEmailWithDocument, createGuarantorDebtEmailData, generateGuarantorStatement, type EmailProvider, type GuarantorStatementData } from '../../services/documents'
 import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkNewGuarantor, type CrossCheckResult } from '../../services/crossCheck'
@@ -85,6 +87,8 @@ export default function GuarantorsTab() {
   const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false)
   const [selectedGuarantorLoan, setSelectedGuarantorLoan] = useState<GuarantorLoanWithDetails | null>(null)
   const [repaymentAmount, setRepaymentAmount] = useState('')
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
+  const [repaymentHistory, setRepaymentHistory] = useState<any[]>([])
 
   // Cross-check warning states
   const [crossCheckWarnings, setCrossCheckWarnings] = useState<CrossCheckResult[]>([])
@@ -277,6 +281,13 @@ export default function GuarantorsTab() {
     setRepaymentDialogOpen(true)
   }
 
+  const handleShowHistory = async (loan: GuarantorLoanWithDetails) => {
+    setSelectedGuarantorLoan(loan)
+    const history = await guarantorLoanRepaymentsService.getByGuarantorLoan(loan.id)
+    setRepaymentHistory(history)
+    setHistoryDialogOpen(true)
+  }
+
   const handleAddRepayment = async () => {
     if (!selectedGuarantorLoan || !repaymentAmount) return
     
@@ -385,6 +396,93 @@ export default function GuarantorsTab() {
       message: result.message,
       severity: result.success ? 'success' : 'error'
     })
+  }
+
+  const handleGenerateGuarantorReport = async (guarantorId: number) => {
+    try {
+      // Get guarantor details
+      const guarantor = await guarantorsService.getById(guarantorId)
+      if (!guarantor) {
+        setSnackbar({ open: true, message: 'ערב לא נמצא', severity: 'error' })
+        return
+      }
+      
+      // Get all guarantor loans for this guarantor (loans transferred to guarantor)
+      const allGuarantorLoans = await guarantorLoansService.getByGuarantor(guarantorId)
+      
+      // Get all regular loans where this person is a guarantor
+      const allLoans = await loansService.getAll()
+      const regularLoansAsGuarantor = allLoans.filter(
+        loan => (loan.guarantor1_id === guarantorId || loan.guarantor2_id === guarantorId) && 
+                loan.status === 'active'
+      )
+      
+      // Check if there's any data to show
+      if (allGuarantorLoans.length === 0 && regularLoansAsGuarantor.length === 0) {
+        setSnackbar({ open: true, message: 'לערב זה אין הלוואות', severity: 'success' })
+        return
+      }
+      
+      // Build guarantor loans data
+      const guarantorLoansData = await Promise.all(allGuarantorLoans.map(async (gl) => {
+        const originalLoan = await loansService.getById(gl.original_loan_id)
+        const borrower = originalLoan ? await borrowersService.getById(originalLoan.borrower_id) : null
+        const repayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(gl.id)
+        const refundMatch = gl.notes?.match(/מגיע החזר לערב: (\d+)₪/)
+        const refundDue = refundMatch ? parseInt(refundMatch[1], 10) : undefined
+        
+        return {
+          borrowerName: borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע',
+          originalLoanAmount: originalLoan?.amount || 0,
+          originalLoanDate: originalLoan?.loan_date || '',
+          guarantorLoanAmount: gl.amount,
+          totalPaid: gl.total_repaid || 0,
+          remaining: gl.amount - (gl.total_repaid || 0),
+          status: gl.status,
+          repayments: repayments.map(r => ({
+            amount: r.amount,
+            payment_date: r.payment_date,
+            notes: r.notes
+          })),
+          refundDue
+        }
+      }))
+      
+      // Build regular loans data
+      const regularLoansData = await Promise.all(regularLoansAsGuarantor.map(async (loan) => {
+        const borrower = await borrowersService.getById(loan.borrower_id)
+        return {
+          borrowerName: borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע',
+          loanAmount: loan.amount,
+          loanDate: loan.loan_date,
+          remaining: loan.remaining,
+          status: loan.status,
+          dueDate: loan.due_date
+        }
+      }))
+      
+      const statementData: GuarantorStatementData = {
+        gemachName: settings.gemach_name || 'גמ"ח שלי',
+        gemachLogo: settings.gemach_logo,
+        guarantorName: `${guarantor.first_name} ${guarantor.last_name}`,
+        guarantorPhone: guarantor.phone,
+        guarantorEmail: guarantor.email,
+        dateFormat: settings.date_format,
+        guarantorLoans: guarantorLoansData.length > 0 ? guarantorLoansData : undefined,
+        regularLoans: regularLoansData.length > 0 ? regularLoansData : undefined
+      }
+      
+      generateGuarantorStatement(statementData)
+      
+      setSnackbar({ 
+        open: true, 
+        message: 'הדוח הופק בהצלחה', 
+        severity: 'success' 
+      })
+    } catch (error) {
+      console.error('Error generating guarantor report:', error)
+      setSnackbar({ open: true, message: 'שגיאה בהפקת הדוח', severity: 'error' })
+    }
   }
 
   // Check if original loan was repaid and delete guarantor loans
@@ -601,6 +699,14 @@ export default function GuarantorsTab() {
                           <Chip label={status.label} color={status.color} size="small" />
                         </TableCell>
                         <TableCell align="center">
+                          <IconButton 
+                            size="small" 
+                            color="info"
+                            onClick={() => guarantor.id && handleGenerateGuarantorReport(guarantor.id)}
+                            title="הפק דוח ערב"
+                          >
+                            <DescriptionIcon />
+                          </IconButton>
                           <IconButton size="small" onClick={() => handleEdit(guarantor)}>
                             <EditIcon />
                           </IconButton>
@@ -669,13 +775,31 @@ export default function GuarantorsTab() {
                          gl.monthly_payments ? `${gl.monthly_payments} תשלומים` : '-'}
                       </TableCell>
                       <TableCell align="center">
-                        <Chip 
-                          label={gl.status === 'paid' ? 'נפרע' : 'פעיל'} 
-                          color={gl.status === 'paid' ? 'success' : 'warning'} 
-                          size="small" 
-                        />
+                        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center' }}>
+                          <Chip 
+                            label={gl.status === 'paid' ? 'נפרע' : 'פעיל'} 
+                            color={gl.status === 'paid' ? 'success' : 'warning'} 
+                            size="small" 
+                          />
+                          {gl.notes && gl.notes.includes('מגיע החזר לערב') && (
+                            <Chip 
+                              label="⚠️ מגיע החזר" 
+                              color="error" 
+                              size="small"
+                              sx={{ fontWeight: 'bold' }}
+                            />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell align="center">
+                        <IconButton 
+                          size="small" 
+                          color="warning" 
+                          onClick={() => handleShowHistory(gl)}
+                          title="היסטוריית תשלומים"
+                        >
+                          <HistoryIcon />
+                        </IconButton>
                         {gl.status === 'active' && (
                           <>
                             <IconButton 
@@ -739,6 +863,92 @@ export default function GuarantorsTab() {
         <DialogActions>
           <Button onClick={() => setRepaymentDialogOpen(false)}>ביטול</Button>
           <Button variant="contained" onClick={handleAddRepayment}>רשום תשלום</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          היסטוריית תשלומים - {selectedGuarantorLoan?.guarantor_name}
+        </DialogTitle>
+        <DialogContent>
+          {selectedGuarantorLoan && (
+            <Box sx={{ pt: 1 }}>
+              {/* Refund Alert */}
+              {selectedGuarantorLoan.notes && selectedGuarantorLoan.notes.includes('מגיע החזר לערב') && (
+                <Box sx={{ mb: 3, p: 2, bgcolor: 'error.light', borderRadius: 1, border: '2px solid', borderColor: 'error.main' }}>
+                  <Typography variant="h6" color="error.dark" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    ⚠️ שים לב: מגיע החזר לערב!
+                  </Typography>
+                  <Typography variant="body2" color="error.dark" sx={{ mt: 1, whiteSpace: 'pre-line' }}>
+                    {selectedGuarantorLoan.notes.split('\n').filter(line => line.includes('מגיע החזר')).join('\n')}
+                  </Typography>
+                </Box>
+              )}
+
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={4}>
+                    <Typography variant="body2" color="text.secondary">סכום הלוואה מקורי</Typography>
+                    <Typography variant="h6">{formatCurrency(selectedGuarantorLoan.amount)}</Typography>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <Typography variant="body2" color="text.secondary">סה"כ שולם</Typography>
+                    <Typography variant="h6" color="success.main">
+                      {formatCurrency(selectedGuarantorLoan.total_repaid || 0)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <Typography variant="body2" color="text.secondary">יתרה</Typography>
+                    <Typography variant="h6" color={selectedGuarantorLoan.remaining > 0 ? 'error.main' : 'success.main'}>
+                      {formatCurrency(selectedGuarantorLoan.remaining)}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {repaymentHistory.length > 0 ? (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>תאריך</TableCell>
+                        <TableCell align="center">סכום</TableCell>
+                        <TableCell>אמצעי תשלום</TableCell>
+                        <TableCell>הערות</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {repaymentHistory.map((rep) => (
+                        <TableRow key={rep.id}>
+                          <TableCell>{formatDisplayDate(rep.payment_date, settings.date_format)}</TableCell>
+                          <TableCell align="center">
+                            <Chip label={formatCurrency(rep.amount)} color="success" size="small" />
+                          </TableCell>
+                          <TableCell>
+                            {rep.payment_method ? (
+                              rep.payment_method === 'cash' ? 'מזומן' :
+                              rep.payment_method === 'credit' ? 'אשראי' :
+                              rep.payment_method === 'transfer' ? 'העברה' :
+                              rep.payment_method === 'check' ? "צ'ק" : 'אחר'
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell>{rep.notes || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography color="text.secondary">אין תשלומים עדיין</Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryDialogOpen(false)}>סגור</Button>
         </DialogActions>
       </Dialog>
 

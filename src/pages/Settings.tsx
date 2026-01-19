@@ -679,7 +679,7 @@ export default function Settings() {
                 מינהל הגמ"ח
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                גרסה 3.3.0
+                גרסה 3.5.0
               </Typography>
               <Divider sx={{ my: 2 }} />
               <Typography variant="body2" color="text.secondary">

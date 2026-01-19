@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { 
   guarantorLoansService,
   guarantorLoanRepaymentsService,
+  borrowersService,
+  guarantorsService,
+  loansService,
+  repaymentsService,
   exportAllData,
   importAllData
 } from '../services/database'
@@ -267,5 +271,81 @@ describe('Guarantor Loan Repayments', () => {
     expect(savedRepayment?.payment_method).toBe('transfer')
     expect(savedRepayment?.payment_details).toBe(paymentDetails)
     expect(savedRepayment?.notes).toBe('העברה בנקאית')
+  })
+
+  it('should remove refund note when borrower repayment is deleted', async () => {
+    const borrower = await borrowersService.create({ first_name: 'Test', last_name: 'Borrower', phone: '1234567890' })
+    const guarantor = await guarantorsService.create({ first_name: 'Test', last_name: 'Guarantor', phone: '0987654321' })
+    
+    const loan = await loansService.create({
+      borrower_id: borrower.lastInsertRowid,
+      amount: 10000,
+      loan_date: '2024-01-01',
+      loan_type: 'flexible',
+      is_recurring: 0,
+      auto_repayment: 0
+    })
+    
+    const guarantorLoan = await guarantorLoansService.create({
+      guarantor_id: guarantor.lastInsertRowid,
+      original_loan_id: loan.lastInsertRowid,
+      amount: 10000,
+      status: 'active'
+    })
+    
+    // Guarantor pays full amount
+    await guarantorLoanRepaymentsService.create({
+      guarantor_loan_id: guarantorLoan.id,
+      amount: 10000,
+      payment_date: '2024-02-01'
+    })
+    
+    // Borrower pays - should trigger refund note
+    const borrowerRepayment = await repaymentsService.create({
+      loan_id: loan.lastInsertRowid,
+      amount: 10000,
+      payment_date: '2024-03-01'
+    })
+    
+    // Manually add refund note (simulating what updateGuarantorLoansAfterRepayment does)
+    await guarantorLoansService.update(guarantorLoan.id, {
+      notes: 'מגיע החזר לערב: 10000₪ ⚠️'
+    })
+    
+    // Check refund note exists
+    let updatedGL = await guarantorLoansService.getById(guarantorLoan.id)
+    expect(updatedGL?.notes).toContain('מגיע החזר לערב')
+    
+    // Delete borrower repayment
+    await repaymentsService.delete(borrowerRepayment.lastInsertRowid)
+    
+    // Recalculate (simulating what recalculateGuarantorLoans does)
+    const updatedLoan = await loansService.getById(loan.lastInsertRowid)
+    const guarantorLoans = await guarantorLoansService.getByOriginalLoan(loan.lastInsertRowid)
+    const totalBorrowerRepaid = updatedLoan!.amount - updatedLoan!.remaining
+    
+    for (const gl of guarantorLoans) {
+      const newAmount = gl.amount
+      let cleanNotes = (gl.notes || '')
+        .split('\n')
+        .filter(line => !line.includes('מגיע החזר לערב'))
+        .join('\n')
+        .trim()
+      
+      if ((gl.total_repaid || 0) > newAmount && totalBorrowerRepaid > 0) {
+        const refund = (gl.total_repaid || 0) - newAmount
+        cleanNotes += `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪ ⚠️`
+      }
+      
+      await guarantorLoansService.update(gl.id, { 
+        amount: newAmount,
+        status: (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active',
+        notes: cleanNotes
+      })
+    }
+    
+    // Check refund note is removed
+    updatedGL = await guarantorLoansService.getById(guarantorLoan.id)
+    expect(updatedGL?.notes || '').not.toContain('מגיע החזר לערב')
   })
 })

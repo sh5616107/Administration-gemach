@@ -355,7 +355,34 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
     }
     
     if (!confirm('האם למחוק את ההלוואה?')) return
+    
+    console.log('🗑️ handleDeleteLoan called for loan:', loanId)
+    
     try {
+      // עדכון הלוואות ערבים - מחיקת ההלוואה אומרת שהלווה לא פרע כלום
+      const guarantorLoans = await guarantorLoansService.getByOriginalLoan(loanId)
+      console.log('  📊 Found', guarantorLoans.length, 'guarantor loans')
+      
+      for (const gl of guarantorLoans) {
+        console.log('  👤 Resetting guarantor loan:', gl.id)
+        
+        // ניקוי הערות על החזר
+        let cleanNotes = (gl.notes || '')
+          .split('\n')
+          .filter(line => !line.includes('מגיע החזר לערב'))
+          .join('\n')
+          .trim()
+        
+        console.log('    - Clean notes:', cleanNotes)
+        
+        // החזרת הסכום המקורי (כי הלווה לא פרע כלום)
+        await guarantorLoansService.update(gl.id, {
+          amount: gl.amount + (gl.total_repaid || 0), // החזרת הסכום המקורי
+          status: 'active',
+          notes: cleanNotes
+        })
+      }
+      
       await loansService.delete(loanId)
       setSnackbar({ open: true, message: 'ההלוואה נמחקה', severity: 'success' })
       if (selectedBorrower) {
@@ -376,52 +403,78 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
     if (guarantorLoans.length === 0) return false
     
     const updatedLoan = await loansService.getById(loanId)
+    if (!updatedLoan) return false
     
-    if (updatedLoan && updatedLoan.remaining === 0) {
+    // חישוב כמה הלווה פרע בסה"כ
+    const totalBorrowerRepaid = updatedLoan.amount - updatedLoan.remaining
+    
+    if (updatedLoan.remaining === 0) {
       // Loan fully repaid - mark guarantor loans as paid and note refund if they paid
       for (const gl of guarantorLoans) {
+        // ניקוי הערות ישנות על החזר
+        let cleanNotes = (gl.notes || '')
+          .split('\n')
+          .filter(line => !line.includes('מגיע החזר לערב'))
+          .join('\n')
+          .trim()
+        
         if ((gl.total_repaid || 0) > 0) {
           // Guarantor paid something - they deserve a refund
           const refundAmount = gl.total_repaid
           await guarantorLoansService.update(gl.id, { 
             status: 'paid',
-            notes: (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע את החוב במלואו. מגיע החזר לערב: ${refundAmount}₪ ⚠️`
+            notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע את החוב במלואו. מגיע החזר לערב: ${refundAmount}₪ ⚠️`
           })
         } else {
-          await guarantorLoansService.update(gl.id, { status: 'paid' })
+          await guarantorLoansService.update(gl.id, { 
+            status: 'paid',
+            notes: cleanNotes
+          })
         }
       }
       return true
     } else {
-      // Partial payment - reduce guarantor loans proportionally
+      // Partial payment - reduce guarantor loans based on TOTAL borrower repayments
       const totalGuarantorAmount = guarantorLoans.reduce((sum, gl) => sum + gl.amount, 0)
       
       for (const gl of guarantorLoans) {
+        // חישוב החלק היחסי של הערב מסך ההלוואה
         const guarantorShare = gl.amount / totalGuarantorAmount
-        const reduction = Math.round(repaymentAmount * guarantorShare)
-        const newAmount = Math.max(gl.total_repaid || 0, gl.amount - reduction)
+        // חישוב כמה הלווה כיסה מחלק הערב
+        const borrowerCoverage = Math.round(totalBorrowerRepaid * guarantorShare)
+        // הסכום שהערב עדיין צריך לשלם
+        const newAmount = Math.max(0, gl.amount - borrowerCoverage)
+        
+        // ניקוי הערות ישנות על החזר
+        let cleanNotes = (gl.notes || '')
+          .split('\n')
+          .filter(line => !line.includes('מגיע החזר לערב'))
+          .join('\n')
+          .trim()
         
         if (newAmount <= (gl.total_repaid || 0)) {
-          // Guarantor loan is fully covered
+          // Guarantor loan is fully covered by borrower payments
           if ((gl.total_repaid || 0) > newAmount) {
             // Guarantor overpaid - note refund
             const refund = (gl.total_repaid || 0) - newAmount
             await guarantorLoansService.update(gl.id, { 
-              amount: gl.total_repaid || 0,
+              amount: Math.max(gl.total_repaid || 0, newAmount),
               status: 'paid',
-              notes: (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע חלק מהחוב. מגיע החזר לערב: ${refund}₪ ⚠️`
+              notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע חלק מהחוב. מגיע החזר לערב: ${refund}₪ ⚠️`
             })
           } else {
             await guarantorLoansService.update(gl.id, { 
-              amount: gl.total_repaid || 0,
-              status: 'paid' 
+              amount: Math.max(gl.total_repaid || 0, newAmount),
+              status: 'paid',
+              notes: cleanNotes
             })
           }
         } else {
           // עדכון הסכום והסטטוס בהתאם לפירעונות
           await guarantorLoansService.update(gl.id, { 
             amount: newAmount,
-            status: (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active'
+            status: (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active',
+            notes: cleanNotes
           })
         }
       }
@@ -431,37 +484,71 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
   
   // Helper function to recalculate guarantor loans after repayment edit/delete
   const recalculateGuarantorLoans = async (loanId: number): Promise<void> => {
+    console.log('🔄 recalculateGuarantorLoans called for loan:', loanId)
+    
     const guarantorLoans = await guarantorLoansService.getByOriginalLoan(loanId)
-    if (guarantorLoans.length === 0) return
+    if (guarantorLoans.length === 0) {
+      console.log('  ℹ️ No guarantor loans found')
+      return
+    }
     
     const updatedLoan = await loansService.getById(loanId)
-    if (!updatedLoan) return
+    if (!updatedLoan) {
+      console.log('  ⚠️ Loan not found')
+      return
+    }
     
     const totalGuarantorAmount = guarantorLoans.reduce((sum, gl) => sum + gl.amount, 0)
     const totalBorrowerRepaid = updatedLoan.amount - updatedLoan.remaining
     
+    console.log('  📊 Loan amount:', updatedLoan.amount, 'Borrower repaid:', totalBorrowerRepaid, 'Remaining:', updatedLoan.remaining)
+    
     for (const gl of guarantorLoans) {
+      console.log('  👤 Processing guarantor loan:', gl.id)
+      console.log('    - Original notes:', gl.notes)
+      
       const guarantorShare = gl.amount / totalGuarantorAmount
       const borrowerCoverage = Math.round(totalBorrowerRepaid * guarantorShare)
       const newAmount = Math.max(0, gl.amount - borrowerCoverage)
       
+      console.log('    - Guarantor paid:', gl.total_repaid, 'New amount:', newAmount)
+      
+      // ניקוי הערות ישנות על החזר
+      let cleanNotes = (gl.notes || '')
+        .split('\n')
+        .filter(line => !line.includes('מגיע החזר לערב'))
+        .join('\n')
+        .trim()
+      
+      console.log('    - Clean notes:', cleanNotes)
+      
       // בדיקה אם הערב שילם יותר מהנדרש
       if ((gl.total_repaid || 0) > newAmount) {
         const refund = (gl.total_repaid || 0) - newAmount
-        const hasRefundNote = (gl.notes || '').includes('מגיע החזר לערב')
+        const refundNote = `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪ ⚠️`
+        
+        console.log('    ✅ Refund due:', refund)
+        console.log('    - Final notes:', cleanNotes + refundNote)
         
         await guarantorLoansService.update(gl.id, { 
           amount: Math.max(gl.total_repaid || 0, newAmount),
           status: newAmount === 0 ? 'paid' : 'active',
-          notes: hasRefundNote ? gl.notes : (gl.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪ ⚠️`
+          notes: cleanNotes + refundNote
         })
       } else {
+        console.log('    ❌ No refund due')
+        console.log('    - Final notes:', cleanNotes)
+        
+        // אין החזר - רק הערות נקיות
         await guarantorLoansService.update(gl.id, { 
           amount: newAmount,
-          status: newAmount === 0 || (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active'
+          status: newAmount === 0 || (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active',
+          notes: cleanNotes
         })
       }
     }
+    
+    console.log('✅ recalculateGuarantorLoans completed')
   }
 
   const handleAddRepayment = async () => {
@@ -639,11 +726,16 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
   const handleDeleteRepayment = async (repaymentId: number) => {
     if (!confirm('האם למחוק את הפירעון?')) return
 
+    console.log('🗑️ handleDeleteRepayment called for repayment:', repaymentId)
+
     try {
       await repaymentsService.delete(repaymentId)
       
+      console.log('  ✅ Repayment deleted')
+      
       // עדכון הלוואות ערבים אחרי מחיקת פירעון
       if (selectedLoan?.id) {
+        console.log('  🔄 Calling recalculateGuarantorLoans for loan:', selectedLoan.id)
         await recalculateGuarantorLoans(selectedLoan.id)
       }
       

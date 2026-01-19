@@ -52,30 +52,49 @@ const downloadPdf = async (htmlContent: string, filename: string): Promise<strin
   return new Promise((resolve) => {
     // Create a temporary container
     const container = document.createElement('div')
-    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;direction:rtl;font-family:Arial,sans-serif;padding:40px;background:white;'
+    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:750px;direction:rtl;font-family:Arial,sans-serif;background:white;padding:20px;'
     container.innerHTML = htmlContent
     document.body.appendChild(container)
     
     // Wait for fonts and images to load
     setTimeout(async () => {
       try {
-        const canvas = await html2canvas(container, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-        })
-        
-        const imgData = canvas.toDataURL('image/png')
         const pdf = new jsPDF({
           orientation: 'portrait',
           unit: 'mm',
           format: 'a4',
         })
         
-        const imgWidth = 210 // A4 width in mm
-        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        const pageWidth = 210 // A4 width in mm
+        const pageHeight = 297 // A4 height in mm
         
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
+        // Use html2canvas with better settings
+        const canvas = await html2canvas(container, {
+          scale: 1.5,
+          useCORS: true,
+          logging: false,
+          windowWidth: 750,
+        })
+        
+        const imgData = canvas.toDataURL('image/png', 0.95)
+        const imgWidth = pageWidth
+        const imgHeight = (canvas.height * pageWidth) / canvas.width
+        
+        let heightLeft = imgHeight
+        let position = 0
+        
+        // Add first page
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST')
+        heightLeft -= pageHeight
+        
+        // Add additional pages if content is longer
+        while (heightLeft > 0) {
+          position -= pageHeight
+          pdf.addPage()
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
+          heightLeft -= pageHeight
+        }
+        
         pdf.save(`${filename}.pdf`)
         
         document.body.removeChild(container)
@@ -1497,4 +1516,277 @@ ${params.gemachName}`,
     htmlContent,
     filename: `הודעת-חוב-ערב-${params.guarantorName}`
   }
+}
+
+
+// Generate detailed guarantor statement document
+export interface GuarantorStatementData {
+  gemachName: string
+  gemachLogo?: string
+  guarantorName: string
+  guarantorPhone?: string
+  guarantorEmail?: string
+  dateFormat?: string
+  // Guarantor loans (loans transferred to guarantor)
+  guarantorLoans?: Array<{
+    borrowerName: string
+    originalLoanAmount: number
+    originalLoanDate: string
+    guarantorLoanAmount: number
+    totalPaid: number
+    remaining: number
+    status: 'active' | 'paid'
+    repayments: Array<{
+      amount: number
+      payment_date: string
+      notes?: string
+    }>
+    refundDue?: number
+  }>
+  // Regular loans where this person is a guarantor
+  regularLoans?: Array<{
+    borrowerName: string
+    loanAmount: number
+    loanDate: string
+    remaining: number
+    status: string
+    dueDate?: string
+  }>
+}
+
+export function generateGuarantorStatement(data: GuarantorStatementData): void {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('he-IL', {
+      style: 'currency',
+      currency: 'ILS',
+      minimumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    if (data.dateFormat === 'hebrew') {
+      return toHebrewDate(dateStr)
+    }
+    return date.toLocaleDateString('he-IL')
+  }
+
+  const today = new Date().toLocaleDateString('he-IL')
+  const logoHtml = data.gemachLogo ? `<img src="${data.gemachLogo}" alt="לוגו" style="max-width: 120px; max-height: 60px; margin-bottom: 15px;" />` : ''
+
+  // Build guarantor loans section - minimalist style
+  const guarantorLoansHtml = data.guarantorLoans && data.guarantorLoans.length > 0 ? `
+    <div style="margin-top: 25px;">
+      <h3 style="color: #424242; border-bottom: 2px solid #e0e0e0; padding-bottom: 8px; font-size: 16px; font-weight: 600;">הלוואות שהועברו לערב</h3>
+      ${data.guarantorLoans.map((gl, index) => {
+        const refundAlert = gl.refundDue && gl.refundDue > 0 ? `
+          <div style="background: #ffebee; border-left: 4px solid #d32f2f; padding: 12px; margin: 12px 0;">
+            <p style="margin: 0; font-size: 13px; color: #c62828;">
+              <strong>⚠️ שים לב:</strong> מגיע החזר לערב בסך ${formatCurrency(gl.refundDue)}
+            </p>
+          </div>
+        ` : ''
+
+        const repaymentsHtml = gl.repayments.length > 0 ? `
+          <div style="margin-top: 12px;">
+            <p style="font-size: 12px; color: #616161; margin-bottom: 6px; font-weight: 600;">היסטוריית תשלומים:</p>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+              <thead>
+                <tr style="background: #fafafa; border-bottom: 1px solid #e0e0e0;">
+                  <th style="padding: 6px 8px; text-align: right; font-weight: 600; color: #616161;">תאריך</th>
+                  <th style="padding: 6px 8px; text-align: center; font-weight: 600; color: #616161;">סכום</th>
+                  <th style="padding: 6px 8px; text-align: right; font-weight: 600; color: #616161;">הערות</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${gl.repayments.map((r, i) => `
+                  <tr style="border-bottom: 1px solid #f5f5f5;">
+                    <td style="padding: 6px 8px; text-align: right;">${formatDate(r.payment_date)}</td>
+                    <td style="padding: 6px 8px; text-align: center; font-weight: 600; color: #2e7d32;">${formatCurrency(r.amount)}</td>
+                    <td style="padding: 6px 8px; text-align: right; color: #757575;">${r.notes || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : '<p style="color: #9e9e9e; margin-top: 8px; font-size: 11px;">אין תשלומים עדיין</p>'
+
+        return `
+          <div style="background: #fafafa; padding: 15px; margin: 15px 0; border-left: 3px solid #757575;">
+            <p style="margin: 0 0 10px 0; font-size: 13px; color: #424242; font-weight: 600;">הלוואה #${index + 1} - ${gl.borrowerName}</p>
+            <table style="width: 100%; font-size: 11px; margin-bottom: 10px;">
+              <tr>
+                <td style="padding: 4px 0; color: #757575; width: 45%;">סכום הלוואה מקורי:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #424242;">${formatCurrency(gl.originalLoanAmount)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #757575;">תאריך הלוואה:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #424242;">${formatDate(gl.originalLoanDate)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #757575;">סכום שהועבר לערב:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #424242;">${formatCurrency(gl.guarantorLoanAmount)}</td>
+              </tr>
+              <tr style="background: #e8f5e9;">
+                <td style="padding: 4px 0; color: #2e7d32; font-weight: 600;">סה"כ שולם:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #2e7d32;">${formatCurrency(gl.totalPaid)}</td>
+              </tr>
+              <tr style="background: ${gl.remaining > 0 ? '#ffebee' : '#e8f5e9'};">
+                <td style="padding: 4px 0; font-weight: 600; color: ${gl.remaining > 0 ? '#c62828' : '#2e7d32'};">יתרה לתשלום:</td>
+                <td style="padding: 4px 0; font-weight: 700; font-size: 13px; color: ${gl.remaining > 0 ? '#c62828' : '#2e7d32'};">${formatCurrency(gl.remaining)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #757575;">סטטוס:</td>
+                <td style="padding: 4px 0;">
+                  <span style="background: ${gl.status === 'paid' ? '#e8f5e9' : '#fff3e0'}; color: ${gl.status === 'paid' ? '#2e7d32' : '#e65100'}; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 600;">
+                    ${gl.status === 'paid' ? 'נפרע במלואו' : 'פעיל'}
+                  </span>
+                </td>
+              </tr>
+            </table>
+            
+            ${refundAlert}
+            ${repaymentsHtml}
+          </div>
+        `
+      }).join('')}
+    </div>
+  ` : ''
+
+  // Build regular loans section - minimalist style
+  const regularLoansHtml = data.regularLoans && data.regularLoans.length > 0 ? `
+    <div style="margin-top: 25px; page-break-before: auto;">
+      <h3 style="color: #424242; border-bottom: 2px solid #e0e0e0; padding-bottom: 8px; font-size: 16px; font-weight: 600;">הלוואות פעילות שאני ערב עליהן</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 10px;">
+        <thead>
+          <tr style="background: #fafafa; border-bottom: 2px solid #e0e0e0;">
+            <th style="padding: 8px 6px; text-align: right; font-weight: 600; color: #616161;">לווה</th>
+            <th style="padding: 8px 6px; text-align: center; font-weight: 600; color: #616161;">סכום</th>
+            <th style="padding: 8px 6px; text-align: center; font-weight: 600; color: #616161;">יתרה</th>
+            <th style="padding: 8px 6px; text-align: center; font-weight: 600; color: #616161;">תאריך</th>
+            <th style="padding: 8px 6px; text-align: center; font-weight: 600; color: #616161;">פירעון</th>
+            <th style="padding: 8px 6px; text-align: center; font-weight: 600; color: #616161;">סטטוס</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.regularLoans.map((loan, i) => {
+            const statusLabels: Record<string, string> = {
+              'active': 'פעילה',
+              'overdue': 'באיחור',
+              'transferred': 'הועברה',
+              'paid': 'נפרעה'
+            }
+            const statusColors: Record<string, string> = {
+              'active': '#e8f5e9',
+              'overdue': '#ffebee',
+              'transferred': '#fff3e0',
+              'paid': '#f5f5f5'
+            }
+            const statusTextColors: Record<string, string> = {
+              'active': '#2e7d32',
+              'overdue': '#c62828',
+              'transferred': '#e65100',
+              'paid': '#757575'
+            }
+            return `
+              <tr style="border-bottom: 1px solid #f5f5f5; ${i % 2 === 0 ? 'background: #fafafa;' : ''}">
+                <td style="padding: 8px 6px; text-align: right;">${loan.borrowerName}</td>
+                <td style="padding: 8px 6px; text-align: center; font-weight: 600;">${formatCurrency(loan.loanAmount)}</td>
+                <td style="padding: 8px 6px; text-align: center; font-weight: 700; color: ${loan.remaining > 0 ? '#c62828' : '#2e7d32'};">${formatCurrency(loan.remaining)}</td>
+                <td style="padding: 8px 6px; text-align: center; color: #757575;">${formatDate(loan.loanDate)}</td>
+                <td style="padding: 8px 6px; text-align: center; color: #757575;">${loan.dueDate ? formatDate(loan.dueDate) : '-'}</td>
+                <td style="padding: 8px 6px; text-align: center;">
+                  <span style="background: ${statusColors[loan.status] || '#f5f5f5'}; color: ${statusTextColors[loan.status] || '#757575'}; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 600;">
+                    ${statusLabels[loan.status] || loan.status}
+                  </span>
+                </td>
+              </tr>
+            `
+          }).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top: 12px; padding: 10px; background: #fafafa; border-left: 3px solid #757575;">
+        <p style="margin: 0 0 4px 0; font-size: 11px; color: #424242;">
+          <strong>סה"כ סכום הלוואות:</strong> ${formatCurrency(data.regularLoans.reduce((sum, l) => sum + l.loanAmount, 0))}
+        </p>
+        <p style="margin: 0; font-size: 11px; color: #424242;">
+          <strong>סה"כ יתרה:</strong> ${formatCurrency(data.regularLoans.reduce((sum, l) => sum + l.remaining, 0))}
+        </p>
+      </div>
+    </div>
+  ` : ''
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+      <meta charset="UTF-8">
+      <title>דוח ערב - ${data.guarantorName}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap');
+        body { 
+          font-family: 'Heebo', Arial, sans-serif; 
+          margin: 0;
+          padding: 20px;
+          background: white;
+          color: #212121;
+        }
+        .page-container {
+          max-width: 750px;
+          margin: 0 auto;
+          padding: 25px;
+          background: white;
+        }
+        @media print {
+          body { padding: 10px; }
+          .page-container { padding: 15px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="page-container">
+        <div style="text-align: center; margin-bottom: 25px;">
+          ${logoHtml}
+          <h1 style="font-size: 24px; margin: 8px 0; color: #212121; font-weight: 600;">${data.gemachName}</h1>
+          <h2 style="font-size: 16px; margin: 4px 0; color: #757575; font-weight: 400;">דוח ערב מפורט</h2>
+        </div>
+
+        <div style="background: #fafafa; padding: 15px; margin-bottom: 20px; border-left: 3px solid #424242;">
+          <p style="margin: 0 0 6px 0; font-size: 14px; color: #212121; font-weight: 600;">פרטי הערב</p>
+          <table style="width: 100%; font-size: 12px;">
+            <tr>
+              <td style="padding: 3px 0; color: #757575; width: 30%;">שם:</td>
+              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorName}</td>
+            </tr>
+            ${data.guarantorPhone ? `
+            <tr>
+              <td style="padding: 3px 0; color: #757575;">טלפון:</td>
+              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorPhone}</td>
+            </tr>` : ''}
+            ${data.guarantorEmail ? `
+            <tr>
+              <td style="padding: 3px 0; color: #757575;">אימייל:</td>
+              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorEmail}</td>
+            </tr>` : ''}
+            <tr>
+              <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">תאריך הפקה:</td>
+              <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">${today}</td>
+            </tr>
+          </table>
+        </div>
+
+        ${guarantorLoansHtml}
+        
+        ${regularLoansHtml}
+
+        <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; text-align: center;">
+          <p style="margin: 0; font-size: 10px; color: #9e9e9e;">דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  downloadPdf(htmlContent, `דוח-ערב-${data.guarantorName}`)
 }
