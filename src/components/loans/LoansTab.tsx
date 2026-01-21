@@ -362,6 +362,45 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       }
 
       if (selectedLoan?.id) {
+        // בדיקה אם שינו את סכום הפירעון החודשי בהלוואה עם פירעון מחזורי
+        const oldRepaymentAmount = selectedLoan.repayment_amount
+        const newRepaymentAmount = formData.repayment_amount
+        
+        if (selectedLoan.auto_repayment === 1 && 
+            oldRepaymentAmount && 
+            newRepaymentAmount && 
+            oldRepaymentAmount !== newRepaymentAmount) {
+          
+          // יש שינוי בסכום הפירעון - צריך לעדכן את כל הפירעונים הקיימים
+          const existingRepayments = await repaymentsService.getByLoan(selectedLoan.id)
+          
+          if (existingRepayments.length > 0) {
+            // חישוב הספירה החדשה
+            const totalRepaid = existingRepayments.reduce((sum, r) => sum + r.amount, 0)
+            const remaining = selectedLoan.amount - totalRepaid
+            const additionalRepayments = Math.ceil(remaining / newRepaymentAmount)
+            const newTotalCount = existingRepayments.length + additionalRepayments
+            
+            console.log(`[LOAN UPDATE] Repayment amount changed from ${oldRepaymentAmount} to ${newRepaymentAmount}`)
+            console.log(`[LOAN UPDATE] Existing repayments: ${existingRepayments.length}, Additional needed: ${additionalRepayments}, New total: ${newTotalCount}`)
+            
+            // עדכון כל הפירעונות הקיימים עם הספירה החדשה
+            for (const repayment of existingRepayments) {
+              if (repayment.is_recurring === 1) {
+                await repaymentsService.update(repayment.id, {
+                  recurring_repayment_count: newTotalCount
+                })
+              }
+            }
+            
+            setSnackbar({ 
+              open: true, 
+              message: `סכום הפירעון עודכן. הספירה עודכנה ל-${newTotalCount} פירעונים (${existingRepayments.length} קיימים + ${additionalRepayments} נוספים)`, 
+              severity: 'info' 
+            })
+          }
+        }
+        
         await loansService.update(selectedLoan.id, {
           ...formData,
           recurring_loan_number: recurringLoanNumber,
@@ -631,8 +670,18 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         const existingRepayments = await repaymentsService.getByLoan(selectedLoan.id)
         recurringRepaymentNumber = existingRepayments.length + 1
         
-        // מחשבים סה"כ פירעונות צפויים
-        recurringRepaymentCount = Math.ceil(selectedLoan.amount / selectedLoan.repayment_amount)
+        // אם יש כבר פירעון קודם עם מספר מחזורי - משתמשים באותו ספירה
+        const firstRecurringRepayment = existingRepayments.find(r => r.recurring_repayment_count && r.recurring_repayment_count > 0)
+        
+        if (firstRecurringRepayment && firstRecurringRepayment.recurring_repayment_count) {
+          // משתמשים בספירה מהפירעון הקיים (שכבר עודכנה אם שינו את הסכום)
+          recurringRepaymentCount = firstRecurringRepayment.recurring_repayment_count
+          console.log(`[REPAYMENT] Using existing count from repayments: ${recurringRepaymentCount}`)
+        } else {
+          // זה הפירעון הראשון - מחשבים את הספירה
+          recurringRepaymentCount = Math.ceil(selectedLoan.amount / selectedLoan.repayment_amount)
+          console.log(`[REPAYMENT] First recurring repayment, calculated count: ${recurringRepaymentCount}`)
+        }
         
         console.log(`[REPAYMENT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
       }

@@ -357,6 +357,210 @@ describe('פירעון מחזורי מול תאריך פירעון קבוע', ()
       )
       expect(sortedRepayments[4].amount).toBe(100) // הפירעון האחרון
     })
+
+    it('שינוי סכום פירעון חודשי מעדכן את הספירה של כל הפירעונות', async () => {
+      const borrowerResult = await borrowersService.create({
+        first_name: 'שלמה',
+        last_name: 'דוד',
+        phone: '0501234577',
+        id_number: '',
+        address: '',
+        email: '',
+        notes: ''
+      })
+      const borrowerId = borrowerResult.lastInsertRowid
+
+      const loanResult = await loansService.create({
+        borrower_id: borrowerId,
+        amount: 1000,
+        loan_date: '2026-01-15',
+        loan_type: 'flexible',
+        auto_repayment: 1,
+        repayment_amount: 200, // התחלה עם 200₪
+        repayment_start_date: '2026-02-01',
+        repayment_day: 15,
+        is_recurring: 0
+      })
+      const loanId = loanResult.lastInsertRowid
+
+      // פירעון ראשון - 200₪ (צפוי: 1/5)
+      await repaymentsService.create({
+        loan_id: loanId,
+        amount: 200,
+        payment_date: '2026-02-15',
+        is_recurring: 1,
+        recurring_repayment_number: 1,
+        recurring_repayment_count: 5 // 1000/200 = 5
+      })
+
+      // עכשיו משנים את סכום הפירעון החודשי ל-50₪
+      // יתרה: 800₪, פירעונות נוספים: 800/50 = 16, סה"כ: 1 + 16 = 17
+      const loan = await loansService.getById(loanId)
+      const existingRepayments = await repaymentsService.getByLoan(loanId)
+      const totalRepaid = existingRepayments.reduce((sum, r) => sum + r.amount, 0)
+      const remaining = (loan?.amount || 0) - totalRepaid
+      const additionalRepayments = Math.ceil(remaining / 50)
+      const newTotalCount = existingRepayments.length + additionalRepayments
+      
+      expect(newTotalCount).toBe(17) // 1 + 16 = 17
+      
+      // עדכון הפירעון הקיים עם הספירה החדשה
+      await repaymentsService.update(existingRepayments[0].id, {
+        recurring_repayment_count: newTotalCount
+      })
+      
+      // עדכון ההלוואה
+      await loansService.update(loanId, { repayment_amount: 50 })
+
+      // פירעון שני - 50₪ (צריך להיות 2/17)
+      const updatedRepayments = await repaymentsService.getByLoan(loanId)
+      const firstRecurring = updatedRepayments.find(r => r.recurring_repayment_count && r.recurring_repayment_count > 0)
+      
+      // הספירה צריכה להיות 17
+      expect(firstRecurring?.recurring_repayment_count).toBe(17)
+      
+      await repaymentsService.create({
+        loan_id: loanId,
+        amount: 50,
+        payment_date: '2026-03-15',
+        is_recurring: 1,
+        recurring_repayment_number: 2,
+        recurring_repayment_count: firstRecurring?.recurring_repayment_count
+      })
+
+      const allRepayments = await repaymentsService.getByLoan(loanId)
+      expect(allRepayments.length).toBe(2)
+      
+      // שני הפירעונים צריכים להיות עם אותה ספירה כוללת (17)
+      expect(allRepayments[0].recurring_repayment_count).toBe(17)
+      expect(allRepayments[1].recurring_repayment_count).toBe(17)
+      
+      // המספרים צריכים להיות 1 ו-2
+      const sorted = allRepayments.sort((a, b) => (a.recurring_repayment_number || 0) - (b.recurring_repayment_number || 0))
+      expect(sorted[0].recurring_repayment_number).toBe(1)
+      expect(sorted[0].amount).toBe(200) // הפירעון הראשון היה 200₪
+      expect(sorted[1].recurring_repayment_number).toBe(2)
+      expect(sorted[1].amount).toBe(50) // הפירעון השני הוא 50₪
+    })
+
+    it('שינוי סכום פירעון אחרי 3 פירעונות מעדכן את הספירה נכון', async () => {
+      const borrowerResult = await borrowersService.create({
+        first_name: 'אברהם',
+        last_name: 'משה',
+        phone: '0501234578',
+        id_number: '',
+        address: '',
+        email: '',
+        notes: ''
+      })
+      const borrowerId = borrowerResult.lastInsertRowid
+
+      // הלוואה: 1000₪, פירעון חודשי: 200₪
+      const loanResult = await loansService.create({
+        borrower_id: borrowerId,
+        amount: 1000,
+        loan_date: '2026-01-15',
+        loan_type: 'flexible',
+        auto_repayment: 1,
+        repayment_amount: 200,
+        repayment_start_date: '2026-02-01',
+        repayment_day: 15,
+        is_recurring: 0
+      })
+      const loanId = loanResult.lastInsertRowid
+
+      // 3 פירעונים ראשונים של 200₪ כל אחד
+      await repaymentsService.create({
+        loan_id: loanId,
+        amount: 200,
+        payment_date: '2026-02-15',
+        is_recurring: 1,
+        recurring_repayment_number: 1,
+        recurring_repayment_count: 5 // 1000/200 = 5
+      })
+
+      await repaymentsService.create({
+        loan_id: loanId,
+        amount: 200,
+        payment_date: '2026-03-15',
+        is_recurring: 1,
+        recurring_repayment_number: 2,
+        recurring_repayment_count: 5
+      })
+
+      await repaymentsService.create({
+        loan_id: loanId,
+        amount: 200,
+        payment_date: '2026-04-15',
+        is_recurring: 1,
+        recurring_repayment_number: 3,
+        recurring_repayment_count: 5
+      })
+
+      // בדיקה: סה"כ פרעו 600₪, נשאר 400₪
+      const loan = await loansService.getById(loanId)
+      expect(loan?.remaining).toBe(400)
+
+      // עכשיו משנים את סכום הפירעון ל-50₪
+      // יתרה: 400₪, פירעונות נוספים: 400/50 = 8, סה"כ: 3 + 8 = 11
+      const existingRepayments = await repaymentsService.getByLoan(loanId)
+      const totalRepaid = existingRepayments.reduce((sum, r) => sum + r.amount, 0)
+      const remaining = (loan?.amount || 0) - totalRepaid
+      const additionalRepayments = Math.ceil(remaining / 50)
+      const newTotalCount = existingRepayments.length + additionalRepayments
+      
+      expect(existingRepayments.length).toBe(3)
+      expect(totalRepaid).toBe(600)
+      expect(remaining).toBe(400)
+      expect(additionalRepayments).toBe(8) // 400/50 = 8
+      expect(newTotalCount).toBe(11) // 3 + 8 = 11
+      
+      // עדכון כל הפירעונות הקיימים עם הספירה החדשה
+      for (const repayment of existingRepayments) {
+        await repaymentsService.update(repayment.id, {
+          recurring_repayment_count: newTotalCount
+        })
+      }
+      
+      // עדכון ההלוואה
+      await loansService.update(loanId, { repayment_amount: 50 })
+
+      // בדיקה שכל הפירעונות הקיימים עודכנו
+      const updatedRepayments = await repaymentsService.getByLoan(loanId)
+      expect(updatedRepayments.length).toBe(3)
+      
+      // כל הפירעונות צריכים להיות עם הספירה החדשה (11)
+      updatedRepayments.forEach(r => {
+        expect(r.recurring_repayment_count).toBe(11)
+      })
+      
+      // המספרים צריכים להישאר 1, 2, 3
+      const sorted = updatedRepayments.sort((a, b) => (a.recurring_repayment_number || 0) - (b.recurring_repayment_number || 0))
+      expect(sorted[0].recurring_repayment_number).toBe(1)
+      expect(sorted[0].amount).toBe(200)
+      expect(sorted[1].recurring_repayment_number).toBe(2)
+      expect(sorted[1].amount).toBe(200)
+      expect(sorted[2].recurring_repayment_number).toBe(3)
+      expect(sorted[2].amount).toBe(200)
+      
+      // פירעון רביעי - 50₪ (צריך להיות 4/11)
+      await repaymentsService.create({
+        loan_id: loanId,
+        amount: 50,
+        payment_date: '2026-05-15',
+        is_recurring: 1,
+        recurring_repayment_number: 4,
+        recurring_repayment_count: 11
+      })
+
+      const allRepayments = await repaymentsService.getByLoan(loanId)
+      expect(allRepayments.length).toBe(4)
+      
+      // כולם צריכים להיות עם ספירה 11
+      allRepayments.forEach(r => {
+        expect(r.recurring_repayment_count).toBe(11)
+      })
+    })
   })
 
   describe('תרחישים משולבים', () => {

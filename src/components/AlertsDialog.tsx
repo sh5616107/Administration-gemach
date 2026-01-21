@@ -299,8 +299,18 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
         const existingRepayments = await repaymentsService.getByLoan(alert.loanId)
         recurringRepaymentNumber = existingRepayments.length + 1
         
-        // מחשבים סה"כ פירעונות צפויים
-        recurringRepaymentCount = Math.ceil(loan.amount / loan.repayment_amount)
+        // אם יש כבר פירעון קודם עם מספר מחזורי - משתמשים באותו ספירה
+        const firstRecurringRepayment = existingRepayments.find(r => r.recurring_repayment_count && r.recurring_repayment_count > 0)
+        
+        if (firstRecurringRepayment && firstRecurringRepayment.recurring_repayment_count) {
+          // משתמשים בספירה מהפירעון הקיים (שכבר עודכנה אם שינו את הסכום)
+          recurringRepaymentCount = firstRecurringRepayment.recurring_repayment_count
+          console.log(`[ALERT] Using existing count from repayments: ${recurringRepaymentCount}`)
+        } else {
+          // זה הפירעון הראשון - מחשבים את הספירה
+          recurringRepaymentCount = Math.ceil(loan.amount / loan.repayment_amount)
+          console.log(`[ALERT] First recurring repayment, calculated count: ${recurringRepaymentCount}`)
+        }
         
         console.log(`[ALERT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
       }
