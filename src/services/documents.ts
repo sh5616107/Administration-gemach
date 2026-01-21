@@ -221,9 +221,15 @@ interface LoanDocumentData {
   guarantor2Name?: string
   dateFormat?: string
   customText?: string
+  isRecurring?: boolean
+  recurringLoanNumber?: number
+  recurringLoanCount?: number
   repayments?: Array<{
     amount: number
     payment_date: string
+    isRecurring?: boolean
+    recurringRepaymentNumber?: number
+    recurringRepaymentCount?: number
   }>
 }
 
@@ -249,6 +255,18 @@ export function generateLoanDocument(data: LoanDocumentData) {
   const logoHtml = data.gemachLogo 
     ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
+
+  // HTML להלוואה מחזורית - רק אם יש יותר מהלוואה אחת בסדרה
+  const recurringLoanHtml = data.isRecurring && data.recurringLoanNumber && data.recurringLoanCount && data.recurringLoanCount > 1 ? `
+    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
+      <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
+        🔄 הלוואה מחזורית - מספר ${data.recurringLoanNumber} מתוך ${data.recurringLoanCount}
+      </p>
+      <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
+        זוהי הלוואה מחזורית מספר ${data.recurringLoanNumber} שניתנה ללווה זה
+      </p>
+    </div>
+  ` : ''
 
   const guarantorsHtml = (data.guarantor1Name || data.guarantor2Name) ? `
     <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px;">
@@ -285,18 +303,24 @@ export function generateLoanDocument(data: LoanDocumentData) {
           <tr style="background: #4caf50;">
             <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">תאריך פירעון</th>
             <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">סכום</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">מחזורי</th>
           </tr>
         </thead>
         <tbody>
-          ${data.repayments.map(r => `
+          ${data.repayments.map(r => {
+            const recurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
+              ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
+              : '-'
+            return `
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(r.amount)}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
             </tr>
-          `).join('')}
+          `}).join('')}
           <tr style="background: #f1f8e9; font-weight: bold;">
             <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נפרע</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(totalRepaid)}</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;" colspan="2">${formatCurrency(totalRepaid)}</td>
           </tr>
         </tbody>
       </table>
@@ -313,6 +337,8 @@ export function generateLoanDocument(data: LoanDocumentData) {
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+      
+      ${recurringLoanHtml}
       
       <div style="text-align: right; font-size: 16px; line-height: 2;">
         <p>אני הח"מ <strong>${data.borrowerName}</strong></p>
@@ -571,6 +597,16 @@ export function generateBorrowerReport(data: {
     loanDate: string
     remaining: number
     status: string
+    isRecurring?: boolean
+    recurringLoanNumber?: number
+    recurringLoanCount?: number
+    repayments?: Array<{
+      amount: number
+      payment_date: string
+      isRecurring?: boolean
+      recurringRepaymentNumber?: number
+      recurringRepaymentCount?: number
+    }>
   }>
   expenses?: Array<{
     id: number
@@ -587,15 +623,57 @@ export function generateBorrowerReport(data: {
     ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
 
-  const loansHtml = data.loans.map(loan => `
+  const loansHtml = data.loans.map(loan => {
+    const recurringInfo = loan.isRecurring && loan.recurringLoanNumber && loan.recurringLoanCount && loan.recurringLoanCount > 1
+      ? `🔄 ${loan.recurringLoanNumber}/${loan.recurringLoanCount}`
+      : ''
+    
+    // טבלת פרעונות להלוואה זו
+    const repaymentsHtml = loan.repayments && loan.repayments.length > 0 ? `
+      <tr style="background: #f0f8ff;">
+        <td colspan="6" style="padding: 10px; border: 1px solid #ddd;">
+          <strong>פרעונות להלוואה ${loan.id}:</strong>
+          <table style="width: 100%; margin-top: 5px; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #e3f2fd;">
+                <th style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">תאריך</th>
+                <th style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">סכום</th>
+                <th style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">מחזורי</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${loan.repayments.map(r => {
+                const repRecurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
+                  ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
+                  : '-'
+                return `
+                <tr>
+                  <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
+                  <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${formatCurrency(r.amount)}</td>
+                  <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${repRecurringInfo}</td>
+                </tr>
+              `}).join('')}
+              <tr style="background: #e8f5e9; font-weight: bold;">
+                <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">סה"כ נפרע</td>
+                <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;" colspan="2">${formatCurrency(loan.repayments.reduce((sum, r) => sum + r.amount, 0))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    ` : ''
+    
+    return `
     <tr>
       <td style="padding: 8px; border: 1px solid #ddd;">${loan.id}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(loan.amount)}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${loan.loanDate}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(loan.remaining)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${recurringInfo || '-'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'}</td>
     </tr>
-  `).join('')
+    ${repaymentsHtml}
+  `}).join('')
 
   const categoryLabels: Record<string, string> = {
     fee: 'עמלה',
@@ -662,11 +740,12 @@ export function generateBorrowerReport(data: {
             <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
             <th style="padding: 10px; border: 1px solid #ddd;">תאריך</th>
             <th style="padding: 10px; border: 1px solid #ddd;">יתרה</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">מחזורית</th>
             <th style="padding: 10px; border: 1px solid #ddd;">סטטוס</th>
           </tr>
         </thead>
         <tbody>
-          ${loansHtml || '<tr><td colspan="5" style="padding: 20px; text-align: center;">אין הלוואות</td></tr>'}
+          ${loansHtml || '<tr><td colspan="6" style="padding: 20px; text-align: center;">אין הלוואות</td></tr>'}
         </tbody>
       </table>
       
@@ -1034,9 +1113,15 @@ export function createLoanEmailData(params: {
   guarantor1Name?: string
   guarantor2Name?: string
   dateFormat?: string
+  isRecurring?: boolean
+  recurringLoanNumber?: number
+  recurringLoanCount?: number
   repayments?: Array<{
     amount: number
     payment_date: string
+    isRecurring?: boolean
+    recurringRepaymentNumber?: number
+    recurringRepaymentCount?: number
   }>
 }): EmailData {
   const formattedAmount = formatCurrency(params.amount)
@@ -1051,6 +1136,18 @@ export function createLoanEmailData(params: {
   const logoHtml = params.gemachLogo 
     ? `<img src="${params.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
+
+  // HTML להלוואה מחזורית - רק אם יש יותר מהלוואה אחת בסדרה
+  const recurringLoanHtml = params.isRecurring && params.recurringLoanNumber && params.recurringLoanCount && params.recurringLoanCount > 1 ? `
+    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
+      <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
+        🔄 הלוואה מחזורית - מספר ${params.recurringLoanNumber} מתוך ${params.recurringLoanCount}
+      </p>
+      <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
+        זוהי הלוואה מחזורית מספר ${params.recurringLoanNumber} שניתנה ללווה זה
+      </p>
+    </div>
+  ` : ''
 
   const guarantorsHtml = (params.guarantor1Name || params.guarantor2Name) ? `
     <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px;">
@@ -1073,18 +1170,24 @@ export function createLoanEmailData(params: {
           <tr style="background: #4caf50;">
             <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">תאריך פירעון</th>
             <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">סכום</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">מחזורי</th>
           </tr>
         </thead>
         <tbody>
-          ${params.repayments.map(r => `
+          ${params.repayments.map(r => {
+            const recurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
+              ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
+              : '-'
+            return `
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(r.amount)}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
             </tr>
-          `).join('')}
+          `}).join('')}
           <tr style="background: #f1f8e9; font-weight: bold;">
             <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נפרע</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(totalRepaid)}</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;" colspan="2">${formatCurrency(totalRepaid)}</td>
           </tr>
         </tbody>
       </table>
@@ -1100,6 +1203,7 @@ export function createLoanEmailData(params: {
       <h1 style="font-size: 28px; margin: 10px 0;">שטר הלוואה</h1>
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${params.gemachName}</h2>
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+      ${recurringLoanHtml}
       <div style="text-align: right; font-size: 16px; line-height: 2;">
         <p>אני הח"מ <strong>${params.borrowerName}</strong></p>
         <p>מאשר בזה כי לוויתי מגמ"ח "<strong>${params.gemachName}</strong>"</p>
@@ -1342,11 +1446,12 @@ export function createBorrowerReportEmailData(params: {
             <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
             <th style="padding: 10px; border: 1px solid #ddd;">תאריך</th>
             <th style="padding: 10px; border: 1px solid #ddd;">יתרה</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">מחזורית</th>
             <th style="padding: 10px; border: 1px solid #ddd;">סטטוס</th>
           </tr>
         </thead>
         <tbody>
-          ${loansHtml || '<tr><td colspan="5" style="padding: 20px; text-align: center;">אין הלוואות</td></tr>'}
+          ${loansHtml || '<tr><td colspan="6" style="padding: 20px; text-align: center;">אין הלוואות</td></tr>'}
         </tbody>
       </table>
     </div>

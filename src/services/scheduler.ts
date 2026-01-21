@@ -136,6 +136,13 @@ export async function createRecurringLoan(originalLoanId: number): Promise<boole
 
     const today = new Date().toISOString().split('T')[0]
     
+    // חישוב מספר ההלוואה המחזורית
+    // אם ההלוואה המקורית היא 1/12 ויש לה recurring_months=11
+    // אז ההלוואה החדשה תהיה 2/12
+    const originalNumber = loan.recurring_loan_number || 1
+    const totalCount = loan.recurring_loan_count || (loan.recurring_months ? loan.recurring_months + 1 : 1)
+    const newLoanNumber = originalNumber + 1
+    
     await loansService.create({
       borrower_id: loan.borrower_id,
       amount: loan.amount,
@@ -147,11 +154,13 @@ export async function createRecurringLoan(originalLoanId: number): Promise<boole
       is_recurring: loan.is_recurring,
       recurring_months: loan.recurring_months ? loan.recurring_months - 1 : 0,
       recurring_day: loan.recurring_day,
+      recurring_loan_number: newLoanNumber,
+      recurring_loan_count: totalCount,
       auto_repayment: loan.auto_repayment,
       repayment_amount: loan.repayment_amount,
       repayment_day: loan.repayment_day,
       repayment_start_date: loan.repayment_start_date,
-      notes: `הלוואה מחזורית מהלוואה #${originalLoanId}`
+      notes: `הלוואה מחזורית מהלוואה #${originalLoanId} (${newLoanNumber}/${totalCount})`
     })
 
     // Update original loan to reduce recurring months
@@ -173,11 +182,28 @@ export async function processAutoRepayment(loanId: number, amount: number): Prom
   try {
     const today = new Date().toISOString().split('T')[0]
     
+    // Get loan details to calculate repayment number
+    const loan = await loansService.getById(loanId) as any
+    if (!loan) return false
+    
+    // Get existing repayments for this loan to calculate the number
+    const existingRepayments = await repaymentsService.getByLoan(loanId)
+    const autoRepayments = existingRepayments.filter(r => r.notes?.includes('פירעון מחזורי'))
+    const repaymentNumber = autoRepayments.length + 1
+    
+    // Calculate total count based on loan amount and repayment amount
+    const totalCount = loan.repayment_amount > 0 
+      ? Math.ceil(loan.amount / loan.repayment_amount)
+      : undefined
+    
     await repaymentsService.create({
       loan_id: loanId,
       amount: amount,
       payment_date: today,
-      notes: 'פירעון מחזורי אוטומטי'
+      notes: 'פירעון מחזורי אוטומטי',
+      is_recurring: 1,
+      recurring_repayment_number: repaymentNumber,
+      recurring_repayment_count: totalCount
     })
 
     return true
@@ -345,10 +371,38 @@ export async function createRecurringDeposit(originalDepositId: number): Promise
     const deposit = deposits[0]
     const today = new Date().toISOString().split('T')[0]
     
+    // חישוב מספר ההפקדה המחזורית
+    const originalNumber = deposit.recurring_deposit_number || 1
+    const totalCount = deposit.recurring_deposit_count || (deposit.recurring_months ? deposit.recurring_months + 1 : 1)
+    const newDepositNumber = originalNumber + 1
+    
     await db.run(
-      'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [deposit.depositor_id, deposit.amount, today, deposit.period_type, deposit.due_date, deposit.is_recurring, `הפקדה מחזורית מהפקדה #${originalDepositId}`, 'active', deposit.payment_method || '', deposit.payment_details || '']
+      'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        deposit.depositor_id, 
+        deposit.amount, 
+        today, 
+        deposit.period_type, 
+        deposit.due_date, 
+        deposit.is_recurring, 
+        deposit.recurring_day,
+        deposit.recurring_months ? deposit.recurring_months - 1 : 0,
+        newDepositNumber,
+        totalCount,
+        `הפקדה מחזורית מהפקדה #${originalDepositId} (${newDepositNumber}/${totalCount})`, 
+        'active', 
+        deposit.payment_method || '', 
+        deposit.payment_details || ''
+      ]
     )
+    
+    // עדכון ההפקדה המקורית להפחית את recurring_months
+    if (deposit.recurring_months) {
+      await db.run(
+        'UPDATE deposits SET recurring_months = ? WHERE id = ?',
+        [deposit.recurring_months - 1, originalDepositId]
+      )
+    }
 
     return true
   } catch (error) {

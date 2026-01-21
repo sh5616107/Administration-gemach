@@ -75,6 +75,8 @@ interface Loan {
   is_recurring: number
   recurring_months?: number
   recurring_day?: number
+  recurring_loan_number?: number
+  recurring_loan_count?: number
   auto_repayment: number
   repayment_amount?: number
   repayment_day?: number
@@ -97,6 +99,9 @@ interface Repayment {
   notes?: string
   payment_method?: string
   payment_details?: string
+  is_recurring?: number
+  recurring_repayment_number?: number
+  recurring_repayment_count?: number
 }
 
 const emptyLoan: Loan = {
@@ -110,10 +115,11 @@ const emptyLoan: Loan = {
 
 interface LoansTabProps {
   initialBorrowerId?: number | null
+  initialLoanId?: number | null
   initialWaitlistId?: number | null
 }
 
-export default function LoansTab({ initialBorrowerId, initialWaitlistId }: LoansTabProps) {
+export default function LoansTab({ initialBorrowerId, initialLoanId, initialWaitlistId }: LoansTabProps) {
   const { settings } = useSettings()
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
@@ -160,6 +166,32 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       }
     }
   }, [initialBorrowerId, borrowers])
+
+  // Handle initial loan selection
+  useEffect(() => {
+    const loadLoanById = async () => {
+      if (initialLoanId && borrowers.length > 0) {
+        try {
+          const allLoans = await loansService.getAll() as Loan[]
+          const loan = allLoans.find(l => l.id === initialLoanId)
+          if (loan) {
+            // Find and select the borrower
+            const borrower = borrowers.find(b => b.id === loan.borrower_id)
+            if (borrower) {
+              setSelectedBorrower(borrower)
+              // Wait for borrower loans to load, then select the loan
+              setTimeout(() => {
+                setSelectedLoan(loan)
+              }, 100)
+            }
+          }
+        } catch (error) {
+          console.error('Error loading loan:', error)
+        }
+      }
+    }
+    loadLoanById()
+  }, [initialLoanId, borrowers])
 
   // Handle waitlist entry
   useEffect(() => {
@@ -312,9 +344,28 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
     }
 
     try {
+      // חישוב מספר הלוואה מחזורית
+      let recurringLoanNumber = formData.recurring_loan_number
+      let recurringLoanCount = formData.recurring_loan_count
+      
+      if (formData.is_recurring === 1 && formData.recurring_months !== undefined) {
+        if (!selectedLoan) {
+          // הלוואה מחזורית חדשה - זו תהיה הלוואה מספר 1
+          recurringLoanNumber = 1
+          recurringLoanCount = formData.recurring_months + 1
+        } else {
+          // עריכת הלוואה קיימת - עדכון recurring_loan_count לפי recurring_months
+          // אם יש recurring_loan_number, שומרים אותו
+          recurringLoanNumber = formData.recurring_loan_number || 1
+          recurringLoanCount = formData.recurring_months + (recurringLoanNumber || 1)
+        }
+      }
+
       if (selectedLoan?.id) {
         await loansService.update(selectedLoan.id, {
           ...formData,
+          recurring_loan_number: recurringLoanNumber,
+          recurring_loan_count: recurringLoanCount,
           payment_method: loanPaymentMethod.payment_method,
           payment_details: JSON.stringify(loanPaymentMethod),
         })
@@ -322,6 +373,8 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       } else {
         const result = await loansService.create({
           ...formData,
+          recurring_loan_number: recurringLoanNumber,
+          recurring_loan_count: recurringLoanCount,
           payment_method: loanPaymentMethod.payment_method,
           payment_details: JSON.stringify(loanPaymentMethod),
         })
@@ -565,12 +618,34 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
     }
 
     try {
+      // חישוב מספרים מחזוריים אם זה פירעון מחזורי
+      let isRecurring = 0
+      let recurringRepaymentNumber: number | undefined
+      let recurringRepaymentCount: number | undefined
+      
+      if (selectedLoan.auto_repayment === 1 && selectedLoan.repayment_amount && selectedLoan.repayment_amount > 0) {
+        // זה פירעון מחזורי
+        isRecurring = 1
+        
+        // מחשבים כמה פירעונות כבר היו (כולל אלה שלא מסומנים)
+        const existingRepayments = await repaymentsService.getByLoan(selectedLoan.id)
+        recurringRepaymentNumber = existingRepayments.length + 1
+        
+        // מחשבים סה"כ פירעונות צפויים
+        recurringRepaymentCount = Math.ceil(selectedLoan.amount / selectedLoan.repayment_amount)
+        
+        console.log(`[REPAYMENT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
+      }
+      
       await repaymentsService.create({
         loan_id: selectedLoan.id,
         amount: repaymentAmount,
         payment_date: new Date().toISOString().split('T')[0],
         payment_method: repaymentPaymentMethod.payment_method,
         payment_details: JSON.stringify(repaymentPaymentMethod),
+        is_recurring: isRecurring,
+        recurring_repayment_number: recurringRepaymentNumber,
+        recurring_repayment_count: recurringRepaymentCount,
       })
       
       // Update guarantor loans if exist
@@ -775,9 +850,15 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
       customText: settings.loan_document_text,
+      isRecurring: formData.is_recurring === 1,
+      recurringLoanNumber: formData.recurring_loan_number,
+      recurringLoanCount: formData.recurring_loan_count,
       repayments: loanRepayments.map(r => ({
         amount: r.amount,
-        payment_date: r.payment_date
+        payment_date: r.payment_date,
+        isRecurring: r.is_recurring === 1,
+        recurringRepaymentNumber: r.recurring_repayment_number,
+        recurringRepaymentCount: r.recurring_repayment_count
       })),
     })
   }
@@ -804,9 +885,15 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
       customText: settings.loan_document_text,
+      isRecurring: loan.is_recurring === 1,
+      recurringLoanNumber: loan.recurring_loan_number,
+      recurringLoanCount: loan.recurring_loan_count,
       repayments: loanRepayments.map(r => ({
         amount: r.amount,
-        payment_date: r.payment_date
+        payment_date: r.payment_date,
+        isRecurring: r.is_recurring === 1,
+        recurringRepaymentNumber: r.recurring_repayment_number,
+        recurringRepaymentCount: r.recurring_repayment_count
       })),
     })
   }
@@ -837,9 +924,15 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
+      isRecurring: formData.is_recurring === 1,
+      recurringLoanNumber: formData.recurring_loan_number,
+      recurringLoanCount: formData.recurring_loan_count,
       repayments: loanRepayments.map(r => ({
         amount: r.amount,
-        payment_date: r.payment_date
+        payment_date: r.payment_date,
+        isRecurring: r.is_recurring === 1,
+        recurringRepaymentNumber: r.recurring_repayment_number,
+        recurringRepaymentCount: r.recurring_repayment_count
       })),
     })
     
@@ -879,9 +972,15 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
       guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,
+      isRecurring: loan.is_recurring === 1,
+      recurringLoanNumber: loan.recurring_loan_number,
+      recurringLoanCount: loan.recurring_loan_count,
       repayments: loanRepayments.map(r => ({
         amount: r.amount,
-        payment_date: r.payment_date
+        payment_date: r.payment_date,
+        isRecurring: r.is_recurring === 1,
+        recurringRepaymentNumber: r.recurring_repayment_number,
+        recurringRepaymentCount: r.recurring_repayment_count
       })),
     })
     
@@ -1040,6 +1139,7 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                     <TableCell align="center">שולם</TableCell>
                     <TableCell align="center">יתרה</TableCell>
                     <TableCell align="center">סטטוס</TableCell>
+                    <TableCell align="center">מחזורית</TableCell>
                     <TableCell align="center">פעולות</TableCell>
                   </TableRow>
                 </TableHead>
@@ -1064,6 +1164,16 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                         </TableCell>
                         <TableCell align="center">
                           <Chip label={status.label} color={status.color} size="small" />
+                        </TableCell>
+                        <TableCell align="center">
+                          {loan.is_recurring === 1 && loan.recurring_loan_number && loan.recurring_loan_count && loan.recurring_loan_count > 1 ? (
+                            <Chip 
+                              label={`🔄 ${loan.recurring_loan_number}/${loan.recurring_loan_count}`} 
+                              color="info" 
+                              size="small" 
+                              title={`הלוואה מחזורית מספר ${loan.recurring_loan_number} מתוך ${loan.recurring_loan_count}`}
+                            />
+                          ) : '-'}
                         </TableCell>
                         <TableCell align="center">
                           <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleSelectLoan(loan); }} title="עריכה">
@@ -1173,9 +1283,12 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                     type="date"
                     value={formData.due_date || ''}
                     onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    disabled={formData.auto_repayment === 1}
                     InputLabelProps={{ shrink: true }}
                     helperText={
-                      formData.due_date && formData.loan_date && formData.due_date < formData.loan_date 
+                      formData.auto_repayment === 1
+                        ? '⚠️ תאריך פירעון לא רלוונטי כאשר יש פירעון מחזורי'
+                        : formData.due_date && formData.loan_date && formData.due_date < formData.loan_date 
                         ? '⚠️ תאריך פירעון לא יכול להיות לפני תאריך ההלוואה' 
                         : (settings.date_format === 'combined' && formData.due_date ? `📅 ${toHebrewDate(formData.due_date)}` : '')
                     }
@@ -1211,11 +1324,16 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                       <Grid item xs={12} md={3}>
                         <TextField
                           fullWidth
-                          label="מספר חודשים"
+                          label="סה״כ הלוואות"
                           type="number"
-                          value={formData.recurring_months || ''}
-                          onChange={(e) => setFormData({ ...formData, recurring_months: parseInt(e.target.value) || 0 })}
-                          helperText="כמה חודשים ההלוואה תחזור"
+                          value={formData.recurring_months ? formData.recurring_months + 1 : ''}
+                          onChange={(e) => {
+                            const total = parseInt(e.target.value) || 0
+                            // recurring_months = סה"כ - 1 (כי ההלוואה הראשונה כבר נוצרת עכשיו)
+                            setFormData({ ...formData, recurring_months: total > 0 ? total - 1 : 0 })
+                          }}
+                          helperText="סה״כ כמה הלוואות ייוצרו (כולל הראשונה)"
+                          inputProps={{ min: 1 }}
                         />
                       </Grid>
                       <Grid item xs={12} md={3}>
@@ -1245,7 +1363,15 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                       control={
                         <Checkbox
                           checked={formData.auto_repayment === 1}
-                          onChange={(e) => setFormData({ ...formData, auto_repayment: e.target.checked ? 1 : 0 })}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked
+                            // כשמפעילים פירעון מחזורי, מנקים את תאריך הפירעון הקבוע
+                            if (isChecked) {
+                              setFormData({ ...formData, auto_repayment: 1, due_date: undefined })
+                            } else {
+                              setFormData({ ...formData, auto_repayment: 0 })
+                            }
+                          }}
                         />
                       }
                       label="פירעון מחזורי"
@@ -1393,6 +1519,7 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                   <TableRow sx={{ bgcolor: 'grey.100' }}>
                     <TableCell>תאריך</TableCell>
                     <TableCell align="center">סכום</TableCell>
+                    <TableCell align="center">מחזורי</TableCell>
                     {settings.show_payment_method === 'yes' && <TableCell align="center">אמצעי תשלום</TableCell>}
                     <TableCell>הערות</TableCell>
                     <TableCell align="center">פעולות</TableCell>
@@ -1403,6 +1530,11 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                     <TableRow key={repayment.id}>
                       <TableCell>{formatDisplayDate(repayment.payment_date, settings.date_format)}</TableCell>
                       <TableCell align="center">{formatCurrency(repayment.amount)}</TableCell>
+                      <TableCell align="center">
+                        {repayment.is_recurring === 1 && repayment.recurring_repayment_number && repayment.recurring_repayment_count && repayment.recurring_repayment_count > 1 ? (
+                          `🔄 ${repayment.recurring_repayment_number}/${repayment.recurring_repayment_count}`
+                        ) : '-'}
+                      </TableCell>
                       {settings.show_payment_method === 'yes' && <TableCell align="center">{getPaymentMethodLabel(repayment.payment_method as any) || '-'}</TableCell>}
                       <TableCell>{repayment.notes || '-'}</TableCell>
                       <TableCell align="center">
@@ -1428,7 +1560,7 @@ export default function LoansTab({ initialBorrowerId, initialWaitlistId }: Loans
                   <TableRow sx={{ bgcolor: 'success.light' }}>
                     <TableCell><strong>סה"כ שולם</strong></TableCell>
                     <TableCell align="center"><strong>{formatCurrency(selectedLoan.total_repaid || 0)}</strong></TableCell>
-                    <TableCell colSpan={2}></TableCell>
+                    <TableCell colSpan={settings.show_payment_method === 'yes' ? 4 : 3}></TableCell>
                   </TableRow>
                 </TableBody>
               </Table>

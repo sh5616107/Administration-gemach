@@ -48,6 +48,7 @@ interface AlertsDialogProps {
 
 // Store read alerts in localStorage
 const READ_ALERTS_KEY = 'gemach_read_alerts'
+const CONFIRMED_REPAYMENTS_KEY = 'gemach_confirmed_repayments'
 
 const getReadAlerts = (): Set<string> => {
   try {
@@ -66,11 +67,29 @@ const saveReadAlerts = (alerts: Set<string>) => {
   }
 }
 
+const getConfirmedRepayments = (): Set<string> => {
+  try {
+    const stored = localStorage.getItem(CONFIRMED_REPAYMENTS_KEY)
+    return stored ? new Set(JSON.parse(stored)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+const saveConfirmedRepayments = (repayments: Set<string>) => {
+  try {
+    localStorage.setItem(CONFIRMED_REPAYMENTS_KEY, JSON.stringify([...repayments]))
+  } catch (e) {
+    console.error('Error saving confirmed repayments:', e)
+  }
+}
+
 export default function AlertsDialog({ open, onClose, onAlertCountChange }: AlertsDialogProps) {
   const navigate = useNavigate()
   const { settings } = useSettings()
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [readAlerts, setReadAlerts] = useState<Set<string>>(getReadAlerts())
+  const [confirmedRepayments, setConfirmedRepayments] = useState<Set<string>>(getConfirmedRepayments())
   const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
@@ -82,10 +101,14 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
   useEffect(() => {
     // Update parent with unread count only after alerts are loaded
     if (initialized && alerts.length > 0) {
-      const unreadCount = alerts.filter(a => !readAlerts.has(a.key)).length
+      // Don't count confirmed repayments as unread
+      const unreadCount = alerts.filter(a => 
+        !readAlerts.has(a.key) && 
+        !(a.type === 'auto_repayment' && confirmedRepayments.has(a.key))
+      ).length
       onAlertCountChange?.(unreadCount)
     }
-  }, [alerts, readAlerts, onAlertCountChange, initialized])
+  }, [alerts, readAlerts, confirmedRepayments, onAlertCountChange, initialized])
 
   const checkAlerts = async () => {
     const newAlerts: Alert[] = []
@@ -218,24 +241,42 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
   }
 
   const handleMarkAsRead = (alert: Alert) => {
+    // אם זו התראת פירעון מחזורי שלא אושרה - לא מאפשרים לסמן כנקרא
+    if (alert.type === 'auto_repayment' && !confirmedRepayments.has(alert.key)) {
+      window.alert('יש לאשר את הפירעון לפני סימון כנקרא')
+      return
+    }
+    
     const newReadAlerts = new Set(readAlerts)
     newReadAlerts.add(alert.key)
     setReadAlerts(newReadAlerts)
     saveReadAlerts(newReadAlerts)
     
     // Update parent immediately
-    const newUnreadCount = alerts.filter(a => !newReadAlerts.has(a.key)).length
+    const newUnreadCount = alerts.filter(a => 
+      !newReadAlerts.has(a.key) && 
+      !(a.type === 'auto_repayment' && confirmedRepayments.has(a.key))
+    ).length
     onAlertCountChange?.(newUnreadCount)
   }
 
   const handleMarkAllAsRead = () => {
+    // מסמנים רק התראות שאינן פירעון מחזורי שלא אושר
     const newReadAlerts = new Set(readAlerts)
-    alerts.forEach(a => newReadAlerts.add(a.key))
+    alerts.forEach(a => {
+      if (a.type !== 'auto_repayment' || confirmedRepayments.has(a.key)) {
+        newReadAlerts.add(a.key)
+      }
+    })
     setReadAlerts(newReadAlerts)
     saveReadAlerts(newReadAlerts)
     
-    // Update parent immediately - all are read now
-    onAlertCountChange?.(0)
+    // Update parent immediately
+    const newUnreadCount = alerts.filter(a => 
+      !newReadAlerts.has(a.key) && 
+      !(a.type === 'auto_repayment' && confirmedRepayments.has(a.key))
+    ).length
+    onAlertCountChange?.(newUnreadCount)
   }
 
   const handleConfirmRepayment = async (alert: Alert) => {
@@ -244,15 +285,50 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
     if (!confirm(`האם לאשר פירעון של ₪${alert.amount.toLocaleString()}?`)) return
     
     try {
+      // קבלת פרטי ההלוואה לחישוב מספרים מחזוריים
+      const loan = await loansService.getById(alert.loanId) as any
+      
+      let isRecurring = 0
+      let recurringRepaymentNumber: number | undefined
+      let recurringRepaymentCount: number | undefined
+      
+      if (loan && loan.auto_repayment === 1 && loan.repayment_amount && loan.repayment_amount > 0) {
+        isRecurring = 1
+        
+        // מחשבים כמה פירעונות כבר היו
+        const existingRepayments = await repaymentsService.getByLoan(alert.loanId)
+        recurringRepaymentNumber = existingRepayments.length + 1
+        
+        // מחשבים סה"כ פירעונות צפויים
+        recurringRepaymentCount = Math.ceil(loan.amount / loan.repayment_amount)
+        
+        console.log(`[ALERT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
+      }
+      
       await repaymentsService.create({
         loan_id: alert.loanId,
         amount: alert.amount,
         payment_date: new Date().toISOString().split('T')[0],
-        notes: 'פירעון מחזורי אוטומטי'
+        notes: 'פירעון מחזורי אוטומטי',
+        is_recurring: isRecurring,
+        recurring_repayment_number: recurringRepaymentNumber,
+        recurring_repayment_count: recurringRepaymentCount,
       })
       
-      // Mark as read
-      handleMarkAsRead(alert)
+      // סימון הפירעון כמאושר (לא מסמנים כנקרא!)
+      const newConfirmedRepayments = new Set(confirmedRepayments)
+      newConfirmedRepayments.add(alert.key)
+      setConfirmedRepayments(newConfirmedRepayments)
+      saveConfirmedRepayments(newConfirmedRepayments)
+      
+      // עדכון מונה התראות
+      const newUnreadCount = alerts.filter(a => 
+        !readAlerts.has(a.key) && 
+        !(a.type === 'auto_repayment' && newConfirmedRepayments.has(a.key))
+      ).length
+      onAlertCountChange?.(newUnreadCount)
+      
+      // רענון רשימת ההתראות
       checkAlerts()
     } catch (error) {
       console.error('Error confirming repayment:', error)
@@ -321,6 +397,11 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
   }
 
   const visibleAlerts = alerts.filter(alert => !readAlerts.has(alert.key))
+  
+  // פונקציה לבדיקה אם פירעון אושר
+  const isRepaymentConfirmed = (alert: Alert) => {
+    return alert.type === 'auto_repayment' && confirmedRepayments.has(alert.key)
+  }
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -346,70 +427,77 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
           </Typography>
         ) : (
           <List>
-            {visibleAlerts.map((alert, index) => (
-              <ListItem 
-                key={alert.key} 
-                divider
-                sx={{ 
-                  cursor: 'pointer',
-                  '&:hover': { bgcolor: 'action.hover' }
-                }}
-                onClick={() => handleGoToLoan(alert)}
-              >
-                <ListItemIcon>{getIcon(alert.type)}</ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {alert.title}
-                      <Chip
-                        label={getChipLabel(alert.type)}
-                        color={getChipColor(alert.type) as any}
+            {visibleAlerts.map((alert, index) => {
+              const confirmed = isRepaymentConfirmed(alert)
+              
+              return (
+                <ListItem 
+                  key={alert.key} 
+                  divider
+                  sx={{ 
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'action.hover' },
+                    bgcolor: confirmed ? 'success.light' : 'inherit',
+                    opacity: confirmed ? 0.8 : 1,
+                  }}
+                  onClick={() => handleGoToLoan(alert)}
+                >
+                  <ListItemIcon>{getIcon(alert.type)}</ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {confirmed ? '✓ פירעון נוצר בהצלחה' : alert.title}
+                        <Chip
+                          label={confirmed ? 'אושר' : getChipLabel(alert.type)}
+                          color={confirmed ? 'success' : getChipColor(alert.type) as any}
+                          size="small"
+                        />
+                      </Box>
+                    }
+                    secondary={alert.message}
+                  />
+                  <ListItemSecondaryAction>
+                    {alert.type === 'auto_repayment' && !confirmed && (
+                      <Button
                         size="small"
-                      />
-                    </Box>
-                  }
-                  secondary={alert.message}
-                />
-                <ListItemSecondaryAction>
-                  {alert.type === 'auto_repayment' && (
-                    <Button
+                        variant="contained"
+                        color="success"
+                        onClick={(e) => { e.stopPropagation(); handleConfirmRepayment(alert); }}
+                        sx={{ mr: 1 }}
+                      >
+                        אשר
+                      </Button>
+                    )}
+                    {alert.type === 'recurring_deposit' && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        onClick={(e) => { e.stopPropagation(); handleConfirmRecurringDeposit(alert); }}
+                        sx={{ mr: 1 }}
+                      >
+                        צור הפקדה
+                      </Button>
+                    )}
+                    <IconButton
                       size="small"
-                      variant="contained"
-                      color="success"
-                      onClick={(e) => { e.stopPropagation(); handleConfirmRepayment(alert); }}
-                      sx={{ mr: 1 }}
+                      onClick={(e) => { e.stopPropagation(); handleMarkAsRead(alert); }}
+                      title={confirmed ? 'סמן כנקרא' : (alert.type === 'auto_repayment' ? 'יש לאשר תחילה' : 'סמן כנקרא')}
+                      disabled={alert.type === 'auto_repayment' && !confirmed}
                     >
-                      אשר
-                    </Button>
-                  )}
-                  {alert.type === 'recurring_deposit' && (
-                    <Button
+                      <CheckIcon />
+                    </IconButton>
+                    <IconButton
                       size="small"
-                      variant="contained"
-                      color="success"
-                      onClick={(e) => { e.stopPropagation(); handleConfirmRecurringDeposit(alert); }}
-                      sx={{ mr: 1 }}
+                      onClick={(e) => { e.stopPropagation(); handleGoToLoan(alert); }}
+                      title={alert.type === 'recurring_deposit' ? 'עבור להפקדות' : 'עבור להלוואה'}
                     >
-                      צור הפקדה
-                    </Button>
-                  )}
-                  <IconButton
-                    size="small"
-                    onClick={(e) => { e.stopPropagation(); handleMarkAsRead(alert); }}
-                    title="סמן כנקרא"
-                  >
-                    <CheckIcon />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => { e.stopPropagation(); handleGoToLoan(alert); }}
-                    title={alert.type === 'recurring_deposit' ? 'עבור להפקדות' : 'עבור להלוואה'}
-                  >
-                    <OpenIcon />
-                  </IconButton>
-                </ListItemSecondaryAction>
-              </ListItem>
-            ))}
+                      <OpenIcon />
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              )
+            })}
           </List>
         )}
       </DialogContent>
@@ -424,7 +512,9 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
 export async function getUnreadAlertCount(): Promise<number> {
   console.log('[ALERT COUNT] Starting getUnreadAlertCount')
   const readAlerts = getReadAlerts()
+  const confirmedRepayments = getConfirmedRepayments()
   console.log('[ALERT COUNT] Read alerts:', [...readAlerts])
+  console.log('[ALERT COUNT] Confirmed repayments:', [...confirmedRepayments])
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
   const day = today.getDate()
@@ -484,7 +574,8 @@ export async function getUnreadAlertCount(): Promise<number> {
       
       if (loan.auto_repayment && effectiveRepaymentDay === day && (loan.remaining || 0) > 0) {
         const key = `repayment-${loan.id}-${todayStr}`
-        if (!readAlerts.has(key)) {
+        // לא סופרים פירעונים מאושרים כלא נקראו
+        if (!readAlerts.has(key) && !confirmedRepayments.has(key)) {
           count++
           console.log('[ALERT COUNT] Unread repayment:', key)
         }

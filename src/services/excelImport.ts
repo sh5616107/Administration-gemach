@@ -65,6 +65,8 @@ const COLUMN_MAPPINGS: Record<ImportType, Record<string, string>> = {
     'סוג הלוואה': 'loan_type',
     'מחזורית': 'is_recurring',
     'יום בחודש': 'recurring_day',
+    'מספר הלוואה': 'recurring_loan_number',
+    'סה״כ הלוואות': 'recurring_loan_count',
     'שורת ערב 1': 'guarantor1_row',
     'שורת ערב 2': 'guarantor2_row',
     'ת.ז. ערב 1': 'guarantor1_id',
@@ -76,6 +78,8 @@ const COLUMN_MAPPINGS: Record<ImportType, Record<string, string>> = {
     'סכום': 'amount',
     'תאריך': 'payment_date',
     'תאריך פירעון': 'payment_date',
+    'מספר פירעון': 'recurring_repayment_number',
+    'סה״כ פירעונות': 'recurring_repayment_count',
     'הערות': 'notes'
   },
   donations: {
@@ -104,6 +108,8 @@ const COLUMN_MAPPINGS: Record<ImportType, Record<string, string>> = {
     'תקופה': 'period_type',
     'מחזורית': 'is_recurring',
     'יום בחודש': 'recurring_day',
+    'מספר הפקדה': 'recurring_deposit_number',
+    'סה״כ הפקדות': 'recurring_deposit_count',
     'הערות': 'notes'
   },
   waitlist: {
@@ -594,6 +600,8 @@ async function importLoans(
     // בדיקת מחזוריות
     const isRecurring = isYes(data.is_recurring) ? 1 : 0
     const recurringDay = isRecurring ? (parseInt(data.recurring_day) || 1) : undefined
+    const recurringLoanNumber = data.recurring_loan_number ? parseInt(data.recurring_loan_number) : undefined
+    const recurringLoanCount = data.recurring_loan_count ? parseInt(data.recurring_loan_count) : undefined
     
     const result = await loansService.create({
       borrower_id: borrowerId,
@@ -606,6 +614,8 @@ async function importLoans(
       notes: data.notes?.toString() || '',
       is_recurring: isRecurring,
       recurring_day: recurringDay,
+      recurring_loan_number: recurringLoanNumber,
+      recurring_loan_count: recurringLoanCount,
       auto_repayment: 0
     })
     
@@ -921,8 +931,8 @@ export function generateFullTemplate(): Blob {
   
   // גליון הלוואות - עם תמיכה במחזוריות
   const loansData = [
-    { 'שורה': 2, 'שורת לווה': 2, 'סכום': 10000, 'תאריך מתן': '01/01/2026', 'תאריך החזרה': '01/07/2026', 'סוג': 'גמישה', 'מחזורית': 'לא', 'יום בחודש': '', 'שורת ערב 1': 2, 'שורת ערב 2': '', 'הערות': 'הלוואה רגילה' },
-    { 'שורה': 3, 'שורת לווה': 3, 'סכום': 5000, 'תאריך מתן': '15/01/2026', 'תאריך החזרה': '', 'סוג': 'גמישה', 'מחזורית': 'כן', 'יום בחודש': 15, 'שורת ערב 1': 3, 'שורת ערב 2': '', 'הערות': 'הלוואה מחזורית - נוצרת ב-15 לכל חודש' }
+    { 'שורה': 2, 'שורת לווה': 2, 'סכום': 10000, 'תאריך מתן': '01/01/2026', 'תאריך החזרה': '01/07/2026', 'סוג': 'גמישה', 'מחזורית': 'לא', 'יום בחודש': '', 'מספר הלוואה': '', 'סה״כ הלוואות': '', 'שורת ערב 1': 2, 'שורת ערב 2': '', 'הערות': 'הלוואה רגילה' },
+    { 'שורה': 3, 'שורת לווה': 3, 'סכום': 5000, 'תאריך מתן': '15/01/2026', 'תאריך החזרה': '', 'סוג': 'גמישה', 'מחזורית': 'כן', 'יום בחודש': 15, 'מספר הלוואה': 1, 'סה״כ הלוואות': 12, 'שורת ערב 1': 3, 'שורת ערב 2': '', 'הערות': 'הלוואה מחזורית 1/12 - נוצרת ב-15 לכל חודש' }
   ]
   const wsLoans = XLSX.utils.json_to_sheet(loansData)
   XLSX.utils.book_append_sheet(wb, wsLoans, 'הלוואות')
@@ -970,6 +980,8 @@ export function generateFullTemplate(): Blob {
     { 'הוראות שימוש': '🔄 הלוואות/הפקדות מחזוריות:' },
     { 'הוראות שימוש': '• עמודת "מחזורית" - כן/לא' },
     { 'הוראות שימוש': '• עמודת "יום בחודש" - היום בחודש שבו תיווצר הלוואה/הפקדה חדשה (1-28)' },
+    { 'הוראות שימוש': '• עמודת "מספר הלוואה" - מספר ההלוואה בסדרה (למשל: 1, 2, 3...)' },
+    { 'הוראות שימוש': '• עמודת "סה״כ הלוואות" - סך כל ההלוואות בסדרה (למשל: 12)' },
     { 'הוראות שימוש': '' },
     { 'הוראות שימוש': '📝 הוראות כלליות:' },
     { 'הוראות שימוש': '1. גליון "לווים" - מלא את פרטי הלווים' },
@@ -1006,7 +1018,7 @@ export function generateTemplate(importType: ImportType): Blob {
       { 'שם פרטי': 'משה', 'שם משפחה': 'לוי', 'ת.ז.': '987654321', 'טלפון': '0521234567', 'כתובת': 'רחוב יפו 10', 'אימייל': '', 'הערות': '' }
     ],
     loans: [
-      { 'שורת לווה': '2 (מספר השורה בגליון לווים)', 'סכום': '10000', 'תאריך מתן': '01/01/2026', 'תאריך החזרה': '01/07/2026', 'סוג': 'גמישה', 'מחזורית': 'לא', 'יום בחודש': '', 'שורת ערב 1': '', 'שורת ערב 2': '', 'הערות': '' }
+      { 'שורת לווה': '2 (מספר השורה בגליון לווים)', 'סכום': '10000', 'תאריך מתן': '01/01/2026', 'תאריך החזרה': '01/07/2026', 'סוג': 'גמישה', 'מחזורית': 'לא', 'יום בחודש': '', 'מספר הלוואה': '', 'סה״כ הלוואות': '', 'שורת ערב 1': '', 'שורת ערב 2': '', 'הערות': '' }
     ],
     repayments: [
       { 'שורת הלוואה': '2 (מספר השורה בגליון הלוואות)', 'סכום': '1000', 'תאריך': '01/02/2026', 'הערות': '' }
@@ -1369,6 +1381,8 @@ export async function exportToExcel(): Promise<Blob> {
     'סוג': l.loan_type === 'fixed' ? 'קבועה' : 'גמישה',
     'מחזורית': l.is_recurring ? 'כן' : 'לא',
     'יום בחודש': l.recurring_day || '',
+    'מספר הלוואה': l.recurring_loan_number || '',
+    'סה״כ הלוואות': l.recurring_loan_count || '',
     'שורת ערב 1': l.guarantor1_id ? guarantorIdToRow.get(l.guarantor1_id) || '' : '',
     'שורת ערב 2': l.guarantor2_id ? guarantorIdToRow.get(l.guarantor2_id) || '' : '',
     'הערות': l.notes || ''
@@ -1393,6 +1407,8 @@ export async function exportToExcel(): Promise<Blob> {
         'שורת הלוואה': loanIdToRow.get(loan.id) || '',
         'סכום': r.amount,
         'תאריך': formatDateForExcel(r.payment_date),
+        'מספר פירעון': r.recurring_repayment_number || '',
+        'סה״כ פירעונות': r.recurring_repayment_count || '',
         'הערות': r.notes || ''
       })
     }
@@ -1442,6 +1458,8 @@ export async function exportToExcel(): Promise<Blob> {
         'תקופה': d.period_type === 'fixed' ? 'קבועה' : 'גמישה',
         'מחזורית': d.is_recurring ? 'כן' : 'לא',
         'יום בחודש': d.recurring_day || '',
+        'מספר הפקדה': d.recurring_deposit_number || '',
+        'סה״כ הפקדות': d.recurring_deposit_count || '',
         'הערות': d.notes || ''
       })
     }

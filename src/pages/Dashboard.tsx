@@ -39,6 +39,7 @@ import { useNavigate } from 'react-router-dom'
 import { statsService, borrowersService, loansService, db, waitlistService } from '../services/database'
 import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmailData, EmailProvider } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
+import ItemsListDialog from '../components/ItemsListDialog'
 
 interface DashboardStats {
   activeLoans: { count: number; total: number }
@@ -76,6 +77,15 @@ export default function Dashboard() {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [clearConfirmText, setClearConfirmText] = useState('')
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
+  
+  // Dialog states for interactive cards
+  const [activeLoansDialogOpen, setActiveLoansDialogOpen] = useState(false)
+  const [scheduledLoansDialogOpen, setScheduledLoansDialogOpen] = useState(false)
+  const [depositsDialogOpen, setDepositsDialogOpen] = useState(false)
+  const [activeLoans, setActiveLoans] = useState<any[]>([])
+  const [scheduledLoans, setScheduledLoans] = useState<any[]>([])
+  const [deposits, setDeposits] = useState<any[]>([])
+  const [dialogLoading, setDialogLoading] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -144,8 +154,33 @@ export default function Dashboard() {
 
   const handleGenerateBorrowerReport = async (borrower: ActiveBorrower) => {
     try {
+      const { repaymentsService } = await import('../services/database')
       const loans = await loansService.getByBorrower(borrower.id) as any[]
       const activeLoans = loans.filter(l => (l.remaining || 0) > 0)
+      
+      // טעינת פירעונות לכל הלוואה
+      const loansWithRepayments = await Promise.all(
+        activeLoans.map(async (loan) => {
+          const repayments = loan.id ? await repaymentsService.getByLoan(loan.id) : []
+          return {
+            id: loan.id,
+            amount: loan.amount,
+            loanDate: loan.loan_date,
+            remaining: loan.remaining || 0,
+            status: loan.status,
+            isRecurring: loan.is_recurring === 1,
+            recurringLoanNumber: loan.recurring_loan_number,
+            recurringLoanCount: loan.recurring_loan_count,
+            repayments: repayments.map((r: any) => ({
+              amount: r.amount,
+              payment_date: r.payment_date,
+              isRecurring: r.is_recurring === 1,
+              recurringRepaymentNumber: r.recurring_repayment_number,
+              recurringRepaymentCount: r.recurring_repayment_count
+            }))
+          }
+        })
+      )
       
       // קבלת הוצאות ששולמו ע"י הלווה
       const borrowerExpenses = await statsService.getExpensesByBorrower(borrower.id)
@@ -153,13 +188,7 @@ export default function Dashboard() {
       generateBorrowerReport({
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         borrowerName: `${borrower.first_name} ${borrower.last_name}`,
-        loans: activeLoans.map(l => ({
-          id: l.id,
-          amount: l.amount,
-          loanDate: l.loan_date,
-          remaining: l.remaining || 0,
-          status: l.status
-        })),
+        loans: loansWithRepayments,
         expenses: borrowerExpenses.map((e: any) => ({
           id: e.id,
           description: e.description,
@@ -173,6 +202,59 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error generating report:', error)
       setSnackbar({ open: true, message: 'שגיאה בהפקת הדו"ח', severity: 'error' })
+    }
+  }
+
+  // Fetch functions for dialogs
+  const fetchActiveLoans = async () => {
+    setDialogLoading(true)
+    try {
+      const allLoans = await loansService.getAll() as any[]
+      const active = allLoans
+        .filter(l => l.status === 'active' && (l.remaining || 0) > 0)
+        .sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
+      setActiveLoans(active)
+    } catch (error) {
+      console.error('Error fetching active loans:', error)
+      setSnackbar({ open: true, message: 'שגיאה בטעינת הלוואות פעילות', severity: 'error' })
+    } finally {
+      setDialogLoading(false)
+    }
+  }
+
+  const fetchScheduledLoans = async () => {
+    setDialogLoading(true)
+    try {
+      const allLoans = await loansService.getAll() as any[]
+      const scheduled = allLoans
+        .filter(l => l.status === 'planned')
+        .sort((a, b) => new Date(a.loan_date).getTime() - new Date(b.loan_date).getTime())
+      setScheduledLoans(scheduled)
+    } catch (error) {
+      console.error('Error fetching scheduled loans:', error)
+      setSnackbar({ open: true, message: 'שגיאה בטעינת הלוואות מתוכננות', severity: 'error' })
+    } finally {
+      setDialogLoading(false)
+    }
+  }
+
+  const fetchDeposits = async () => {
+    setDialogLoading(true)
+    try {
+      const allDeposits = await db.query('SELECT * FROM deposits ORDER BY deposit_date DESC') as any[]
+      const depositors = await db.query('SELECT * FROM depositors') as any[]
+      const depositsWithNames = allDeposits.map(d => ({
+        ...d,
+        depositor_name: depositors.find((dep: any) => dep.id === d.depositor_id)
+          ? `${depositors.find((dep: any) => dep.id === d.depositor_id)?.first_name || ''} ${depositors.find((dep: any) => dep.id === d.depositor_id)?.last_name || ''}`.trim()
+          : 'לא ידוע'
+      }))
+      setDeposits(depositsWithNames)
+    } catch (error) {
+      console.error('Error fetching deposits:', error)
+      setSnackbar({ open: true, message: 'שגיאה בטעינת הפקדות', severity: 'error' })
+    } finally {
+      setDialogLoading(false)
     }
   }
 
@@ -213,6 +295,105 @@ export default function Dashboard() {
     }
   }
 
+  // Click handlers for interactive cards
+  const handleActiveLoansClick = () => {
+    fetchActiveLoans()
+    setActiveLoansDialogOpen(true)
+  }
+
+  const handleScheduledLoansClick = () => {
+    fetchScheduledLoans()
+    setScheduledLoansDialogOpen(true)
+  }
+
+  const handleDepositsClick = () => {
+    fetchDeposits()
+    setDepositsDialogOpen(true)
+  }
+
+  const handleDonationsClick = () => {
+    navigate('/donations?tab=0')
+  }
+
+  // Navigation handlers from dialogs
+  const handleLoanItemClick = (loan: any) => {
+    navigate(`/loans?tab=2&loanId=${loan.id}`)
+    setActiveLoansDialogOpen(false)
+    setScheduledLoansDialogOpen(false)
+  }
+
+  const handleDepositItemClick = (deposit: any) => {
+    navigate(`/donations?tab=2&depositId=${deposit.id}`)
+    setDepositsDialogOpen(false)
+  }
+
+  // Column definitions for dialogs
+  const activeLoansColumns = [
+    {
+      id: 'borrower_name',
+      label: 'שם לווה',
+      align: 'right' as const,
+    },
+    {
+      id: 'amount',
+      label: 'סכום הלוואה',
+      align: 'center' as const,
+      format: (loan: any) => formatCurrency(loan.amount),
+    },
+    {
+      id: 'remaining',
+      label: 'יתרה',
+      align: 'center' as const,
+      format: (loan: any) => formatCurrency(loan.remaining || 0),
+    },
+    {
+      id: 'loan_date',
+      label: 'תאריך',
+      align: 'center' as const,
+      format: (loan: any) => new Date(loan.loan_date).toLocaleDateString('he-IL'),
+    },
+  ]
+
+  const scheduledLoansColumns = [
+    {
+      id: 'borrower_name',
+      label: 'שם לווה',
+      align: 'right' as const,
+    },
+    {
+      id: 'amount',
+      label: 'סכום',
+      align: 'center' as const,
+      format: (loan: any) => formatCurrency(loan.amount),
+    },
+    {
+      id: 'loan_date',
+      label: 'תאריך מתוכנן',
+      align: 'center' as const,
+      format: (loan: any) => new Date(loan.loan_date).toLocaleDateString('he-IL'),
+    },
+  ]
+
+  const depositsColumns = [
+    {
+      id: 'depositor_name',
+      label: 'שם מפקיד',
+      align: 'right' as const,
+    },
+    {
+      id: 'amount',
+      label: 'סכום',
+      align: 'center' as const,
+      format: (deposit: any) => formatCurrency(deposit.amount),
+    },
+    {
+      id: 'deposit_date',
+      label: 'תאריך',
+      align: 'center' as const,
+      format: (deposit: any) => new Date(deposit.deposit_date).toLocaleDateString('he-IL'),
+    },
+  ]
+
   const formatCurrency = (amount: number) => {
     const currency = settings.currency || 'ILS'
     return new Intl.NumberFormat('he-IL', {
@@ -231,7 +412,19 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
+          <Card 
+            sx={{ 
+              bgcolor: 'primary.main', 
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: 4,
+              }
+            }}
+            onClick={handleActiveLoansClick}
+          >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <LoanIcon sx={{ mr: 1 }} />
@@ -248,7 +441,19 @@ export default function Dashboard() {
         </Grid>
 
         <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ bgcolor: 'info.main', color: 'white' }}>
+          <Card 
+            sx={{ 
+              bgcolor: 'info.main', 
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: 4,
+              }
+            }}
+            onClick={handleScheduledLoansClick}
+          >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <LoanIcon sx={{ mr: 1 }} />
@@ -267,7 +472,16 @@ export default function Dashboard() {
         {settings.show_waitlist_tab !== 'no' && (
           <Grid item xs={12} sm={6} md={2.4}>
             <Card 
-              sx={{ bgcolor: 'warning.main', color: 'white', cursor: 'pointer' }}
+              sx={{ 
+                bgcolor: 'warning.main', 
+                color: 'white', 
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 4,
+                }
+              }}
               onClick={() => navigate('/loans?tab=3')}
             >
               <CardContent>
@@ -293,7 +507,19 @@ export default function Dashboard() {
         )}
 
         <Grid item xs={12} sm={6} md={settings.show_waitlist_tab !== 'no' ? 2.4 : 3}>
-          <Card sx={{ bgcolor: 'success.main', color: 'white' }}>
+          <Card 
+            sx={{ 
+              bgcolor: 'success.main', 
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: 4,
+              }
+            }}
+            onClick={handleDepositsClick}
+          >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <DepositIcon sx={{ mr: 1 }} />
@@ -310,7 +536,19 @@ export default function Dashboard() {
         </Grid>
 
         <Grid item xs={12} sm={6} md={settings.show_waitlist_tab !== 'no' ? 2.4 : 3}>
-          <Card sx={{ bgcolor: 'secondary.main', color: 'white' }}>
+          <Card 
+            sx={{ 
+              bgcolor: 'secondary.main', 
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: 4,
+              }
+            }}
+            onClick={handleDonationsClick}
+          >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <DonationIcon sx={{ mr: 1 }} />
@@ -550,6 +788,40 @@ export default function Dashboard() {
       >
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
+
+      {/* Interactive Dialogs */}
+      <ItemsListDialog
+        open={activeLoansDialogOpen}
+        onClose={() => setActiveLoansDialogOpen(false)}
+        title="הלוואות פעילות"
+        items={activeLoans}
+        columns={activeLoansColumns}
+        onItemClick={handleLoanItemClick}
+        loading={dialogLoading}
+        emptyMessage="אין הלוואות פעילות"
+      />
+
+      <ItemsListDialog
+        open={scheduledLoansDialogOpen}
+        onClose={() => setScheduledLoansDialogOpen(false)}
+        title="הלוואות מתוכננות"
+        items={scheduledLoans}
+        columns={scheduledLoansColumns}
+        onItemClick={handleLoanItemClick}
+        loading={dialogLoading}
+        emptyMessage="אין הלוואות מתוכננות"
+      />
+
+      <ItemsListDialog
+        open={depositsDialogOpen}
+        onClose={() => setDepositsDialogOpen(false)}
+        title="הפקדות"
+        items={deposits}
+        columns={depositsColumns}
+        onItemClick={handleDepositItemClick}
+        loading={dialogLoading}
+        emptyMessage="אין הפקדות"
+      />
     </Box>
   )
 }

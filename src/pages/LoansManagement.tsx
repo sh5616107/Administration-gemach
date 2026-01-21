@@ -26,14 +26,16 @@ export default function LoansManagement() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [tabValue, setTabValue] = useState(0)
   const [selectedBorrowerId, setSelectedBorrowerId] = useState<number | null>(null)
+  const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null)
   const [selectedWaitlistId, setSelectedWaitlistId] = useState<number | null>(null)
   
   const showWaitlistTab = settings.show_waitlist_tab !== 'no'
 
   useEffect(() => {
-    // Read tab, borrower, and waitlist from URL params
+    // Read tab, borrower, loanId, and waitlist from URL params
     const tab = searchParams.get('tab')
     const borrowerId = searchParams.get('borrower')
+    const loanId = searchParams.get('loanId')
     const waitlistId = searchParams.get('waitlist')
     
     if (tab !== null) {
@@ -46,6 +48,12 @@ export default function LoansManagement() {
       setTabValue(2)
     }
     
+    if (loanId) {
+      setSelectedLoanId(parseInt(loanId))
+      // Switch to loans tab (index 2) when loanId is specified
+      setTabValue(2)
+    }
+    
     if (waitlistId) {
       setSelectedWaitlistId(parseInt(waitlistId))
       // Switch to loans tab (index 2) when waitlist is specified
@@ -53,7 +61,7 @@ export default function LoansManagement() {
     }
     
     // Clear URL params after reading
-    if (tab || borrowerId || waitlistId) {
+    if (tab || borrowerId || loanId || waitlistId) {
       setSearchParams({})
     }
   }, [searchParams, setSearchParams])
@@ -93,7 +101,7 @@ export default function LoansManagement() {
         <GuarantorsTab />
       </TabPanel>
       <TabPanel value={tabValue} index={2}>
-        <LoansTab initialBorrowerId={selectedBorrowerId} initialWaitlistId={selectedWaitlistId} />
+        <LoansTab initialBorrowerId={selectedBorrowerId} initialLoanId={selectedLoanId} initialWaitlistId={selectedWaitlistId} />
       </TabPanel>
       {showWaitlistTab && (
         <TabPanel value={tabValue} index={3}>

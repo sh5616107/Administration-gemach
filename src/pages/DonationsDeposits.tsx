@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Box, Tabs, Tab, Paper, Grid } from '@mui/material'
 import DonationsTab from '../components/donations/DonationsTab'
 import DepositorsTab from '../components/donations/DepositorsTab'
@@ -27,8 +28,31 @@ interface Depositor {
 }
 
 export default function DonationsDeposits() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tabValue, setTabValue] = useState(1) // ברירת מחדל: מפקידים
   const [selectedDepositor, setSelectedDepositor] = useState<Depositor | null>(null)
+  const [selectedDepositId, setSelectedDepositId] = useState<number | null>(null)
+
+  useEffect(() => {
+    // Read tab and depositId from URL params
+    const tab = searchParams.get('tab')
+    const depositId = searchParams.get('depositId')
+    
+    if (tab !== null) {
+      setTabValue(parseInt(tab))
+    }
+    
+    if (depositId) {
+      setSelectedDepositId(parseInt(depositId))
+      // Switch to deposits tab (index 2) when depositId is specified
+      setTabValue(2)
+    }
+    
+    // Clear URL params after reading
+    if (tab || depositId) {
+      setSearchParams({})
+    }
+  }, [searchParams, setSearchParams])
 
   const handleSelectDepositor = (depositor: Depositor) => {
     setSelectedDepositor(depositor)
@@ -68,6 +92,7 @@ export default function DonationsDeposits() {
         <DepositsTab 
           selectedDepositor={selectedDepositor} 
           onSelectDepositor={setSelectedDepositor}
+          initialDepositId={selectedDepositId}
         />
       </TabPanel>
     </Box>

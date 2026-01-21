@@ -69,6 +69,13 @@ function loadData(): void {
 // Initialize on module load
 loadData()
 
+// Reset function for tests
+export function resetDatabase(): void {
+  data = JSON.parse(JSON.stringify(defaultData))
+  isInitialized = false
+  localStorage.clear()
+}
+
 // Helper functions
 function getAllItems<T>(storeName: keyof DataStore): T[] {
   return Object.values(data[storeName] as Record<string, T>)
@@ -271,7 +278,7 @@ export const guarantorsService = {
 
 
 // Loans Service
-export interface Loan { id: number; borrower_id: number; amount: number; loan_date: string; loan_date_hebrew?: string; loan_type: string; due_date?: string; due_date_hebrew?: string; is_recurring: number; recurring_months?: number; recurring_day?: number; auto_repayment: number; repayment_amount?: number; repayment_day?: number; repayment_frequency?: string; repayment_start_date?: string; guarantor1_id?: number; guarantor2_id?: number; notes?: string; status: string; created_at: string; total_repaid?: number; remaining?: number; borrower_name?: string; payment_method?: string; payment_details?: string }
+export interface Loan { id: number; borrower_id: number; amount: number; loan_date: string; loan_date_hebrew?: string; loan_type: string; due_date?: string; due_date_hebrew?: string; is_recurring: number; recurring_months?: number; recurring_day?: number; recurring_loan_number?: number; recurring_loan_count?: number; auto_repayment: number; repayment_amount?: number; repayment_day?: number; repayment_frequency?: string; repayment_start_date?: string; guarantor1_id?: number; guarantor2_id?: number; notes?: string; status: string; created_at: string; total_repaid?: number; remaining?: number; borrower_name?: string; payment_method?: string; payment_details?: string }
 
 export const loansService = {
   async getAll(): Promise<Loan[]> {
@@ -291,11 +298,11 @@ export const loansService = {
   async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: number }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', String(id), { ...l, id, status, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: number, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, ...d }) },
   async delete(id: number): Promise<void> { const r = await repaymentsService.getByLoan(id); for (const x of r) await repaymentsService.delete(x.id); removeItem('loans', String(id)) },
-  async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.due_date && l.due_date < t && l.status === 'active' && (l.remaining || 0) > 0) },
+  async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.due_date && l.due_date < t && l.status === 'active' && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
 }
 
 // Repayments Service
-export interface Repayment { id: number; loan_id: number; amount: number; payment_date: string; payment_date_hebrew?: string; notes?: string; created_at: string; payment_method?: string; payment_details?: string }
+export interface Repayment { id: number; loan_id: number; amount: number; payment_date: string; payment_date_hebrew?: string; notes?: string; created_at: string; payment_method?: string; payment_details?: string; is_recurring?: number; recurring_repayment_number?: number; recurring_repayment_count?: number }
 
 export const repaymentsService = {
   async getByLoan(loanId: number): Promise<Repayment[]> { return getAllItems<Repayment>('repayments').filter(r => r.loan_id === loanId).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()) },

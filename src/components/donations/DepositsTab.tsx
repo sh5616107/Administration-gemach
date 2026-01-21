@@ -61,6 +61,10 @@ interface Deposit {
   period_type: string
   due_date: string
   is_recurring: number
+  recurring_day?: number
+  recurring_months?: number
+  recurring_deposit_number?: number
+  recurring_deposit_count?: number
   notes: string
   status: string
   withdrawal_date?: string
@@ -72,9 +76,10 @@ interface Deposit {
 interface DepositsTabProps {
   selectedDepositor: Depositor | null
   onSelectDepositor?: (depositor: Depositor | null) => void
+  initialDepositId?: number | null
 }
 
-export default function DepositsTab({ selectedDepositor, onSelectDepositor }: DepositsTabProps) {
+export default function DepositsTab({ selectedDepositor, onSelectDepositor, initialDepositId }: DepositsTabProps) {
   const { settings } = useSettings()
   const [deposits, setDeposits] = useState<Deposit[]>([])
   const [depositors, setDepositors] = useState<Depositor[]>([])
@@ -85,6 +90,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
     due_date: '',
     is_recurring: 0,
     recurring_day: new Date().getDate(),
+    recurring_months: 0,
     notes: '',
   })
   const [editingDeposit, setEditingDeposit] = useState<Deposit | null>(null)
@@ -118,6 +124,39 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
       setDeposits([])
     }
   }, [selectedDepositor])
+
+  // Handle initial deposit selection
+  useEffect(() => {
+    const loadDepositById = async () => {
+      if (initialDepositId && depositors.length > 0) {
+        try {
+          const allDeposits = await db.query('SELECT * FROM deposits') as Deposit[]
+          const deposit = allDeposits.find(d => d.id === initialDepositId)
+          if (deposit) {
+            // Find and select the depositor
+            const depositor = depositors.find(d => d.id === deposit.depositor_id)
+            if (depositor && onSelectDepositor) {
+              onSelectDepositor(depositor)
+              // Wait for deposits to load, then scroll to the deposit
+              setTimeout(() => {
+                const depositElement = document.getElementById(`deposit-${initialDepositId}`)
+                if (depositElement) {
+                  depositElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  depositElement.style.backgroundColor = '#fff3cd'
+                  setTimeout(() => {
+                    depositElement.style.backgroundColor = ''
+                  }, 2000)
+                }
+              }, 300)
+            }
+          }
+        } catch (error) {
+          console.error('Error loading deposit:', error)
+        }
+      }
+    }
+    loadDepositById()
+  }, [initialDepositId, depositors, onSelectDepositor])
 
   const loadDepositors = async () => {
     try {
@@ -172,9 +211,30 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
     }
 
     try {
+      // חישוב recurring_deposit_count מ-recurring_months
+      const recurringDepositNumber = formData.is_recurring ? 1 : undefined
+      const recurringDepositCount = formData.is_recurring && formData.recurring_months > 0 
+        ? formData.recurring_months + 1 
+        : undefined
+      
       await db.run(
-        'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [selectedDepositor.id, formData.amount, formData.deposit_date, formData.period_type, formData.due_date, formData.is_recurring, formData.is_recurring ? formData.recurring_day : null, formData.notes, 'active', paymentMethod.payment_method, JSON.stringify(paymentMethod)]
+        'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          selectedDepositor.id, 
+          formData.amount, 
+          formData.deposit_date, 
+          formData.period_type, 
+          formData.due_date, 
+          formData.is_recurring, 
+          formData.is_recurring ? formData.recurring_day : null, 
+          formData.is_recurring ? formData.recurring_months : null,
+          recurringDepositNumber,
+          recurringDepositCount,
+          formData.notes, 
+          'active', 
+          paymentMethod.payment_method, 
+          JSON.stringify(paymentMethod)
+        ]
       )
 
       setSnackbar({ open: true, message: 'ההפקדה נוספה בהצלחה', severity: 'success' })
@@ -186,6 +246,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
         due_date: '',
         is_recurring: 0,
         recurring_day: new Date().getDate(),
+        recurring_months: 0,
         notes: '',
       })
       setPaymentMethod({ payment_method: '' })
@@ -529,17 +590,33 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
               />
             </Grid>
             {formData.is_recurring === 1 && (
-              <Grid item xs={12} md={3}>
-                <TextField
-                  fullWidth
-                  label="יום בחודש להפקדה"
-                  type="number"
-                  value={formData.recurring_day}
-                  onChange={(e) => setFormData({ ...formData, recurring_day: Math.min(31, Math.max(1, parseInt(e.target.value) || 1)) })}
-                  inputProps={{ min: 1, max: 31 }}
-                  helperText="1-31"
-                />
-              </Grid>
+              <>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="יום בחודש להפקדה"
+                    type="number"
+                    value={formData.recurring_day}
+                    onChange={(e) => setFormData({ ...formData, recurring_day: Math.min(31, Math.max(1, parseInt(e.target.value) || 1)) })}
+                    inputProps={{ min: 1, max: 31 }}
+                    helperText="1-31"
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="סה״כ הפקדות"
+                    type="number"
+                    value={formData.recurring_months + 1}
+                    onChange={(e) => {
+                      const total = Math.max(1, parseInt(e.target.value) || 1)
+                      setFormData({ ...formData, recurring_months: total - 1 })
+                    }}
+                    inputProps={{ min: 1 }}
+                    helperText="כולל הפקדה ראשונה"
+                  />
+                </Grid>
+              </>
             )}
             {settings.show_payment_method === 'yes' && (
               <Grid item xs={12} md={6}>
@@ -582,6 +659,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
                   <TableCell align="center">יתרה</TableCell>
                   <TableCell align="center">תאריך הפקדה</TableCell>
                   <TableCell align="center">סוג</TableCell>
+                  <TableCell align="center">מחזורית</TableCell>
                   <TableCell align="center">סטטוס</TableCell>
                   <TableCell align="center">תאריך משיכה</TableCell>
                   <TableCell>הערות</TableCell>
@@ -591,7 +669,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
               <TableBody>
                 {deposits.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
                       <Typography color="text.secondary">אין הפקדות למפקיד זה</Typography>
                     </TableCell>
                   </TableRow>
@@ -601,7 +679,8 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
                     const remaining = deposit.amount - withdrawn
                     return (
                     <TableRow 
-                      key={deposit.id} 
+                      key={deposit.id}
+                      id={`deposit-${deposit.id}`}
                       hover
                       sx={{ bgcolor: deposit.status === 'withdrawn' ? 'grey.100' : undefined }}
                     >
@@ -615,7 +694,11 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor }: De
                       <TableCell align="center">{formatDisplayDate(deposit.deposit_date, settings.date_format)}</TableCell>
                       <TableCell align="center">
                         {deposit.period_type === 'flexible' ? 'גמישה' : 'קבועה'}
-                        {deposit.is_recurring ? ' 🔄' : ''}
+                      </TableCell>
+                      <TableCell align="center">
+                        {deposit.is_recurring === 1 && deposit.recurring_deposit_number && deposit.recurring_deposit_count && deposit.recurring_deposit_count > 1 ? (
+                          `🔄 ${deposit.recurring_deposit_number}/${deposit.recurring_deposit_count}`
+                        ) : '-'}
                       </TableCell>
                       <TableCell align="center">
                         {deposit.status === 'active' ? (
