@@ -21,6 +21,7 @@ interface Settings {
   email_provider: string
   loan_document_text: string
   deposit_document_text: string
+  language: string
 }
 
 const defaultSettings: Settings = {
@@ -41,6 +42,7 @@ const defaultSettings: Settings = {
   email_provider: 'gmail',
   loan_document_text: 'מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע.',
   deposit_document_text: 'ואני מתחייב להחזיר את הסכום בתנאים שנקבעו.',
+  language: 'he',
 }
 
 // Custom event for settings changes

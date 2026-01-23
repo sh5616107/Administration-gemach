@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 // Suppress React Router v7 warnings
 const routerFutureConfig = {
@@ -73,8 +74,18 @@ async function checkAutoBackup() {
 function App() {
   const [isLocked, setIsLocked] = useState(true)
   const [loading, setLoading] = useState(true)
+  const { i18n } = useTranslation()
 
   useEffect(() => {
+    // Load saved language
+    const loadLanguage = async () => {
+      const savedLang = await settingsStore.getItem<string>('language')
+      if (savedLang && savedLang !== i18n.language) {
+        i18n.changeLanguage(savedLang)
+      }
+    }
+    loadLanguage()
+    
     // Check if protection is enabled
     const checkProtection = async () => {
       const enabled = await isProtectionEnabled()

@@ -100,6 +100,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   const [editPeriodType, setEditPeriodType] = useState('flexible')
   const [editDueDate, setEditDueDate] = useState('')
   const [editNotes, setEditNotes] = useState('')
+  const [editIsRecurring, setEditIsRecurring] = useState(0)
+  const [editRecurringDay, setEditRecurringDay] = useState(1)
+  const [editRecurringMonths, setEditRecurringMonths] = useState(0)
   const [editWithdrawalDate, setEditWithdrawalDate] = useState('')
   const [editWithdrawnAmount, setEditWithdrawnAmount] = useState(0)
   const [editWithdrawalPaymentMethod, setEditWithdrawalPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' })
@@ -347,6 +350,10 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
     setEditPeriodType(deposit.period_type)
     setEditDueDate(deposit.due_date || '')
     setEditNotes(deposit.notes || '')
+    // פרטי מחזוריות
+    setEditIsRecurring(deposit.is_recurring || 0)
+    setEditRecurringDay(deposit.recurring_day || new Date(deposit.deposit_date).getDate())
+    setEditRecurringMonths(deposit.recurring_months || 0)
     // פרטי משיכה
     setEditWithdrawalDate(deposit.withdrawal_date || '')
     setEditWithdrawnAmount(deposit.withdrawn_amount || deposit.amount)
@@ -370,10 +377,28 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
       const hasWithdrawal = editingDeposit.status === 'withdrawn' || (editingDeposit.withdrawn_amount && editingDeposit.withdrawn_amount > 0)
       const finalAmount = hasWithdrawal ? editingDeposit.amount : editAmount
 
-      // עדכון פרטי הפקדה בסיסיים
+      // חישוב recurring_deposit_count מ-recurring_months
+      const recurringDepositNumber = editingDeposit.recurring_deposit_number || (editIsRecurring ? 1 : undefined)
+      const recurringDepositCount = editIsRecurring && editRecurringMonths > 0 
+        ? editRecurringMonths + (recurringDepositNumber || 1)
+        : undefined
+
+      // עדכון פרטי הפקדה בסיסיים + מחזוריות
       await db.run(
-        'UPDATE deposits SET amount = ?, deposit_date = ?, period_type = ?, due_date = ?, notes = ? WHERE id = ?',
-        [finalAmount, editDate, editPeriodType, editDueDate, editNotes, editingDeposit.id]
+        'UPDATE deposits SET amount = ?, deposit_date = ?, period_type = ?, due_date = ?, is_recurring = ?, recurring_day = ?, recurring_months = ?, recurring_deposit_number = ?, recurring_deposit_count = ?, notes = ? WHERE id = ?',
+        [
+          finalAmount, 
+          editDate, 
+          editPeriodType, 
+          editDueDate, 
+          editIsRecurring,
+          editIsRecurring ? editRecurringDay : null,
+          editIsRecurring ? editRecurringMonths : null,
+          recurringDepositNumber,
+          recurringDepositCount,
+          editNotes, 
+          editingDeposit.id
+        ]
       )
 
       // אם יש פרטי משיכה לעדכן
@@ -413,6 +438,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
       dueDate: deposit.due_date,
       dateFormat: settings.date_format,
       customText: settings.deposit_document_text,
+      isRecurring: deposit.is_recurring === 1,
+      recurringDepositNumber: deposit.recurring_deposit_number,
+      recurringDepositCount: deposit.recurring_deposit_count,
       withdrawals: withdrawals.map(w => ({
         amount: w.amount,
         withdrawal_date: w.withdrawal_date
@@ -696,8 +724,14 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                         {deposit.period_type === 'flexible' ? 'גמישה' : 'קבועה'}
                       </TableCell>
                       <TableCell align="center">
-                        {deposit.is_recurring === 1 && deposit.recurring_deposit_number && deposit.recurring_deposit_count && deposit.recurring_deposit_count > 1 ? (
-                          `🔄 ${deposit.recurring_deposit_number}/${deposit.recurring_deposit_count}`
+                        {deposit.is_recurring === 1 ? (
+                          deposit.recurring_deposit_number && deposit.recurring_deposit_count ? (
+                            `🔄 ${deposit.recurring_deposit_number}/${deposit.recurring_deposit_count}`
+                          ) : (
+                            deposit.recurring_months !== undefined && deposit.recurring_months >= 0 ? (
+                              `🔄 1/${deposit.recurring_months + 1}`
+                            ) : '🔄'
+                          )
                         ) : '-'}
                       </TableCell>
                       <TableCell align="center">
@@ -800,9 +834,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
               value={editAmount || 0}
               onChange={(value) => setEditAmount(value)}
               sx={{ mb: 2 }}
-              disabled={editingDeposit?.status === 'withdrawn' || (editingDeposit?.withdrawn_amount && editingDeposit.withdrawn_amount > 0)}
+              disabled={editingDeposit?.status === 'withdrawn' || (editingDeposit?.withdrawn_amount !== undefined && editingDeposit.withdrawn_amount > 0)}
             />
-            {(editingDeposit?.status === 'withdrawn' || (editingDeposit?.withdrawn_amount && editingDeposit.withdrawn_amount > 0)) && (
+            {(editingDeposit?.status === 'withdrawn' || (editingDeposit?.withdrawn_amount !== undefined && editingDeposit.withdrawn_amount > 0)) && (
               <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 2, mt: -1 }}>
                 לא ניתן לשנות סכום הפקדה שבוצעה ממנה משיכה
               </Typography>
@@ -845,6 +879,52 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
               onChange={(e) => setEditNotes(e.target.value)}
               sx={{ mb: 2 }}
             />
+
+            {/* פרטי מחזוריות - מוצג רק אם ההפקדה מחזורית */}
+            {editIsRecurring === 1 && (
+              <>
+                <Typography variant="subtitle2" color="secondary" sx={{ mb: 1, mt: 2, borderTop: '1px solid #eee', pt: 2 }}>
+                  הגדרות מחזוריות
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={true}
+                      disabled
+                    />
+                  }
+                  label="הפקדה מחזורית"
+                  sx={{ mb: 2 }}
+                />
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      label="יום בחודש להפקדה"
+                      type="number"
+                      value={editRecurringDay}
+                      onChange={(e) => setEditRecurringDay(Math.min(31, Math.max(1, parseInt(e.target.value) || 1)))}
+                      inputProps={{ min: 1, max: 31 }}
+                      helperText="1-31"
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      label="סה״כ הפקדות"
+                      type="number"
+                      value={editRecurringMonths + 1}
+                      onChange={(e) => {
+                        const total = Math.max(1, parseInt(e.target.value) || 1)
+                        setEditRecurringMonths(total - 1)
+                      }}
+                      inputProps={{ min: 1 }}
+                      helperText="כולל הפקדה ראשונה"
+                    />
+                  </Grid>
+                </Grid>
+              </>
+            )}
 
             {/* פרטי משיכה - רק אם יש משיכה */}
             {(editingDeposit?.withdrawal_date || editingDeposit?.withdrawn_amount) && (

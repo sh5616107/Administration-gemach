@@ -6,6 +6,7 @@ import { CacheProvider } from '@emotion/react'
 import createCache from '@emotion/cache'
 import rtlPlugin from 'stylis-plugin-rtl'
 import App from './App'
+import './i18n/config'
 
 console.log('🚀 Gemach Manager starting...')
 

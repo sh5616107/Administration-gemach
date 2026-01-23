@@ -8,7 +8,7 @@ npx tauri build
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Build successful!" -ForegroundColor Green
     
-    # Copy to release folder
+    # Copy installer to release folder
     $source = "src-tauri\target\release\bundle\nsis\gemach-manager_3.5.0_x64-setup.exe"
     $dest = "release\gemach-manager_3.5.0_x64-setup.exe"
     
@@ -17,16 +17,26 @@ if ($LASTEXITCODE -eq 0) {
         Write-Host "Installer copied to: $dest" -ForegroundColor Green
     }
     
-    # Also copy the portable exe
+    # Copy portable exe to release folder
     $portableSource = "src-tauri\target\release\gemach-manager.exe"
-    $portableDest = "release\gemach-manager-tauri.exe"
+    $portableDest = "release\gemach-manager-portable.exe"
     
     if (Test-Path $portableSource) {
         Copy-Item $portableSource $portableDest -Force
         Write-Host "Portable exe copied to: $portableDest" -ForegroundColor Green
     }
     
-    Write-Host "Done! Files are in the release folder." -ForegroundColor Cyan
+    # Also copy to old name for compatibility
+    $oldDest = "release\gemach-manager-tauri.exe"
+    if (Test-Path $portableSource) {
+        Copy-Item $portableSource $oldDest -Force
+        Write-Host "Portable exe also copied to: $oldDest" -ForegroundColor Green
+    }
+    
+    Write-Host "`nDone! Files are in the release folder:" -ForegroundColor Cyan
+    Write-Host "  - gemach-manager_3.5.0_x64-setup.exe (Installer)" -ForegroundColor White
+    Write-Host "  - gemach-manager-portable.exe (Portable)" -ForegroundColor White
+    Write-Host "  - portable.txt (Portable marker - optional)" -ForegroundColor Gray
 } else {
     Write-Host "Build failed!" -ForegroundColor Red
     exit 1

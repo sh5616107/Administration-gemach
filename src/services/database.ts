@@ -191,7 +191,28 @@ export const db = {
     if (sql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (sql.includes('INSERT INTO donations') && params) { const id = generateId('donations'); setItem('donations', String(id), { id, donor_id: params[0], amount: params[1], donation_date: params[2], notes: params[3], payment_method: params[4] || '', payment_details: params[5] || '', created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (sql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
-    if (sql.includes('INSERT INTO deposits') && params) { const id = generateId('deposits'); setItem('deposits', String(id), { id, depositor_id: params[0], amount: params[1], deposit_date: params[2], period_type: params[3], due_date: params[4], is_recurring: params[5], recurring_day: params[6], notes: params[7], status: params[8], payment_method: params[9] || '', payment_details: params[10] || '', created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (sql.includes('INSERT INTO deposits') && params) { 
+      const id = generateId('deposits'); 
+      setItem('deposits', String(id), { 
+        id, 
+        depositor_id: params[0], 
+        amount: params[1], 
+        deposit_date: params[2], 
+        period_type: params[3], 
+        due_date: params[4], 
+        is_recurring: params[5], 
+        recurring_day: params[6], 
+        recurring_months: params[7],
+        recurring_deposit_number: params[8],
+        recurring_deposit_count: params[9],
+        notes: params[10], 
+        status: params[11], 
+        payment_method: params[12] || '', 
+        payment_details: params[13] || '', 
+        created_at: new Date().toISOString() 
+      }); 
+      return { lastInsertRowid: id, changes: 1 } 
+    }
 
     if (sql.includes('UPDATE deposits SET status') && params) { 
       const d = getItem<any>('deposits', String(params[params.length - 1])); 
@@ -215,14 +236,30 @@ export const db = {
       return { lastInsertRowid: 0, changes: 1 } 
     }
     if (sql.includes('UPDATE deposits SET amount') && params) {
-      const d = getItem<any>('deposits', String(params[5]));
+      const d = getItem<any>('deposits', String(params[params.length - 1]));
       if (d) {
-        d.amount = params[0]
-        d.deposit_date = params[1]
-        d.period_type = params[2]
-        d.due_date = params[3]
-        d.notes = params[4]
-        setItem('deposits', String(params[5]), d)
+        // בדיקה אם זה UPDATE עם שדות מחזוריים (11 פרמטרים)
+        if (params.length === 11) {
+          d.amount = params[0]
+          d.deposit_date = params[1]
+          d.period_type = params[2]
+          d.due_date = params[3]
+          d.is_recurring = params[4]
+          d.recurring_day = params[5]
+          d.recurring_months = params[6]
+          d.recurring_deposit_number = params[7]
+          d.recurring_deposit_count = params[8]
+          d.notes = params[9]
+        }
+        // תאימות לאחור - 6 פרמטרים (בלי שדות מחזוריים)
+        else if (params.length === 6) {
+          d.amount = params[0]
+          d.deposit_date = params[1]
+          d.period_type = params[2]
+          d.due_date = params[3]
+          d.notes = params[4]
+        }
+        setItem('deposits', String(params[params.length - 1]), d)
       }
       return { lastInsertRowid: 0, changes: 1 }
     }

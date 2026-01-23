@@ -53,7 +53,37 @@ const CONFIRMED_REPAYMENTS_KEY = 'gemach_confirmed_repayments'
 const getReadAlerts = (): Set<string> => {
   try {
     const stored = localStorage.getItem(READ_ALERTS_KEY)
-    return stored ? new Set(JSON.parse(stored)) : new Set()
+    const alerts = stored ? new Set(JSON.parse(stored)) : new Set()
+    
+    // ניקוי התראות ישנות (מעל 7 ימים)
+    const today = new Date()
+    const sevenDaysAgo = new Date(today)
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    
+    const cleaned = new Set<string>()
+    alerts.forEach(alertKey => {
+      // נסה לחלץ תאריך מה-key (פורמט: type-id-YYYY-MM-DD)
+      const parts = alertKey.split('-')
+      const dateStr = parts[parts.length - 1]
+      
+      // אם יש תאריך תקין, בדוק אם הוא לא ישן מדי
+      if (dateStr && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const alertDate = new Date(dateStr)
+        if (alertDate >= sevenDaysAgo) {
+          cleaned.add(alertKey)
+        }
+      } else {
+        // אם אין תאריך או שהוא לא תקין, שמור את ההתראה
+        cleaned.add(alertKey)
+      }
+    })
+    
+    // שמור את הרשימה המנוקה
+    if (cleaned.size !== alerts.size) {
+      saveReadAlerts(cleaned)
+    }
+    
+    return cleaned
   } catch {
     return new Set()
   }
@@ -208,6 +238,16 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
       const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
       
       deposits.forEach((deposit: any) => {
+        // בדיקה: רק הפקדות עם recurring_months > 0 צריכות ליצור התראות
+        if (!deposit.recurring_months || deposit.recurring_months <= 0) {
+          return
+        }
+        
+        // בדיקה: אם ההפקדה נוצרה היום, לא צריך התראה
+        if (deposit.deposit_date === todayStr) {
+          return
+        }
+        
         const recurringDay = deposit.recurring_day || new Date(deposit.deposit_date).getDate()
         // If recurring day is greater than last day of month, use last day
         const effectiveDay = Math.min(recurringDay, lastDayOfMonth)
@@ -601,6 +641,16 @@ export async function getUnreadAlertCount(): Promise<number> {
     `) as any[]
     
     deposits.forEach((deposit: any) => {
+      // בדיקה: רק הפקדות עם recurring_months > 0 צריכות ליצור התראות
+      if (!deposit.recurring_months || deposit.recurring_months <= 0) {
+        return
+      }
+      
+      // בדיקה: אם ההפקדה נוצרה היום, לא צריך התראה
+      if (deposit.deposit_date === todayStr) {
+        return
+      }
+      
       const recurringDay = deposit.recurring_day || new Date(deposit.deposit_date).getDate()
       const effectiveDay = Math.min(recurringDay, lastDayOfMonth)
       

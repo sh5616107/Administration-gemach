@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Box,
   Card,
@@ -53,6 +54,7 @@ const defaultFieldLabels = {
 
 export default function Settings() {
   const { settings, updateSetting, refreshSettings } = useSettings()
+  const { t, i18n } = useTranslation()
   
   // Helper to check if text contains old template variables
   const isOldTemplate = (text: string) => text && (text.includes('{שם_') || text.includes('{סכום}') || text.includes('{תאריך}'))
@@ -121,7 +123,11 @@ export default function Settings() {
 
   useEffect(() => {
     loadProtectionSettings()
-  }, [])
+    // Sync i18n with settings
+    if (settings.language && i18n.language !== settings.language) {
+      i18n.changeLanguage(settings.language)
+    }
+  }, [settings.language, i18n])
 
   const loadProtectionSettings = async () => {
     const enabled = await isProtectionEnabled()
@@ -135,28 +141,28 @@ export default function Settings() {
   const handleProtectionToggle = async (enabled: boolean) => {
     await setProtectionEnabled(enabled)
     setProtectionEnabledState(enabled)
-    setSnackbar({ open: true, message: enabled ? 'הגנה הופעלה' : 'הגנה כובתה', severity: 'success' })
+    setSnackbar({ open: true, message: enabled ? t('settings.protectionEnabled') : t('settings.protectionDisabled'), severity: 'success' })
   }
 
   const handleSavePassword = async () => {
     if (userPassword.length < 4) {
-      setSnackbar({ open: true, message: 'הסיסמה חייבת להכיל לפחות 4 תווים', severity: 'error' })
+      setSnackbar({ open: true, message: t('settings.passwordTooShort'), severity: 'error' })
       return
     }
     if (userPassword !== confirmPassword) {
-      setSnackbar({ open: true, message: 'הסיסמאות אינן תואמות', severity: 'error' })
+      setSnackbar({ open: true, message: t('settings.passwordMismatch'), severity: 'error' })
       return
     }
     await setUserPassword(userPassword)
     setHasExistingPassword(true)
     setUserPasswordState('')
     setConfirmPassword('')
-    setSnackbar({ open: true, message: 'הסיסמה נשמרה בהצלחה', severity: 'success' })
+    setSnackbar({ open: true, message: t('settings.passwordSaved'), severity: 'success' })
   }
 
   const handleSaveCustomHint = async () => {
     await setCustomHint(customHint)
-    setSnackbar({ open: true, message: 'הרמז נשמר', severity: 'success' })
+    setSnackbar({ open: true, message: t('settings.hintSaved'), severity: 'success' })
   }
 
   const handleSave = async () => {
@@ -177,14 +183,15 @@ export default function Settings() {
       await updateSetting('email_provider', localSettings.email_provider)
       await updateSetting('loan_document_text', localSettings.loan_document_text)
       await updateSetting('deposit_document_text', localSettings.deposit_document_text)
+      await updateSetting('language', i18n.language)
       if (localSettings.gemach_logo !== settings.gemach_logo) {
         await updateSetting('gemach_logo', localSettings.gemach_logo)
       }
-      setSnackbar({ open: true, message: 'ההגדרות נשמרו בהצלחה', severity: 'success' })
+      setSnackbar({ open: true, message: t('settings.settingsSaved'), severity: 'success' })
       refreshSettings()
     } catch (error) {
       console.error('Error saving settings:', error)
-      setSnackbar({ open: true, message: 'שגיאה בשמירה', severity: 'error' })
+      setSnackbar({ open: true, message: t('settings.settingsSaveError'), severity: 'error' })
     }
   }
 
@@ -193,7 +200,7 @@ export default function Settings() {
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      setSnackbar({ open: true, message: 'נא לבחור קובץ תמונה', severity: 'error' })
+      setSnackbar({ open: true, message: t('common.error') + ': ' + 'נא לבחור קובץ תמונה', severity: 'error' })
       return
     }
 
@@ -213,12 +220,28 @@ export default function Settings() {
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 3 }}>
-                ⚙️ הגדרות כלליות
+                ⚙️ {t('settings.general')}
               </Typography>
+
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel>{t('settings.language')}</InputLabel>
+                <Select
+                  value={i18n.language}
+                  label={t('settings.language')}
+                  onChange={async (e) => {
+                    const newLang = e.target.value
+                    await i18n.changeLanguage(newLang)
+                    await updateSetting('language', newLang)
+                  }}
+                >
+                  <MenuItem value="he">🇮🇱 עברית</MenuItem>
+                  <MenuItem value="en">🇺🇸 English</MenuItem>
+                </Select>
+              </FormControl>
 
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  לוגו הגמ"ח
+                  {t('settings.gemachLogo')}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Avatar
@@ -239,7 +262,7 @@ export default function Settings() {
                     startIcon={<UploadIcon />}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    העלה לוגו
+                    {t('settings.uploadLogo')}
                   </Button>
                   {localSettings.gemach_logo && (
                     <Button
@@ -247,7 +270,7 @@ export default function Settings() {
                       color="error"
                       onClick={() => setLocalSettings({ ...localSettings, gemach_logo: '' })}
                     >
-                      הסר
+                      {t('settings.removeLogo')}
                     </Button>
                   )}
                 </Box>
@@ -255,7 +278,7 @@ export default function Settings() {
 
               <TextField
                 fullWidth
-                label="שם הגמ״ח"
+                label={t('settings.gemachName')}
                 value={localSettings.gemach_name}
                 onChange={(e) => setLocalSettings({ ...localSettings, gemach_name: e.target.value })}
                 sx={{ mb: 3 }}
@@ -263,54 +286,54 @@ export default function Settings() {
 
               <TextField
                 fullWidth
-                label="סף סיכון לערבים (ש״ח)"
+                label={t('settings.riskThreshold')}
                 type="number"
                 value={localSettings.risk_threshold}
                 onChange={(e) => setLocalSettings({ ...localSettings, risk_threshold: e.target.value })}
-                helperText="ערבים עם ערבויות מעל סכום זה יסומנו כ'בסיכון גבוה'"
+                helperText={t('settings.riskThresholdHelp')}
                 sx={{ mb: 3 }}
               />
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>מספר זהות</InputLabel>
+                <InputLabel>{t('settings.idNumber')}</InputLabel>
                 <Select
                   value={localSettings.id_required}
-                  label="מספר זהות"
+                  label={t('settings.idNumber')}
                   onChange={(e) => setLocalSettings({ ...localSettings, id_required: e.target.value })}
                 >
-                  <MenuItem value="optional">אופציונלי</MenuItem>
-                  <MenuItem value="required">חובה</MenuItem>
+                  <MenuItem value="optional">{t('settings.idOptional')}</MenuItem>
+                  <MenuItem value="required">{t('settings.idRequired')}</MenuItem>
                 </Select>
               </FormControl>
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>מטבע</InputLabel>
+                <InputLabel>{t('settings.currency')}</InputLabel>
                 <Select
                   value={localSettings.currency}
-                  label="מטבע"
+                  label={t('settings.currency')}
                   onChange={(e) => setLocalSettings({ ...localSettings, currency: e.target.value })}
                 >
-                  <MenuItem value="ILS">₪ שקל</MenuItem>
-                  <MenuItem value="USD">$ דולר</MenuItem>
-                  <MenuItem value="EUR">€ יורו</MenuItem>
+                  <MenuItem value="ILS">{t('settings.shekel')}</MenuItem>
+                  <MenuItem value="USD">{t('settings.dollar')}</MenuItem>
+                  <MenuItem value="EUR">{t('settings.euro')}</MenuItem>
                 </Select>
               </FormControl>
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>תצוגת תאריכים</InputLabel>
+                <InputLabel>{t('settings.dateFormat')}</InputLabel>
                 <Select
                   value={localSettings.date_format}
-                  label="תצוגת תאריכים"
+                  label={t('settings.dateFormat')}
                   onChange={(e) => setLocalSettings({ ...localSettings, date_format: e.target.value })}
                 >
-                  <MenuItem value="gregorian">לועזי בלבד (01/01/2025)</MenuItem>
-                  <MenuItem value="combined">משולב - לועזי + עברי (01/01/2025 | א' טבת תשפ"ה)</MenuItem>
+                  <MenuItem value="gregorian">{t('settings.dateGregorian')}</MenuItem>
+                  <MenuItem value="combined">{t('settings.dateCombined')}</MenuItem>
                 </Select>
               </FormControl>
 
               <TextField
                 fullWidth
-                label="תקופת הלוואה ברירת מחדל (חודשים)"
+                label={t('settings.defaultLoanMonths')}
                 type="number"
                 value={localSettings.default_loan_months}
                 onChange={(e) => setLocalSettings({ ...localSettings, default_loan_months: e.target.value })}
@@ -318,73 +341,73 @@ export default function Settings() {
               />
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>סוג הלוואה ברירת מחדל</InputLabel>
+                <InputLabel>{t('settings.defaultLoanType')}</InputLabel>
                 <Select
                   value={localSettings.default_loan_type || 'flexible'}
-                  label="סוג הלוואה ברירת מחדל"
+                  label={t('settings.defaultLoanType')}
                   onChange={(e) => setLocalSettings({ ...localSettings, default_loan_type: e.target.value })}
                 >
-                  <MenuItem value="flexible">גמישה - ללא תאריך פירעון קבוע</MenuItem>
-                  <MenuItem value="fixed">קבועה - עם תאריך פירעון</MenuItem>
+                  <MenuItem value="flexible">{t('settings.loanTypeFlexible')}</MenuItem>
+                  <MenuItem value="fixed">{t('settings.loanTypeFixed')}</MenuItem>
                 </Select>
               </FormControl>
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>הצג אפשרויות מחזוריות בטופס הלוואה</InputLabel>
+                <InputLabel>{t('settings.showRecurringOptions')}</InputLabel>
                 <Select
                   value={localSettings.show_recurring_options}
-                  label="הצג אפשרויות מחזוריות בטופס הלוואה"
+                  label={t('settings.showRecurringOptions')}
                   onChange={(e) => setLocalSettings({ ...localSettings, show_recurring_options: e.target.value })}
                 >
-                  <MenuItem value="yes">כן - הצג הלוואה מחזורית ופירעון מחזורי</MenuItem>
-                  <MenuItem value="no">לא - הסתר</MenuItem>
+                  <MenuItem value="yes">{t('settings.showRecurringYes')}</MenuItem>
+                  <MenuItem value="no">{t('settings.showRecurringNo')}</MenuItem>
                 </Select>
               </FormControl>
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>הצג טאב תור בקשות להלוואות</InputLabel>
+                <InputLabel>{t('settings.showWaitlistTab')}</InputLabel>
                 <Select
                   value={localSettings.show_waitlist_tab}
-                  label="הצג טאב תור בקשות להלוואות"
+                  label={t('settings.showWaitlistTab')}
                   onChange={(e) => setLocalSettings({ ...localSettings, show_waitlist_tab: e.target.value })}
                 >
-                  <MenuItem value="yes">כן - הצג טאב תור בקשות</MenuItem>
-                  <MenuItem value="no">לא - הסתר</MenuItem>
+                  <MenuItem value="yes">{t('settings.showWaitlistYes')}</MenuItem>
+                  <MenuItem value="no">{t('settings.showWaitlistNo')}</MenuItem>
                 </Select>
               </FormControl>
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>הצג פרטי אמצעי תשלום</InputLabel>
+                <InputLabel>{t('settings.showPaymentMethod')}</InputLabel>
                 <Select
                   value={localSettings.show_payment_method}
-                  label="הצג פרטי אמצעי תשלום"
+                  label={t('settings.showPaymentMethod')}
                   onChange={(e) => setLocalSettings({ ...localSettings, show_payment_method: e.target.value })}
                 >
-                  <MenuItem value="no">לא - הסתר</MenuItem>
-                  <MenuItem value="yes">כן - הצג (מזומן/אשראי/העברה/צ'ק)</MenuItem>
+                  <MenuItem value="no">{t('settings.showPaymentMethodNo')}</MenuItem>
+                  <MenuItem value="yes">{t('settings.showPaymentMethodYes')}</MenuItem>
                 </Select>
               </FormControl>
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>ספק מייל לשליחת מסמכים</InputLabel>
+                <InputLabel>{t('settings.emailProvider')}</InputLabel>
                 <Select
                   value={localSettings.email_provider}
-                  label="ספק מייל לשליחת מסמכים"
+                  label={t('settings.emailProvider')}
                   onChange={(e) => setLocalSettings({ ...localSettings, email_provider: e.target.value })}
                 >
                   <MenuItem value="gmail">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <span>📧</span> Gmail
+                      <span>📧</span> {t('settings.emailGmail')}
                     </Box>
                   </MenuItem>
                   <MenuItem value="outlook">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <span>📧</span> Outlook
+                      <span>📧</span> {t('settings.emailOutlook')}
                     </Box>
                   </MenuItem>
                   <MenuItem value="default">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <span>📧</span> תוכנת מייל מותקנת (ברירת מחדל)
+                      <span>📧</span> {t('settings.emailDefault')}
                     </Box>
                   </MenuItem>
                 </Select>
@@ -398,7 +421,7 @@ export default function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 3 }}>
-                👁️ תצוגה מקדימה
+                👁️ {t('settings.preview')}
               </Typography>
 
               <Box
@@ -419,7 +442,7 @@ export default function Settings() {
                   {localSettings.gemach_name || 'שם הגמ"ח'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  כך ייראה הלוגו והשם בתוכנה ובשטרות
+                  {t('settings.previewText')}
                 </Typography>
               </Box>
             </CardContent>
@@ -428,31 +451,31 @@ export default function Settings() {
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                💾 גיבוי אוטומטי
+                💾 {t('settings.autoBackup')}
               </Typography>
 
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>גיבוי אוטומטי</InputLabel>
+                <InputLabel>{t('settings.autoBackup')}</InputLabel>
                 <Select
                   value={localSettings.auto_backup}
-                  label="גיבוי אוטומטי"
+                  label={t('settings.autoBackup')}
                   onChange={(e) => setLocalSettings({ ...localSettings, auto_backup: e.target.value })}
                 >
-                  <MenuItem value="off">כבוי</MenuItem>
-                  <MenuItem value="daily">יומי</MenuItem>
-                  <MenuItem value="weekly">שבועי</MenuItem>
-                  <MenuItem value="monthly">חודשי</MenuItem>
+                  <MenuItem value="off">{t('settings.autoBackupOff')}</MenuItem>
+                  <MenuItem value="daily">{t('settings.autoBackupDaily')}</MenuItem>
+                  <MenuItem value="weekly">{t('settings.autoBackupWeekly')}</MenuItem>
+                  <MenuItem value="monthly">{t('settings.autoBackupMonthly')}</MenuItem>
                 </Select>
               </FormControl>
 
               {localSettings.auto_backup !== 'off' && (
                 <TextField
                   fullWidth
-                  label="נתיב לשמירת גיבויים"
+                  label={t('settings.autoBackupPath')}
                   value={localSettings.auto_backup_path}
                   onChange={(e) => setLocalSettings({ ...localSettings, auto_backup_path: e.target.value })}
                   placeholder="C:\Backups\Gemach"
-                  helperText="השאר ריק לשמירה בתיקיית ברירת מחדל"
+                  helperText={t('settings.autoBackupPathHelp')}
                 />
               )}
             </CardContent>
@@ -461,7 +484,7 @@ export default function Settings() {
           <Card sx={{ mt: 3 }}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <LockIcon color="primary" /> הגנת התוכנה
+                <LockIcon color="primary" /> {t('settings.protection')}
               </Typography>
 
               {/* הפעלת הגנה - למעלה */}
@@ -473,7 +496,7 @@ export default function Settings() {
                     color="primary"
                   />
                 }
-                label="הפעל הגנה בסיסמה"
+                label={t('settings.enableProtection')}
                 sx={{ mb: 2, display: 'block' }}
               />
 
@@ -482,31 +505,31 @@ export default function Settings() {
                 <>
                   <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
                     <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                      {hasExistingPassword ? 'שינוי סיסמה' : 'הגדרת סיסמה'}
+                      {hasExistingPassword ? t('settings.changePassword') : t('settings.setPassword')}
                     </Typography>
                     {!hasExistingPassword && (
                       <Alert severity="warning" sx={{ mb: 2 }}>
-                        יש להגדיר סיסמה כדי שההגנה תפעל
+                        {t('settings.passwordWarning')}
                       </Alert>
                     )}
                     <TextField
                       fullWidth
                       size="small"
                       type="password"
-                      label="סיסמה חדשה"
+                      label={t('settings.newPassword')}
                       value={userPassword}
                       onChange={(e) => setUserPasswordState(e.target.value)}
-                      placeholder="מינימום 4 תווים"
+                      placeholder={t('settings.passwordMinLength')}
                       sx={{ mb: 1 }}
                     />
                     <TextField
                       fullWidth
                       size="small"
                       type="password"
-                      label="אימות סיסמה"
+                      label={t('settings.confirmPassword')}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="הזן שוב את הסיסמה"
+                      placeholder={t('settings.confirmPassword')}
                       sx={{ mb: 1 }}
                     />
                     <Button
@@ -515,21 +538,21 @@ export default function Settings() {
                       onClick={handleSavePassword}
                       disabled={userPassword.length < 4}
                     >
-                      {hasExistingPassword ? 'עדכן סיסמה' : 'שמור סיסמה'}
+                      {hasExistingPassword ? t('settings.updatePassword') : t('settings.savePassword')}
                     </Button>
                   </Box>
 
                   {/* רמז מותאם */}
                   <Divider sx={{ my: 2 }} />
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                    רמז לסיסמה (אופציונלי)
+                    {t('settings.passwordHint')}
                   </Typography>
                   <TextField
                     fullWidth
                     size="small"
                     value={customHint}
                     onChange={(e) => setCustomHintState(e.target.value)}
-                    placeholder="הוסף רמז שיעזור לך לזכור את הסיסמה"
+                    placeholder={t('settings.passwordHintPlaceholder')}
                     sx={{ mb: 1 }}
                   />
                   <Button
@@ -537,7 +560,7 @@ export default function Settings() {
                     size="small"
                     onClick={handleSaveCustomHint}
                   >
-                    שמור רמז
+                    {t('settings.saveHint')}
                   </Button>
                 </>
               )}
@@ -664,7 +687,7 @@ export default function Settings() {
             size="large"
             fullWidth
           >
-            שמור הגדרות
+            {t('common.save')} {t('settings.title')}
           </Button>
         </Grid>
 
@@ -673,17 +696,17 @@ export default function Settings() {
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                ℹ️ אודות
+                ℹ️ {t('settings.about')}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 מינהל הגמ"ח
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                גרסה 3.5.0
+                {t('settings.version')}
               </Typography>
               <Divider sx={{ my: 2 }} />
               <Typography variant="body2" color="text.secondary">
-                📧 מייל המפתח: sh5616107@gmail.com
+                📧 {t('settings.developerEmail')}
               </Typography>
             </CardContent>
           </Card>

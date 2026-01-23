@@ -4,7 +4,7 @@ import { guarantorLoansService, guarantorLoanRepaymentsService, loansService, ex
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 5 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 7 // Increment this when adding new migrations
 
 /**
  * Get the current migration version from storage
@@ -371,6 +371,68 @@ export async function needsRecurringLoanNumbersMigration(): Promise<boolean> {
 }
 
 /**
+ * Migration v6: Fix deposit status (convert number to string) and add recurring numbers
+ */
+export async function migrateDepositStatusAndRecurring(): Promise<{ migrated: number }> {
+  console.log('🔄 Starting deposit status and recurring numbers migration...')
+  
+  let migrated = 0
+  
+  try {
+    const allData = await exportAllData()
+    const deposits = Object.values(allData.deposits || {})
+    
+    for (const deposit of deposits) {
+      let needsUpdate = false
+      const updates: any = {}
+      
+      // Fix status if it's a number
+      if (typeof deposit.status === 'number') {
+        updates.status = deposit.status === 1 ? 'active' : 'withdrawn'
+        needsUpdate = true
+        console.log(`[MIGRATION v6] Deposit ${deposit.id}: status ${deposit.status} -> '${updates.status}'`)
+      }
+      
+      // Add recurring numbers if missing - BUT ONLY if it's truly recurring
+      // A deposit is recurring if: is_recurring = 1 AND has recurring_months defined
+      if (deposit.is_recurring === 1 && deposit.recurring_months !== undefined && !deposit.recurring_deposit_number) {
+        updates.recurring_deposit_number = 1
+        // Calculate recurring_deposit_count from recurring_months
+        if (deposit.recurring_months >= 0) {
+          updates.recurring_deposit_count = deposit.recurring_months + 1
+        }
+        needsUpdate = true
+        console.log(`[MIGRATION v6] Deposit ${deposit.id}: added recurring numbers (1/${updates.recurring_deposit_count || '?'})`)
+      }
+      
+      // Fix: If is_recurring = 1 but no recurring_months, it's not really recurring
+      if (deposit.is_recurring === 1 && deposit.recurring_months === undefined) {
+        updates.is_recurring = 0
+        needsUpdate = true
+        console.log(`[MIGRATION v6] Deposit ${deposit.id}: fixed is_recurring (was 1, no recurring_months)`)
+      }
+      
+      if (needsUpdate) {
+        // Update the deposit in storage
+        Object.assign(deposit, updates)
+        allData.deposits[deposit.id] = deposit
+        migrated++
+      }
+    }
+    
+    if (migrated > 0) {
+      await importAllData(allData)
+      console.log(`✅ Migration v6: Fixed ${migrated} deposits`)
+    }
+    
+  } catch (error) {
+    console.error('Error in deposit migration:', error)
+  }
+  
+  return { migrated }
+}
+
+/**
  * Run all pending migrations
  */
 export async function runPendingMigrations(): Promise<void> {
@@ -428,6 +490,20 @@ export async function runPendingMigrations(): Promise<void> {
     console.log('📋 Running migration v5: Force Update All Recurring Repayments')
     const result = await migrateRecurringRepaymentNumbers()
     console.log(`✅ Migration v5 complete: ${result.migrated} records migrated`)
+  }
+  
+  // Migration v6: Fix Deposit Status and Recurring Numbers
+  if (currentVersion < 6) {
+    console.log('📋 Running migration v6: Fix Deposit Status and Recurring Numbers')
+    const result = await migrateDepositStatusAndRecurring()
+    console.log(`✅ Migration v6 complete: ${result.migrated} deposits fixed`)
+  }
+  
+  // Migration v7: Re-run deposit fix to clean up is_recurring flag
+  if (currentVersion < 7) {
+    console.log('📋 Running migration v7: Clean up is_recurring flag')
+    const result = await migrateDepositStatusAndRecurring()
+    console.log(`✅ Migration v7 complete: ${result.migrated} deposits fixed`)
   }
   
   // Update migration version

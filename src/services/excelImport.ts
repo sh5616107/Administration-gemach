@@ -228,13 +228,19 @@ export function getSheetName(importType: ImportType): string {
  */
 export function mapColumns(rows: Record<string, any>[], importType: ImportType): Record<string, any>[] {
   const mapping = COLUMN_MAPPINGS[importType]
+  console.log('[EXCEL IMPORT] mapColumns - importType:', importType, 'mapping:', mapping)
   
-  return rows.map(row => {
+  return rows.map((row, index) => {
     const mapped: Record<string, any> = {}
     
     for (const [hebrewKey, value] of Object.entries(row)) {
       const englishKey = mapping[hebrewKey] || hebrewKey.toLowerCase().replace(/\s+/g, '_')
       mapped[englishKey] = value
+    }
+    
+    if (index === 0) {
+      console.log('[EXCEL IMPORT] First row - original:', row)
+      console.log('[EXCEL IMPORT] First row - mapped:', mapped)
     }
     
     return mapped
@@ -379,8 +385,8 @@ async function validateRow(
     // בדיקת הלוואה מחזורית
     if (isYes(row.is_recurring)) {
       const recurringDay = parseInt(row.recurring_day)
-      if (isNaN(recurringDay) || recurringDay < 1 || recurringDay > 28) {
-        errors.push('יום בחודש להלוואה מחזורית חייב להיות 1-28')
+      if (isNaN(recurringDay) || recurringDay < 1 || recurringDay > 31) {
+        errors.push('יום בחודש להלוואה מחזורית חייב להיות 1-31')
       }
     }
   }
@@ -538,6 +544,7 @@ async function importLoans(
   newBorrowers?: Map<number, number>, // מיפוי שורה -> ID של לווה חדש
   newGuarantors?: Map<number, number> // מיפוי שורה -> ID של ערב חדש
 ): Promise<{ count: number; loanIds: Map<number, number> }> {
+  console.log('[EXCEL IMPORT] Starting importLoans, rows:', rows.length)
   let count = 0
   const loanIds = new Map<number, number>() // מיפוי שורה -> ID של הלוואה חדשה
   const borrowers = await borrowersService.getAll()
@@ -547,6 +554,7 @@ async function importLoans(
     if (row.status === 'error') continue
     
     const data = row.data
+    console.log('[EXCEL IMPORT] Processing loan row:', row.row, 'data:', data)
     let borrowerId: number | undefined
     
     // מציאת הלווה - קודם לפי שורה, אחר כך לפי ת.ז.
@@ -600,8 +608,58 @@ async function importLoans(
     // בדיקת מחזוריות
     const isRecurring = isYes(data.is_recurring) ? 1 : 0
     const recurringDay = isRecurring ? (parseInt(data.recurring_day) || 1) : undefined
-    const recurringLoanNumber = data.recurring_loan_number ? parseInt(data.recurring_loan_number) : undefined
-    const recurringLoanCount = data.recurring_loan_count ? parseInt(data.recurring_loan_count) : undefined
+    
+    console.log('[EXCEL IMPORT] Raw loan data:', {
+      is_recurring: data.is_recurring,
+      isRecurring,
+      recurring_day: data.recurring_day,
+      recurring_loan_number: data.recurring_loan_number,
+      recurring_loan_count: data.recurring_loan_count
+    })
+    
+    // קריאת מספרים מחזוריים - תמיכה בפורמטים שונים
+    let recurringLoanNumber: number | undefined
+    let recurringLoanCount: number | undefined
+    
+    if (isRecurring) {
+      // נסה לקרוא מספר הלוואה
+      if (data.recurring_loan_number !== undefined && data.recurring_loan_number !== null && data.recurring_loan_number !== '') {
+        recurringLoanNumber = parseInt(String(data.recurring_loan_number))
+      }
+      
+      // נסה לקרוא סה"כ הלוואות
+      if (data.recurring_loan_count !== undefined && data.recurring_loan_count !== null && data.recurring_loan_count !== '') {
+        recurringLoanCount = parseInt(String(data.recurring_loan_count))
+      }
+      
+      console.log('[EXCEL IMPORT] After parsing:', {
+        recurringLoanNumber,
+        recurringLoanCount
+      })
+      
+      // אם לא הצלחנו לקרוא, נסה ברירות מחדל
+      if (!recurringLoanNumber) recurringLoanNumber = 1
+      if (!recurringLoanCount) recurringLoanCount = 1
+      
+      console.log('[EXCEL IMPORT] After defaults:', {
+        recurringLoanNumber,
+        recurringLoanCount
+      })
+    }
+    
+    // חישוב recurring_months מ-recurring_loan_count
+    // אם יש recurring_loan_count, recurring_months = count - number
+    const recurringMonths = (isRecurring && recurringLoanCount && recurringLoanNumber && recurringLoanCount > recurringLoanNumber) 
+      ? recurringLoanCount - recurringLoanNumber 
+      : undefined
+    
+    console.log('[EXCEL IMPORT] Final loan recurring data:', {
+      isRecurring,
+      recurringDay,
+      recurringMonths,
+      recurringLoanNumber,
+      recurringLoanCount
+    })
     
     const result = await loansService.create({
       borrower_id: borrowerId,
@@ -614,6 +672,7 @@ async function importLoans(
       notes: data.notes?.toString() || '',
       is_recurring: isRecurring,
       recurring_day: recurringDay,
+      recurring_months: recurringMonths,
       recurring_loan_number: recurringLoanNumber,
       recurring_loan_count: recurringLoanCount,
       auto_repayment: 0
@@ -752,11 +811,34 @@ async function importDeposits(rows: ValidationResult[]): Promise<number> {
     // בדיקת מחזוריות
     const isRecurring = isYes(data.is_recurring) ? 1 : 0
     const recurringDay = isRecurring ? (parseInt(data.recurring_day) || 1) : null
+    const recurringDepositNumber = data.recurring_deposit_number ? parseInt(data.recurring_deposit_number) : null
+    const recurringDepositCount = data.recurring_deposit_count ? parseInt(data.recurring_deposit_count) : null
+    
+    // חישוב recurring_months מ-recurring_deposit_count
+    // אם יש recurring_deposit_count, recurring_months = count - number
+    const recurringMonths = (isRecurring && recurringDepositCount && recurringDepositNumber) 
+      ? recurringDepositCount - recurringDepositNumber 
+      : null
     
     // יצירת הפקדה
     await db.run(
-      'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [depositorId, parseFloat(data.amount) || 0, parseDate(data.deposit_date) || new Date().toISOString().split('T')[0], periodType, parseDate(data.due_date) || null, isRecurring, recurringDay, data.notes?.toString() || '', 'active', '', '']
+      'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        depositorId, 
+        parseFloat(data.amount) || 0, 
+        parseDate(data.deposit_date) || new Date().toISOString().split('T')[0], 
+        periodType, 
+        parseDate(data.due_date) || null, 
+        isRecurring, 
+        recurringDay, 
+        recurringMonths,
+        recurringDepositNumber,
+        recurringDepositCount,
+        data.notes?.toString() || '', 
+        'active', 
+        '', 
+        ''
+      ]
     )
     count++
   }
@@ -979,7 +1061,7 @@ export function generateFullTemplate(): Blob {
     { 'הוראות שימוש': '' },
     { 'הוראות שימוש': '🔄 הלוואות/הפקדות מחזוריות:' },
     { 'הוראות שימוש': '• עמודת "מחזורית" - כן/לא' },
-    { 'הוראות שימוש': '• עמודת "יום בחודש" - היום בחודש שבו תיווצר הלוואה/הפקדה חדשה (1-28)' },
+    { 'הוראות שימוש': '• עמודת "יום בחודש" - היום בחודש שבו תיווצר הלוואה/הפקדה חדשה (1-31)' },
     { 'הוראות שימוש': '• עמודת "מספר הלוואה" - מספר ההלוואה בסדרה (למשל: 1, 2, 3...)' },
     { 'הוראות שימוש': '• עמודת "סה״כ הלוואות" - סך כל ההלוואות בסדרה (למשל: 12)' },
     { 'הוראות שימוש': '' },
@@ -1199,6 +1281,29 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
         }
         
         const isRecurring = isYes(data.is_recurring) ? 1 : 0
+        
+        // קריאת מספרים מחזוריים
+        let recurringLoanNumber: number | undefined
+        let recurringLoanCount: number | undefined
+        
+        if (isRecurring) {
+          if (data.recurring_loan_number !== undefined && data.recurring_loan_number !== null && data.recurring_loan_number !== '') {
+            recurringLoanNumber = parseInt(String(data.recurring_loan_number))
+          }
+          if (data.recurring_loan_count !== undefined && data.recurring_loan_count !== null && data.recurring_loan_count !== '') {
+            recurringLoanCount = parseInt(String(data.recurring_loan_count))
+          }
+          
+          // ברירות מחדל
+          if (!recurringLoanNumber) recurringLoanNumber = 1
+          if (!recurringLoanCount) recurringLoanCount = 1
+        }
+        
+        // חישוב recurring_months
+        const recurringMonths = (isRecurring && recurringLoanCount && recurringLoanNumber && recurringLoanCount > recurringLoanNumber) 
+          ? recurringLoanCount - recurringLoanNumber 
+          : undefined
+        
         const res = await loansService.create({
           borrower_id: borrowerId,
           amount: parseFloat(data.amount) || 0,
@@ -1210,6 +1315,9 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
           notes: data.notes?.toString() || '',
           is_recurring: isRecurring,
           recurring_day: isRecurring ? (parseInt(data.recurring_day) || 1) : undefined,
+          recurring_months: recurringMonths,
+          recurring_loan_number: recurringLoanNumber,
+          recurring_loan_count: recurringLoanCount,
           auto_repayment: 0
         })
         const rowNum = data['שורה'] || row.row

@@ -322,6 +322,17 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
     `) as any[]
 
     for (const deposit of recurringDeposits) {
+      // בדיקה: רק הפקדות עם recurring_months > 0 צריכות ליצור התראות
+      // הפקדה עם recurring_months = 0 היא ההפקדה האחרונה בסדרה
+      if (!deposit.recurring_months || deposit.recurring_months <= 0) {
+        continue
+      }
+      
+      // בדיקה: אם ההפקדה נוצרה היום, לא צריך התראה
+      if (deposit.deposit_date === todayStr) {
+        continue
+      }
+      
       // Check if recurring_day matches today, or fallback to deposit date day
       const recurringDay = deposit.recurring_day || new Date(deposit.deposit_date).getDate()
       // If recurring day is greater than last day of month, use last day

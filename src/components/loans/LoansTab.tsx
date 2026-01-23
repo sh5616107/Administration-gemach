@@ -396,7 +396,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
             setSnackbar({ 
               open: true, 
               message: `סכום הפירעון עודכן. הספירה עודכנה ל-${newTotalCount} פירעונים (${existingRepayments.length} קיימים + ${additionalRepayments} נוספים)`, 
-              severity: 'info' 
+              severity: 'success' 
             })
           }
         }

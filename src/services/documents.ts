@@ -253,7 +253,7 @@ export function generateLoanDocument(data: LoanDocumentData) {
   const dueDateHebrew = showHebrew && data.dueDate ? toHebrewDate(data.dueDate) : ''
   
   const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
   // HTML להלוואה מחזורית - רק אם יש יותר מהלוואה אחת בסדרה
@@ -442,7 +442,7 @@ export function generateDonationReceipt(data: {
   const dateHebrew = showHebrew ? toHebrewDate(data.donationDate) : ''
   
   const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    ? `<img src="${data.gemachLogo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
   const htmlContent = `
@@ -488,6 +488,9 @@ export function generateDepositDocument(data: {
   dueDate?: string
   dateFormat?: string
   customText?: string
+  isRecurring?: boolean
+  recurringDepositNumber?: number
+  recurringDepositCount?: number
   withdrawals?: Array<{
     amount: number
     withdrawal_date: string
@@ -503,12 +506,24 @@ export function generateDepositDocument(data: {
   const dueDateHebrew = showHebrew && data.dueDate ? toHebrewDate(data.dueDate) : ''
 
   const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
   // Custom text - only use if provided and not containing old template variables
   const isValidCustomText = data.customText && !data.customText.includes('{שם_') && !data.customText.includes('{סכום}')
   const commitmentText = isValidCustomText ? data.customText : ''
+  
+  // HTML להפקדה מחזורית - רק אם יש יותר מהפקדה אחת בסדרה
+  const recurringDepositHtml = data.isRecurring && data.recurringDepositNumber && data.recurringDepositCount && data.recurringDepositCount > 1 ? `
+    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
+      <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
+        🔄 הפקדה מחזורית - מספר ${data.recurringDepositNumber} מתוך ${data.recurringDepositCount}
+      </p>
+      <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
+        זוהי הפקדה מחזורית מספר ${data.recurringDepositNumber} שהתקבלה מהמפקיד
+      </p>
+    </div>
+  ` : ''
   
   // חישוב משיכות
   const totalWithdrawn = data.withdrawals?.reduce((sum, w) => sum + w.amount, 0) || 0
@@ -551,6 +566,8 @@ export function generateDepositDocument(data: {
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+      
+      ${recurringDepositHtml}
       
       <div style="text-align: right; font-size: 16px; line-height: 2;">
         <p>אני הח"מ מנהל גמ"ח "<strong>${data.gemachName}</strong>"</p>
@@ -620,7 +637,7 @@ export function generateBorrowerReport(data: {
   const today = new Date().toLocaleDateString('he-IL')
 
   const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
   const loansHtml = data.loans.map(loan => {
@@ -792,7 +809,7 @@ export function generateExpenseReceipt(data: {
   }
   
   const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    ? `<img src="${data.gemachLogo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
   const htmlContent = `
@@ -852,7 +869,7 @@ export function generateFullReport(data: {
   const today = new Date().toLocaleDateString('he-IL')
 
   const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
   const borrowersHtml = data.borrowers.map((b, i) => `
@@ -935,6 +952,8 @@ export function generateDepositorReport(data: {
     status: string
     withdrawal_date?: string
     is_recurring: number
+    recurring_deposit_number?: number
+    recurring_deposit_count?: number
     withdrawals?: Array<{
       amount: number
       withdrawal_date: string
@@ -950,7 +969,7 @@ export function generateDepositorReport(data: {
   const showHebrew = data.dateFormat === 'combined'
 
   const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
   const depositsHtml = data.deposits.map(dep => {
@@ -961,6 +980,11 @@ export function generateDepositorReport(data: {
       ? new Date(dep.withdrawals![0].withdrawal_date).toLocaleDateString('he-IL')
       : '-'
     
+    // מידע מחזורי
+    const recurringInfo = dep.is_recurring && dep.recurring_deposit_number && dep.recurring_deposit_count && dep.recurring_deposit_count > 1
+      ? `🔄 ${dep.recurring_deposit_number}/${dep.recurring_deposit_count}`
+      : dep.is_recurring ? '🔄' : ''
+    
     return `
     <tr style="background: ${remaining === 0 ? '#f5f5f5' : 'white'};">
       <td style="padding: 8px; border: 1px solid #ddd;">${dep.id}</td>
@@ -968,7 +992,7 @@ export function generateDepositorReport(data: {
       <td style="padding: 8px; border: 1px solid #ddd;">${withdrawn > 0 ? `<span style="color: #f57c00;">${formatCurrency(withdrawn)}</span>` : '-'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${remaining > 0 ? `<span style="color: #2e7d32; font-weight: bold;">${formatCurrency(remaining)}</span>` : `<span style="color: #666;">-</span>`}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${new Date(dep.deposit_date).toLocaleDateString('he-IL')}${showHebrew ? `<br/><small style="color:#666;">${toHebrewDate(dep.deposit_date)}</small>` : ''}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.period_type === 'flexible' ? 'גמישה' : 'קבועה'}${dep.is_recurring ? ' 🔄' : ''}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${dep.period_type === 'flexible' ? 'גמישה' : 'קבועה'}${recurringInfo ? ` ${recurringInfo}` : ''}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${lastWithdrawalDate}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${remaining > 0 ? '<span style="color: green; font-weight: bold;">פעילה</span>' : '<span style="color: gray;">נמשכה</span>'}</td>
     </tr>

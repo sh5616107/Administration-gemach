@@ -66,7 +66,7 @@ const depositArbitrary = fc.record({
     { nil: undefined }
   ),
   is_recurring: fc.boolean().map(b => b ? 1 : 0),
-  recurring_day: fc.integer({ min: 1, max: 28 }),
+  recurring_day: fc.integer({ min: 1, max: 31 }),
   status: fc.constantFrom('active', 'withdrawn'),
   depositor_name: fc.string({ minLength: 2, maxLength: 20 }),
   period_type: fc.constantFrom('monthly', 'quarterly', 'yearly'),

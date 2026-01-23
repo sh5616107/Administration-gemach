@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Box,
   Card,
@@ -68,6 +69,7 @@ interface ActiveBorrower {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { settings } = useSettings()
+  const { t } = useTranslation()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [waitlistStats, setWaitlistStats] = useState<WaitlistStats | null>(null)
   const [activeBorrowers, setActiveBorrowers] = useState<ActiveBorrower[]>([])
@@ -428,7 +430,7 @@ export default function Dashboard() {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <LoanIcon sx={{ mr: 1 }} />
-                <Typography variant="subtitle2">הלוואות פעילות</Typography>
+                <Typography variant="subtitle2">{t('dashboard.activeLoans')}</Typography>
               </Box>
               <Typography variant="h4" fontWeight={700}>
                 {stats?.activeLoans.count || 0}
@@ -457,7 +459,7 @@ export default function Dashboard() {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <LoanIcon sx={{ mr: 1 }} />
-                <Typography variant="subtitle2">הלוואות מתוכננות</Typography>
+                <Typography variant="subtitle2">{t('dashboard.plannedLoans')}</Typography>
               </Box>
               <Typography variant="h4" fontWeight={700}>
                 {stats?.plannedLoans.count || 0}
@@ -486,7 +488,7 @@ export default function Dashboard() {
             >
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="subtitle2">📋 תור בקשות</Typography>
+                  <Typography variant="subtitle2">📋 {t('dashboard.waitlist')}</Typography>
                 </Box>
                 <Typography variant="h4" fontWeight={700}>
                   {waitlistStats?.waiting || 0}
@@ -496,7 +498,7 @@ export default function Dashboard() {
                 </Typography>
                 {(waitlistStats?.urgent || 0) > 0 && (
                   <Chip 
-                    label={`${waitlistStats?.urgent} דחופות`} 
+                    label={`${waitlistStats?.urgent} ${t('dashboard.urgent')}`} 
                     size="small" 
                     sx={{ mt: 1, bgcolor: 'error.main', color: 'white' }}
                   />
@@ -523,7 +525,7 @@ export default function Dashboard() {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <DepositIcon sx={{ mr: 1 }} />
-                <Typography variant="subtitle2">הפקדות</Typography>
+                <Typography variant="subtitle2">{t('dashboard.deposits')}</Typography>
               </Box>
               <Typography variant="h4" fontWeight={700}>
                 {stats?.deposits.count || 0}
@@ -552,7 +554,7 @@ export default function Dashboard() {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <DonationIcon sx={{ mr: 1 }} />
-                <Typography variant="subtitle2">תרומות</Typography>
+                <Typography variant="subtitle2">{t('dashboard.donations')}</Typography>
               </Box>
               <Typography variant="h4" fontWeight={700}>
                 {stats?.donations.count || 0}
@@ -590,14 +592,14 @@ export default function Dashboard() {
           startIcon={<SearchIcon />}
           onClick={() => setSearchOpen(true)}
         >
-          חיפוש לווה
+          {t('dashboard.searchBorrower')}
         </Button>
         <Button
           variant="outlined"
           startIcon={<ReportIcon />}
           onClick={() => navigate('/tools')}
         >
-          הפקת דו"ח
+          {t('dashboard.generateReport')}
         </Button>
         <Button
           variant="outlined"
@@ -605,7 +607,7 @@ export default function Dashboard() {
           startIcon={<ClearIcon />}
           onClick={() => setClearConfirmOpen(true)}
         >
-          נקה הכל
+          {t('dashboard.clearAll')}
         </Button>
       </Box>
 
@@ -613,24 +615,24 @@ export default function Dashboard() {
       <Card>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            לווים פעילים
+            {t('dashboard.activeBorrowers')}
           </Typography>
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
-                  <TableCell>שם</TableCell>
-                  <TableCell align="center">מספר הלוואות</TableCell>
-                  <TableCell align="center">סך חוב</TableCell>
-                  <TableCell align="center">סטטוס</TableCell>
-                  <TableCell align="center">פעולות</TableCell>
+                  <TableCell>{t('dashboard.name')}</TableCell>
+                  <TableCell align="center">{t('dashboard.loanCount')}</TableCell>
+                  <TableCell align="center">{t('dashboard.totalDebt')}</TableCell>
+                  <TableCell align="center">{t('common.status')}</TableCell>
+                  <TableCell align="center">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {activeBorrowers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                      <Typography color="text.secondary">אין לווים פעילים</Typography>
+                      <Typography color="text.secondary">{t('dashboard.noActiveBorrowers')}</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -643,7 +645,7 @@ export default function Dashboard() {
                       <TableCell align="center">{formatCurrency(borrower.total_debt)}</TableCell>
                       <TableCell align="center">
                         <Chip
-                          label="פעיל"
+                          label={t('dashboard.active')}
                           color="success"
                           size="small"
                           icon={<span>✅</span>}
@@ -679,7 +681,7 @@ export default function Dashboard() {
                 {activeBorrowers.length > 0 && (
                   <TableRow sx={{ bgcolor: 'grey.50' }}>
                     <TableCell colSpan={2}>
-                      <strong>סה"כ</strong>
+                      <strong>{t('dashboard.total')}</strong>
                     </TableCell>
                     <TableCell align="center">
                       <strong>
@@ -699,11 +701,11 @@ export default function Dashboard() {
 
       {/* Search Dialog */}
       <Dialog open={searchOpen} onClose={() => setSearchOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>חיפוש לווה</DialogTitle>
+        <DialogTitle>{t('dashboard.searchBorrower')}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
-            placeholder="חיפוש לפי שם, טלפון, מ.ז., עיר..."
+            placeholder={t('dashboard.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -743,40 +745,40 @@ export default function Dashboard() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSearchOpen(false)}>סגור</Button>
+          <Button onClick={() => setSearchOpen(false)}>{t('common.close')}</Button>
           <Button variant="contained" onClick={handleSearch}>
-            חפש
+            {t('common.search')}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Clear Confirm Dialog */}
       <Dialog open={clearConfirmOpen} onClose={() => { setClearConfirmOpen(false); setClearConfirmText(''); }}>
-        <DialogTitle>⚠️ אישור מחיקת כל הנתונים</DialogTitle>
+        <DialogTitle>⚠️ {t('dashboard.clearAllConfirm')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            האם אתה בטוח שברצונך למחוק את כל הנתונים? פעולה זו אינה ניתנת לביטול!
+            {t('dashboard.clearAllConfirm')}
           </Typography>
           <Typography variant="body2" color="error" sx={{ mb: 2 }}>
-            כל הלווים, ההלוואות, התרומות וההפקדות יימחקו לצמיתות.
+            {t('dashboard.clearAllWarning')}
           </Typography>
           <TextField
             fullWidth
-            label='הקלד "מחק הכל" לאישור'
+            label={t('dashboard.clearAllConfirmText')}
             value={clearConfirmText}
             onChange={(e) => setClearConfirmText(e.target.value)}
             error={clearConfirmText !== '' && clearConfirmText !== 'מחק הכל'}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setClearConfirmOpen(false); setClearConfirmText(''); }}>ביטול</Button>
+          <Button onClick={() => { setClearConfirmOpen(false); setClearConfirmText(''); }}>{t('common.cancel')}</Button>
           <Button 
             color="error" 
             variant="contained" 
             onClick={handleClearAll}
             disabled={clearConfirmText !== 'מחק הכל'}
           >
-            מחק הכל
+            {t('dashboard.clearAll')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -793,34 +795,34 @@ export default function Dashboard() {
       <ItemsListDialog
         open={activeLoansDialogOpen}
         onClose={() => setActiveLoansDialogOpen(false)}
-        title="הלוואות פעילות"
+        title={t('dashboard.activeLoans')}
         items={activeLoans}
         columns={activeLoansColumns}
         onItemClick={handleLoanItemClick}
         loading={dialogLoading}
-        emptyMessage="אין הלוואות פעילות"
+        emptyMessage={t('dashboard.noActiveLoans')}
       />
 
       <ItemsListDialog
         open={scheduledLoansDialogOpen}
         onClose={() => setScheduledLoansDialogOpen(false)}
-        title="הלוואות מתוכננות"
+        title={t('dashboard.plannedLoans')}
         items={scheduledLoans}
         columns={scheduledLoansColumns}
         onItemClick={handleLoanItemClick}
         loading={dialogLoading}
-        emptyMessage="אין הלוואות מתוכננות"
+        emptyMessage={t('dashboard.noPlannedLoans')}
       />
 
       <ItemsListDialog
         open={depositsDialogOpen}
         onClose={() => setDepositsDialogOpen(false)}
-        title="הפקדות"
+        title={t('dashboard.deposits')}
         items={deposits}
         columns={depositsColumns}
         onItemClick={handleDepositItemClick}
         loading={dialogLoading}
-        emptyMessage="אין הפקדות"
+        emptyMessage={t('dashboard.noDeposits')}
       />
     </Box>
   )
