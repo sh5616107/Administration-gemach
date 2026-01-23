@@ -61,7 +61,7 @@ const getReadAlerts = (): Set<string> => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
     
     const cleaned = new Set<string>()
-    alerts.forEach(alertKey => {
+    alerts.forEach((alertKey: string) => {
       // נסה לחלץ תאריך מה-key (פורמט: type-id-YYYY-MM-DD)
       const parts = alertKey.split('-')
       const dateStr = parts[parts.length - 1]
