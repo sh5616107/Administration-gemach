@@ -354,7 +354,11 @@ export const statsService = {
     const loans = await loansService.getAll()
     const t = new Date().toISOString().split('T')[0]
     const active = loans.filter(l => l.status === 'active' && l.loan_date <= t)
-    const planned = loans.filter(l => l.status === 'planned' || l.loan_date > t)
+    // הלוואות מתוכננות - לא כולל הלוואות מחזוריות שנוצרות אוטומטית
+    const planned = loans.filter(l => 
+      (l.status === 'planned' || l.loan_date > t) && 
+      !(l.is_recurring && l.recurring_loan_number && l.recurring_loan_number > 1)
+    )
     const deps = getAllItems<{ amount: number; status: string }>('deposits').filter(d => d.status === 'active')
     const dons = getAllItems<{ amount: number }>('donations')
     const expenses = getAllItems<{ amount: number; paid_by: string }>('expenses')
