@@ -36,6 +36,9 @@ import {
   History as HistoryIcon,
   Description as DescriptionIcon,
   AccountBalance as RefundIcon,
+  Block as BlockIcon,
+  CheckCircle as CheckCircleIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material'
 import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, guarantorRefundsService, loansService, repaymentsService, borrowersService, type GuarantorLoan } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
@@ -508,12 +511,12 @@ export default function GuarantorsTab() {
 
   const getStatus = (guarantor: Guarantor) => {
     if (guarantor.is_blacklisted) {
-      return { label: '🚫 חסום', color: 'error' as const }
+      return { label: 'חסום', color: 'error' as const, icon: <BlockIcon sx={{ fontSize: 16 }} /> }
     }
     if ((guarantor.total_guarantees || 0) > riskThreshold) {
-      return { label: '⚠️ בסיכון גבוה', color: 'warning' as const }
+      return { label: 'בסיכון גבוה', color: 'warning' as const, icon: <WarningIcon sx={{ fontSize: 16 }} /> }
     }
-    return { label: '✅ פעיל', color: 'success' as const }
+    return { label: 'פעיל', color: 'success' as const, icon: <CheckCircleIcon sx={{ fontSize: 16 }} /> }
   }
 
   const formatCurrency = (amount: number) => {
@@ -672,8 +675,20 @@ export default function GuarantorsTab() {
       {/* Table */}
       <Card>
         <CardContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            הסבר סטטוסים: ✅ פעיל - ערב רגיל | ⚠️ בסיכון גבוה - מעל {formatCurrency(riskThreshold)} ערבויות | 🚫 חסום - ברשימה שחורה
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <span>הסבר סטטוסים:</span>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <CheckCircleIcon sx={{ fontSize: 16, color: 'success.main' }} />
+              <span>פעיל - ערב רגיל</span>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <WarningIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+              <span>בסיכון גבוה - מעל {formatCurrency(riskThreshold)} ערבויות</span>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <BlockIcon sx={{ fontSize: 16, color: 'error.main' }} />
+              <span>חסום - ברשימה שחורה</span>
+            </Box>
           </Typography>
           <TableContainer component={Paper} variant="outlined">
             <Table>
@@ -793,7 +808,8 @@ export default function GuarantorsTab() {
                           />
                           {gl.notes && gl.notes.includes('מגיע החזר לערב') && (
                             <Chip 
-                              label="⚠️ מגיע החזר" 
+                              icon={<WarningIcon />}
+                              label="מגיע החזר" 
                               color="error" 
                               size="small"
                               sx={{ fontWeight: 'bold' }}
@@ -905,7 +921,7 @@ export default function GuarantorsTab() {
               {selectedGuarantorLoan.notes && selectedGuarantorLoan.notes.includes('מגיע החזר לערב') && (
                 <Box sx={{ mb: 3, p: 2, bgcolor: 'error.light', borderRadius: 1, border: '2px solid', borderColor: 'error.main' }}>
                   <Typography variant="h6" color="error.dark" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    ⚠️ שים לב: מגיע החזר לערב!
+                    <WarningIcon /> שים לב: מגיע החזר לערב!
                   </Typography>
                   <Typography variant="body2" color="error.dark" sx={{ mt: 1, whiteSpace: 'pre-line' }}>
                     {selectedGuarantorLoan.notes.split('\n').filter(line => line.includes('מגיע החזר')).join('\n')}

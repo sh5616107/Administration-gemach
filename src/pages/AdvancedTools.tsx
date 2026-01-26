@@ -45,8 +45,18 @@ import {
   Receipt as ExpenseIcon,
   Edit as EditIcon,
   Description as ReceiptDocIcon,
+  Assignment as AssignmentIcon,
+  BarChart as BarChartIcon,
+  AttachMoney as MoneyIcon,
+  AccountBalance as BankIcon,
+  Backup as BackupIcon,
+  Celebration as CelebrationIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  CardGiftcard as CardGiftcardIcon,
+  Handshake as HandshakeIcon,
 } from '@mui/icons-material'
-import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService } from '../services/database'
+import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService, blacklistService } from '../services/database'
 import { generateFullReport, generateBorrowerReport, generateExpenseReceipt } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
@@ -196,6 +206,28 @@ export default function AdvancedTools() {
 
   useEffect(() => {
     loadData()
+  }, [])
+
+  // Manual function to clean blacklist duplicates
+  const cleanBlacklistDuplicates = async () => {
+    try {
+      const { removeDuplicateBlacklistEntries } = await import('../services/migrations')
+      const result = await removeDuplicateBlacklistEntries()
+      console.log(`✅ Cleaned ${result.removed} duplicate blacklist entries`)
+      setSnackbar({ open: true, message: `נוקו ${result.removed} כפילויות מהרשימה השחורה`, severity: 'success' })
+      await loadData() // Reload data
+    } catch (error) {
+      console.error('Error cleaning duplicates:', error)
+      setSnackbar({ open: true, message: 'שגיאה בניקוי כפילויות', severity: 'error' })
+    }
+  }
+
+  // Expose function to window for manual execution
+  useEffect(() => {
+    (window as any).cleanBlacklistDuplicates = cleanBlacklistDuplicates
+    return () => {
+      delete (window as any).cleanBlacklistDuplicates
+    }
   }, [])
 
   const loadData = async () => {
@@ -491,11 +523,14 @@ export default function AdvancedTools() {
         notes: (await loansService.getById(loan.id) as any)?.notes + `\n[${today}] הועבר לערב/ים`
       })
 
-      // Add original borrower to blacklist
-      await db.run(
-        'INSERT INTO blacklist (entity_type, entity_id, reason) VALUES (?, ?, ?)',
-        ['borrower', loan.borrower_id, `הלוואה #${loan.id} הועברה לערב - חוב לא שולם`]
-      )
+      // Add original borrower to blacklist (only if not already blacklisted)
+      const existingBlacklist = await blacklistService.isBlacklisted('borrower', loan.borrower_id)
+      if (!existingBlacklist) {
+        await db.run(
+          'INSERT INTO blacklist (entity_type, entity_id, reason) VALUES (?, ?, ?)',
+          ['borrower', loan.borrower_id, `הלוואה #${loan.id} הועברה לערב - חוב לא שולם`]
+        )
+      }
 
       setSnackbar({ open: true, message: 'החוב הועבר לערב/ים בהצלחה והלווה נוסף לרשימה השחורה', severity: 'success' })
       setTransferDialogOpen(false)
@@ -574,7 +609,7 @@ export default function AdvancedTools() {
         </head>
         <body>
           ${logoHtml}
-          <h1>📋 דו"ח לווים</h1>
+          <h1>דו"ח לווים</h1>
           <h2>${settings.gemach_name || 'גמ"ח שלי'}</h2>
           <p style="text-align: center; color: #999;">תאריך: ${new Date().toLocaleDateString('he-IL')}</p>
           ${printContent.innerHTML}
@@ -660,7 +695,7 @@ export default function AdvancedTools() {
         </head>
         <body>
           ${logoHtml}
-          <h1>📋 דו"ח מפקידים</h1>
+          <h1>דו"ח מפקידים</h1>
           <h2>${settings.gemach_name || 'גמ"ח שלי'}</h2>
           <p style="text-align: center; color: #999;">תאריך: ${new Date().toLocaleDateString('he-IL')}</p>
           ${printContent.innerHTML}
@@ -786,7 +821,7 @@ export default function AdvancedTools() {
         </head>
         <body>
           ${logoHtml}
-          <h1>📊 דו"ח סטטיסטיקות מורחב</h1>
+          <h1>דו"ח סטטיסטיקות מורחב</h1>
           <h2>${settings.gemach_name || 'גמ"ח שלי'}</h2>
           <p style="text-align: center; color: #999;">תאריך: ${new Date().toLocaleDateString('he-IL')}</p>
           ${printContent.innerHTML}
@@ -850,7 +885,7 @@ export default function AdvancedTools() {
         </head>
         <body>
           ${logoHtml}
-          <h1>💳 סטטיסטיקות לפי אמצעי תשלום</h1>
+          <h1>סטטיסטיקות לפי אמצעי תשלום</h1>
           <p style="text-align: center;">${settings.gemach_name || 'גמ"ח שלי'}</p>
           <p style="text-align: center;">תאריך: ${new Date().toLocaleDateString('he-IL')}</p>
           <p style="text-align: center; font-size: 12px; color: #666;">* הוצאות = הוצאות הנהלת הגמ"ח בלבד</p>
@@ -1014,8 +1049,8 @@ export default function AdvancedTools() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                📦 גיבוי ושחזור
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <BackupIcon /> גיבוי ושחזור
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Button
@@ -1057,8 +1092,8 @@ export default function AdvancedTools() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                📊 דוחות
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <BarChartIcon /> דוחות
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Button variant="outlined" startIcon={<ReportIcon />} onClick={handleBorrowersReport}>
@@ -1105,7 +1140,10 @@ export default function AdvancedTools() {
                     {overdueLoans.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                          <Typography color="text.secondary">אין הלוואות באיחור 🎉</Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                            <CelebrationIcon sx={{ fontSize: 48, color: 'success.main' }} />
+                            <Typography color="text.secondary">אין הלוואות באיחור</Typography>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -1590,7 +1628,9 @@ export default function AdvancedTools() {
 
       {/* Payment Method Stats Dialog */}
       <Dialog open={paymentStatsDialogOpen} onClose={() => setPaymentStatsDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>💳 סטטיסטיקות לפי אמצעי תשלום</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PaymentIcon /> סטטיסטיקות לפי אמצעי תשלום
+        </DialogTitle>
         <DialogContent>
           <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }} id="payment-stats-table">
             <Table size="small">
@@ -1652,7 +1692,9 @@ export default function AdvancedTools() {
 
       {/* Borrowers Report Dialog */}
       <Dialog open={borrowersReportDialogOpen} onClose={() => setBorrowersReportDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>📋 דו"ח לווים - {settings.gemach_name || 'גמ"ח שלי'}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AssignmentIcon /> דו"ח לווים - {settings.gemach_name || 'גמ"ח שלי'}
+        </DialogTitle>
         <DialogContent>
           <Box id="borrowers-report-content" sx={{ pt: 1 }}>
             {borrowersReportData && (
@@ -1692,7 +1734,10 @@ export default function AdvancedTools() {
                       {borrowersReportData.borrowers.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                            אין לווים עם חוב פעיל 🎉
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                              <CelebrationIcon sx={{ fontSize: 48, color: 'success.main' }} />
+                              <Typography color="text.secondary">אין לווים עם חוב פעיל</Typography>
+                            </Box>
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -1730,7 +1775,9 @@ export default function AdvancedTools() {
 
       {/* Depositors Report Dialog */}
       <Dialog open={depositorsReportDialogOpen} onClose={() => setDepositorsReportDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>📋 דו"ח מפקידים - {settings.gemach_name || 'גמ"ח שלי'}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AssignmentIcon /> דו"ח מפקידים - {settings.gemach_name || 'גמ"ח שלי'}
+        </DialogTitle>
         <DialogContent>
           <Box id="depositors-report-content" sx={{ pt: 1 }}>
             {depositorsReportData && (
@@ -1811,14 +1858,16 @@ export default function AdvancedTools() {
 
       {/* Full Statistics Dialog */}
       <Dialog open={fullStatsDialogOpen} onClose={() => setFullStatsDialogOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>📊 דו"ח סטטיסטיקות מורחב - {settings.gemach_name || 'גמ"ח שלי'}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <BarChartIcon /> דו"ח סטטיסטיקות מורחב - {settings.gemach_name || 'גמ"ח שלי'}
+        </DialogTitle>
         <DialogContent>
           <Box id="full-stats-content" sx={{ pt: 1 }}>
             {fullStats && (
               <>
                 {/* Financial Summary */}
-                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1 }}>
-                  💰 סיכום כספי כללי
+                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <MoneyIcon /> סיכום כספי כללי
                 </Typography>
                 <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
                   <Table size="small">
@@ -1858,8 +1907,8 @@ export default function AdvancedTools() {
                 </TableContainer>
 
                 {/* Payment Method Summary */}
-                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1 }}>
-                  💳 סיכום לפי אמצעי תשלום
+                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PaymentIcon /> סיכום לפי אמצעי תשלום
                 </Typography>
                 <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
                   <Table size="small">
@@ -1898,16 +1947,16 @@ export default function AdvancedTools() {
                 </TableContainer>
 
                 {/* Detailed by Type */}
-                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1 }}>
-                  📋 פירוט מפורט לפי סוג פעולה
+                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <AssignmentIcon /> פירוט מפורט לפי סוג פעולה
                 </Typography>
                 
                 <Grid container spacing={2}>
                   {/* Loans */}
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 2 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
-                        📤 הלוואות שניתנו
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TrendingUpIcon /> הלוואות שניתנו
                       </Typography>
                       <Table size="small">
                         <TableHead>
@@ -1938,8 +1987,8 @@ export default function AdvancedTools() {
                   {/* Repayments */}
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 2 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main' }}>
-                        📥 פירעונות שהתקבלו
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TrendingDownIcon /> פירעונות שהתקבלו
                       </Typography>
                       <Table size="small">
                         <TableHead>
@@ -1970,8 +2019,8 @@ export default function AdvancedTools() {
                   {/* Deposits */}
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 2 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main' }}>
-                        🏦 הפקדות שהתקבלו
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <BankIcon /> הפקדות שהתקבלו
                       </Typography>
                       <Table size="small">
                         <TableHead>
@@ -2002,8 +2051,8 @@ export default function AdvancedTools() {
                   {/* Donations */}
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 2 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main' }}>
-                        🎁 תרומות שהתקבלו
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CardGiftcardIcon /> תרומות שהתקבלו
                       </Typography>
                       <Table size="small">
                         <TableHead>
@@ -2033,8 +2082,8 @@ export default function AdvancedTools() {
                 </Grid>
 
                 {/* Guarantor Loans Summary */}
-                <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '2px solid #1976d2', pb: 1 }}>
-                  🤝 הלוואות מועברות לערבים
+                <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <HandshakeIcon /> הלוואות מועברות לערבים
                 </Typography>
                 <Paper sx={{ p: 2 }}>
                   <Grid container spacing={2}>

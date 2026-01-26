@@ -231,3 +231,55 @@ describe('Multiple Blacklist Entries', () => {
     expect(guarantorIds).toContain(3)
   })
 })
+
+describe('Transfer to Guarantor - Blacklist Duplicate Prevention', () => {
+  beforeEach(() => {
+    mockBlacklist = []
+    mockLoans = []
+  })
+
+  it('should not add borrower to blacklist twice when multiple loans transferred', async () => {
+    const borrowerId = 1
+    
+    // Simulate first loan transfer to guarantor
+    const existingBlacklist1 = await blacklistService.isBlacklisted('borrower', borrowerId)
+    if (!existingBlacklist1) {
+      await blacklistService.addToBlacklist('borrower', borrowerId, 'הלוואה #1 הועברה לערב - חוב לא שולם')
+    }
+    
+    // Simulate second loan transfer to guarantor for same borrower
+    const existingBlacklist2 = await blacklistService.isBlacklisted('borrower', borrowerId)
+    if (!existingBlacklist2) {
+      await blacklistService.addToBlacklist('borrower', borrowerId, 'הלוואה #2 הועברה לערב - חוב לא שולם')
+    }
+    
+    // Should only have one blacklist entry for this borrower
+    const allBlacklist = await blacklistService.getAll()
+    const borrowerEntries = allBlacklist.filter(b => b.entity_type === 'borrower' && b.entity_id === borrowerId)
+    
+    expect(borrowerEntries).toHaveLength(1)
+    expect(borrowerEntries[0].reason).toBe('הלוואה #1 הועברה לערב - חוב לא שולם')
+  })
+
+  it('should check blacklist before adding when transferring loan', async () => {
+    const borrowerId = 1
+    
+    // Add to blacklist first time
+    await blacklistService.addToBlacklist('borrower', borrowerId, 'סיבה ראשונה')
+    
+    // Try to add again (simulating second transfer)
+    const isAlreadyBlacklisted = await blacklistService.isBlacklisted('borrower', borrowerId)
+    expect(isAlreadyBlacklisted).not.toBeNull()
+    
+    // Should not add again
+    if (!isAlreadyBlacklisted) {
+      await blacklistService.addToBlacklist('borrower', borrowerId, 'סיבה שנייה')
+    }
+    
+    const allEntries = await blacklistService.getAll()
+    const borrowerEntries = allEntries.filter(b => b.entity_type === 'borrower' && b.entity_id === borrowerId)
+    
+    expect(borrowerEntries).toHaveLength(1)
+  })
+})
+

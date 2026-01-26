@@ -4,7 +4,7 @@ import { guarantorLoansService, guarantorLoanRepaymentsService, loansService, ex
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 8 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 10 // Increment this when adding new migrations
 
 /**
  * Get the current migration version from storage
@@ -467,6 +467,77 @@ export async function migrateGuarantorRefunds(): Promise<{ migrated: number }> {
 }
 
 /**
+ * Migration v9: Remove duplicate blacklist entries
+ * 
+ * Bug: When a borrower had multiple loans transferred to guarantors,
+ * they were added to blacklist multiple times.
+ * This migration keeps only the first entry for each entity.
+ */
+export async function removeDuplicateBlacklistEntries(): Promise<{ removed: number }> {
+  console.log('🔄 Starting blacklist duplicates cleanup...')
+  
+  let removed = 0
+  
+  try {
+    const allData = await exportAllData()
+    const blacklistObj = allData.blacklist || {}
+    const blacklist = Object.values(blacklistObj)
+    
+    if (blacklist.length === 0) {
+      console.log('✅ Migration v9: No blacklist entries found')
+      return { removed: 0 }
+    }
+    
+    console.log(`[MIGRATION v9] Found ${blacklist.length} blacklist entries`)
+    
+    // Track seen entities (type + id)
+    const seen = new Map<string, any>()
+    const toKeep: any[] = []
+    
+    // Sort by added_at to keep the oldest entry
+    const sortedBlacklist = blacklist.sort((a, b) => {
+      const dateA = new Date(a.added_at || 0).getTime()
+      const dateB = new Date(b.added_at || 0).getTime()
+      return dateA - dateB
+    })
+    
+    for (const entry of sortedBlacklist) {
+      const key = `${entry.entity_type}_${entry.entity_id}`
+      
+      if (!seen.has(key)) {
+        // First occurrence - keep it
+        seen.set(key, entry)
+        toKeep.push(entry)
+        console.log(`[MIGRATION v9] Keeping: ${entry.entity_type} #${entry.entity_id} (id: ${entry.id}, date: ${entry.added_at})`)
+      } else {
+        // Duplicate - remove it
+        const original = seen.get(key)
+        console.log(`[MIGRATION v9] Removing duplicate: ${entry.entity_type} #${entry.entity_id} (id: ${entry.id}, date: ${entry.added_at}) - keeping id: ${original.id}`)
+        removed++
+      }
+    }
+    
+    if (removed > 0) {
+      // Rebuild blacklist with only unique entries
+      allData.blacklist = {}
+      toKeep.forEach(entry => {
+        allData.blacklist[entry.id] = entry
+      })
+      
+      await importAllData(allData)
+      console.log(`✅ Migration v9: Removed ${removed} duplicate blacklist entries, kept ${toKeep.length}`)
+    } else {
+      console.log('✅ Migration v9: No duplicates found')
+    }
+    
+  } catch (error) {
+    console.error('Error in blacklist duplicates cleanup:', error)
+  }
+  
+  return { removed }
+}
+
+/**
  * Run all pending migrations
  */
 export async function runPendingMigrations(): Promise<void> {
@@ -545,6 +616,20 @@ export async function runPendingMigrations(): Promise<void> {
     console.log('📋 Running migration v8: Add total_refunded to guarantor loans')
     const result = await migrateGuarantorRefunds()
     console.log(`✅ Migration v8 complete: ${result.migrated} guarantor loans updated`)
+  }
+  
+  // Migration v9: Remove duplicate blacklist entries
+  if (currentVersion < 9) {
+    console.log('📋 Running migration v9: Remove duplicate blacklist entries')
+    const result = await removeDuplicateBlacklistEntries()
+    console.log(`✅ Migration v9 complete: ${result.removed} duplicates removed`)
+  }
+  
+  // Migration v10: Force re-run duplicate blacklist cleanup
+  if (currentVersion < 10) {
+    console.log('📋 Running migration v10: Force re-run duplicate blacklist cleanup')
+    const result = await removeDuplicateBlacklistEntries()
+    console.log(`✅ Migration v10 complete: ${result.removed} duplicates removed`)
   }
   
   // Update migration version
