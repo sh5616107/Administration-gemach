@@ -35,6 +35,7 @@ import {
   CheckCircle as ApproveIcon,
   Cancel as RejectIcon,
   DragIndicator as DragIcon,
+  TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material'
 import {
   DndContext,
@@ -215,6 +216,7 @@ export default function WaitlistTab() {
   const [editingEntry, setEditingEntry] = useState<WaitlistEntry | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const [availableFunds, setAvailableFunds] = useState(0)
+  const [expectedFunds, setExpectedFunds] = useState({ week: 0, month: 0, threeMonths: 0 })
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -248,6 +250,9 @@ export default function WaitlistTab() {
       const available = stats.donations.total + stats.deposits.total - stats.activeLoans.total - stats.gemachExpenses
       setAvailableFunds(available)
       
+      // Calculate expected funds to be released
+      await calculateExpectedFunds()
+      
       // Enrich waitlist with borrower names
       const enriched = waitlistData.map(entry => {
         const borrower = borrowersData.find(b => b.id === entry.borrower_id)
@@ -262,6 +267,69 @@ export default function WaitlistTab() {
     } catch (error) {
       console.error('Error loading waitlist:', error)
       setSnackbar({ open: true, message: 'שגיאה בטעינת נתונים', severity: 'error' })
+    }
+  }
+
+  const calculateExpectedFunds = async () => {
+    try {
+      const { loansService, db } = await import('../../services/database')
+      const today = new Date()
+      const oneWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const oneMonth = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const threeMonths = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
+      
+      const allLoans = await loansService.getAll()
+      const activeLoans = allLoans.filter(l => l.status === 'active' && l.due_date)
+      
+      let weekFunds = 0
+      let monthFunds = 0
+      let threeMonthsFunds = 0
+      
+      // חישוב כסף מהלוואות פעילות
+      for (const loan of activeLoans) {
+        if (!loan.due_date) continue
+        const dueDate = new Date(loan.due_date)
+        const remaining = loan.remaining || 0
+        
+        if (dueDate <= threeMonths) {
+          threeMonthsFunds += remaining
+          if (dueDate <= oneMonth) {
+            monthFunds += remaining
+            if (dueDate <= oneWeek) {
+              weekFunds += remaining
+            }
+          }
+        }
+      }
+      
+      // חישוב כסף מהפקדות מחזוריות
+      const recurringDeposits = await db.query(
+        'SELECT * FROM deposits WHERE is_recurring = 1 AND status = ?', 
+        ['active']
+      ) as any[]
+      
+      for (const deposit of recurringDeposits) {
+        const amount = deposit.amount || 0
+        const recurringMonths = deposit.recurring_months || 1
+        
+        // חישוב כמה הפקדות צפויות בכל טווח זמן
+        const daysInWeek = 7
+        const daysInMonth = 30
+        const daysInThreeMonths = 90
+        
+        // הערכה פשוטה: כמה הפקדות צפויות בכל תקופה
+        const depositsInWeek = Math.floor(daysInWeek / (recurringMonths * 30))
+        const depositsInMonth = Math.floor(daysInMonth / (recurringMonths * 30))
+        const depositsInThreeMonths = Math.floor(daysInThreeMonths / (recurringMonths * 30))
+        
+        weekFunds += depositsInWeek * amount
+        monthFunds += depositsInMonth * amount
+        threeMonthsFunds += depositsInThreeMonths * amount
+      }
+      
+      setExpectedFunds({ week: weekFunds, month: monthFunds, threeMonths: threeMonthsFunds })
+    } catch (error) {
+      console.error('Error calculating expected funds:', error)
     }
   }
 
@@ -456,6 +524,50 @@ export default function WaitlistTab() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Expected Funds Card */}
+      <Card sx={{ mb: 3, bgcolor: 'grey.50', border: '1px solid', borderColor: 'grey.200' }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.primary' }}>
+            <TrendingUpIcon /> כסף צפוי להשתחרר
+          </Typography>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={4}>
+              <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+                <Typography variant="body2" color="text.secondary">
+                  בשבוע הקרוב
+                </Typography>
+                <Typography variant="h5" color="success.main" fontWeight={600}>
+                  {formatCurrency(expectedFunds.week)}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+                <Typography variant="body2" color="text.secondary">
+                  בחודש הקרוב
+                </Typography>
+                <Typography variant="h5" color="success.main" fontWeight={600}>
+                  {formatCurrency(expectedFunds.month)}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+                <Typography variant="body2" color="text.secondary">
+                  ב-3 חודשים
+                </Typography>
+                <Typography variant="h5" color="success.main" fontWeight={600}>
+                  {formatCurrency(expectedFunds.threeMonths)}
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
+            * כולל פירעון הלוואות פעילות והפקדות מחזוריות צפויות
+          </Typography>
+        </CardContent>
+      </Card>
 
       {/* Add Button */}
       <Box sx={{ mb: 2 }}>

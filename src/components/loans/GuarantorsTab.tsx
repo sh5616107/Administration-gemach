@@ -35,14 +35,16 @@ import {
   Email as EmailIcon,
   History as HistoryIcon,
   Description as DescriptionIcon,
+  AccountBalance as RefundIcon,
 } from '@mui/icons-material'
-import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, loansService, repaymentsService, borrowersService, type GuarantorLoan } from '../../services/database'
+import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, guarantorRefundsService, loansService, repaymentsService, borrowersService, type GuarantorLoan } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate } from '../../utils/dateUtils'
 import { openEmailWithDocument, createGuarantorDebtEmailData, generateGuarantorStatement, type EmailProvider, type GuarantorStatementData } from '../../services/documents'
 import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkNewGuarantor, type CrossCheckResult } from '../../services/crossCheck'
+import { GuarantorRefundDialog } from '../GuarantorRefundDialog'
 
 interface Guarantor {
   id?: number
@@ -89,6 +91,7 @@ export default function GuarantorsTab() {
   const [repaymentAmount, setRepaymentAmount] = useState('')
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
   const [repaymentHistory, setRepaymentHistory] = useState<any[]>([])
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false)
 
   // Cross-check warning states
   const [crossCheckWarnings, setCrossCheckWarnings] = useState<CrossCheckResult[]>([])
@@ -288,6 +291,11 @@ export default function GuarantorsTab() {
     setHistoryDialogOpen(true)
   }
 
+  const handleOpenRefundDialog = (loan: GuarantorLoanWithDetails) => {
+    setSelectedGuarantorLoan(loan)
+    setRefundDialogOpen(true)
+  }
+
   const handleAddRepayment = async () => {
     if (!selectedGuarantorLoan || !repaymentAmount) return
     
@@ -339,7 +347,8 @@ export default function GuarantorsTab() {
       } else {
         // אין ערב נוסף - מחזירים את ההלוואה המקורית לסטטוס "באיחור"
         const originalLoan = await loansService.getById(glToDelete.original_loan_id)
-        if (originalLoan && originalLoan.status === 'transferred') {
+        if (originalLoan) {
+          // תמיד מחזירים לסטטוס overdue, לא משנה מה הסטטוס הנוכחי
           await loansService.update(glToDelete.original_loan_id, { 
             status: 'overdue',
             notes: (originalLoan.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] הוחזר מערב לסטטוס באיחור`
@@ -350,10 +359,11 @@ export default function GuarantorsTab() {
             severity: 'success' 
           })
         } else {
-          setSnackbar({ open: true, message: 'הלוואת הערב נמחקה', severity: 'success' })
+          setSnackbar({ open: true, message: 'הלוואת הערב נמחקה', severity: 'error' })
         }
       }
 
+      // מחיקת הלוואת הערב - אחרי שעדכנו את ההלוואה המקורית
       await guarantorLoansService.delete(id)
       loadGuarantorLoans()
       loadGuarantors()
@@ -820,6 +830,23 @@ export default function GuarantorsTab() {
                             </IconButton>
                           </>
                         )}
+                        {gl.notes && gl.notes.includes('מגיע החזר לערב') && (
+                          <IconButton 
+                            size="small" 
+                            color="error"
+                            onClick={() => handleOpenRefundDialog(gl)}
+                            title="ניהול החזרים לערב"
+                            sx={{ 
+                              animation: 'pulse 2s infinite',
+                              '@keyframes pulse': {
+                                '0%, 100%': { opacity: 1 },
+                                '50%': { opacity: 0.5 }
+                              }
+                            }}
+                          >
+                            <RefundIcon />
+                          </IconButton>
+                        )}
                         <IconButton
                           size="small"
                           color="error"
@@ -960,6 +987,19 @@ export default function GuarantorsTab() {
         warnings={crossCheckWarnings}
         title="אזהרה - יצירת ערב"
       />
+
+      {/* Guarantor Refund Dialog */}
+      {selectedGuarantorLoan && (
+        <GuarantorRefundDialog
+          open={refundDialogOpen}
+          onClose={() => setRefundDialogOpen(false)}
+          guarantorLoan={selectedGuarantorLoan}
+          onUpdate={() => {
+            loadGuarantorLoans()
+            loadGuarantors()
+          }}
+        />
+      )}
 
       <Snackbar
         open={snackbar.open}

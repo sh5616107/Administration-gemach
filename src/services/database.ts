@@ -16,6 +16,7 @@ interface DataStore {
   expenses: Record<string, any>
   guarantorLoans: Record<string, any>
   guarantorLoanRepayments: Record<string, any>
+  guarantorRefunds: Record<string, any>
   waitlist: Record<string, any>
 }
 
@@ -36,6 +37,7 @@ const defaultData: DataStore = {
   expenses: {},
   guarantorLoans: {},
   guarantorLoanRepayments: {},
+  guarantorRefunds: {},
   waitlist: {},
 }
 
@@ -335,7 +337,7 @@ export const loansService = {
   async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: number }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', String(id), { ...l, id, status, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: number, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, ...d }) },
   async delete(id: number): Promise<void> { const r = await repaymentsService.getByLoan(id); for (const x of r) await repaymentsService.delete(x.id); removeItem('loans', String(id)) },
-  async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.due_date && l.due_date < t && l.status === 'active' && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
+  async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
 }
 
 // Repayments Service
@@ -479,6 +481,7 @@ export interface GuarantorLoan {
   original_loan_id: number
   amount: number
   total_repaid: number
+  total_refunded: number // סה"כ הוחזר מהלווה לערב
   due_date?: string
   monthly_payments?: number
   start_date?: string
@@ -511,9 +514,9 @@ export const guarantorLoansService = {
   async getByGuarantor(guarantorId: number): Promise<GuarantorLoan[]> {
     return (await this.getAll()).filter(gl => gl.guarantor_id === guarantorId)
   },
-  async create(gl: Omit<GuarantorLoan, 'id' | 'created_at' | 'total_repaid'>): Promise<{ id: number }> {
+  async create(gl: Omit<GuarantorLoan, 'id' | 'created_at' | 'total_repaid' | 'total_refunded'>): Promise<{ id: number }> {
     const id = generateId('guarantorLoans')
-    setItem('guarantorLoans', String(id), { ...gl, id, total_repaid: 0, created_at: new Date().toISOString() })
+    setItem('guarantorLoans', String(id), { ...gl, id, total_repaid: 0, total_refunded: 0, created_at: new Date().toISOString() })
     return { id }
   },
   async update(id: number, data: Partial<GuarantorLoan>): Promise<void> {
@@ -636,6 +639,135 @@ export const guarantorLoanRepaymentsService = {
     const repayments = await this.getByGuarantorLoan(guarantorLoanId)
     for (const repayment of repayments) {
       removeItem('guarantorLoanRepayments', String(repayment.id))
+    }
+  }
+}
+
+// Guarantor Refunds Service - החזרים מהלווה לערב
+export interface GuarantorRefund {
+  id: number
+  guarantor_loan_id: number
+  amount: number
+  refund_date: string
+  payment_method?: string
+  payment_details?: string
+  notes?: string
+  created_at: string
+}
+
+export const guarantorRefundsService = {
+  async getAll(): Promise<GuarantorRefund[]> {
+    return getAllItems<GuarantorRefund>('guarantorRefunds').sort((a, b) => 
+      new Date(b.refund_date).getTime() - new Date(a.refund_date).getTime()
+    )
+  },
+  
+  async getById(id: number): Promise<GuarantorRefund | null> {
+    return getItem<GuarantorRefund>('guarantorRefunds', String(id))
+  },
+  
+  async getByGuarantorLoan(guarantorLoanId: number): Promise<GuarantorRefund[]> {
+    return (await this.getAll()).filter(r => r.guarantor_loan_id === guarantorLoanId)
+  },
+  
+  async getTotalRefunded(guarantorLoanId: number): Promise<number> {
+    const refunds = await this.getByGuarantorLoan(guarantorLoanId)
+    return refunds.reduce((sum, r) => sum + r.amount, 0)
+  },
+  
+  async create(refund: Omit<GuarantorRefund, 'id' | 'created_at'>): Promise<{ id: number }> {
+    const id = generateId('guarantorRefunds')
+    setItem('guarantorRefunds', String(id), { 
+      ...refund, 
+      id, 
+      created_at: new Date().toISOString() 
+    })
+    
+    // עדכון total_refunded בהלוואת הערב
+    const guarantorLoan = await guarantorLoansService.getById(refund.guarantor_loan_id)
+    if (guarantorLoan) {
+      const newTotalRefunded = await this.getTotalRefunded(refund.guarantor_loan_id)
+      const updates: Partial<GuarantorLoan> = { 
+        total_refunded: newTotalRefunded
+      }
+      
+      // אם הוחזר הכל, נסיר את ההערה "מגיע החזר לערב"
+      if (newTotalRefunded >= guarantorLoan.total_repaid) {
+        const cleanNotes = (guarantorLoan.notes || '')
+          .split('\n')
+          .filter(line => !line.includes('מגיע החזר לערב'))
+          .join('\n')
+          .trim()
+        updates.notes = cleanNotes
+      }
+      
+      await guarantorLoansService.update(refund.guarantor_loan_id, updates)
+    }
+    
+    return { id }
+  },
+  
+  async update(id: number, data: Partial<GuarantorRefund>): Promise<void> {
+    const existing = await this.getById(id)
+    if (existing) {
+      setItem('guarantorRefunds', String(id), { ...existing, ...data })
+      
+      // עדכון total_refunded בהלוואת הערב
+      const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
+      if (guarantorLoan) {
+        const newTotalRefunded = await this.getTotalRefunded(existing.guarantor_loan_id)
+        const updates: Partial<GuarantorLoan> = { 
+          total_refunded: newTotalRefunded
+        }
+        
+        // אם הוחזר הכל, נסיר את ההערה "מגיע החזר לערב"
+        if (newTotalRefunded >= guarantorLoan.total_repaid) {
+          const cleanNotes = (guarantorLoan.notes || '')
+            .split('\n')
+            .filter(line => !line.includes('מגיע החזר לערב'))
+            .join('\n')
+            .trim()
+          updates.notes = cleanNotes
+        }
+        
+        await guarantorLoansService.update(existing.guarantor_loan_id, updates)
+      }
+    }
+  },
+  
+  async delete(id: number): Promise<void> {
+    const existing = await this.getById(id)
+    if (existing) {
+      removeItem('guarantorRefunds', String(id))
+      
+      // עדכון total_refunded בהלוואת הערב
+      const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
+      if (guarantorLoan) {
+        const newTotalRefunded = await this.getTotalRefunded(existing.guarantor_loan_id)
+        const updates: Partial<GuarantorLoan> = { 
+          total_refunded: newTotalRefunded
+        }
+        
+        // אם הוחזר הכל, נסיר את ההערה "מגיע החזר לערב"
+        // אם לא הוחזר הכל, נוודא שההערה קיימת
+        if (newTotalRefunded >= guarantorLoan.total_repaid) {
+          const cleanNotes = (guarantorLoan.notes || '')
+            .split('\n')
+            .filter(line => !line.includes('מגיע החזר לערב'))
+            .join('\n')
+            .trim()
+          updates.notes = cleanNotes
+        }
+        
+        await guarantorLoansService.update(existing.guarantor_loan_id, updates)
+      }
+    }
+  },
+  
+  async deleteByGuarantorLoan(guarantorLoanId: number): Promise<void> {
+    const refunds = await this.getByGuarantorLoan(guarantorLoanId)
+    for (const refund of refunds) {
+      removeItem('guarantorRefunds', String(refund.id))
     }
   }
 }

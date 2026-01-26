@@ -4,7 +4,7 @@ import { guarantorLoansService, guarantorLoanRepaymentsService, loansService, ex
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 7 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 8 // Increment this when adding new migrations
 
 /**
  * Get the current migration version from storage
@@ -433,6 +433,40 @@ export async function migrateDepositStatusAndRecurring(): Promise<{ migrated: nu
 }
 
 /**
+ * Migration v8: Add total_refunded field to guarantor loans
+ */
+export async function migrateGuarantorRefunds(): Promise<{ migrated: number }> {
+  console.log('🔄 Starting guarantor refunds migration...')
+  
+  let migrated = 0
+  
+  try {
+    const allData = await exportAllData()
+    const guarantorLoans = Object.values(allData.guarantorLoans || {})
+    
+    for (const gl of guarantorLoans) {
+      // Add total_refunded if missing
+      if (gl.total_refunded === undefined) {
+        gl.total_refunded = 0
+        allData.guarantorLoans[gl.id] = gl
+        migrated++
+        console.log(`[MIGRATION v8] GuarantorLoan ${gl.id}: added total_refunded = 0`)
+      }
+    }
+    
+    if (migrated > 0) {
+      await importAllData(allData)
+      console.log(`✅ Migration v8: Updated ${migrated} guarantor loans`)
+    }
+    
+  } catch (error) {
+    console.error('Error in guarantor refunds migration:', error)
+  }
+  
+  return { migrated }
+}
+
+/**
  * Run all pending migrations
  */
 export async function runPendingMigrations(): Promise<void> {
@@ -504,6 +538,13 @@ export async function runPendingMigrations(): Promise<void> {
     console.log('📋 Running migration v7: Clean up is_recurring flag')
     const result = await migrateDepositStatusAndRecurring()
     console.log(`✅ Migration v7 complete: ${result.migrated} deposits fixed`)
+  }
+  
+  // Migration v8: Add total_refunded to guarantor loans
+  if (currentVersion < 8) {
+    console.log('📋 Running migration v8: Add total_refunded to guarantor loans')
+    const result = await migrateGuarantorRefunds()
+    console.log(`✅ Migration v8 complete: ${result.migrated} guarantor loans updated`)
   }
   
   // Update migration version

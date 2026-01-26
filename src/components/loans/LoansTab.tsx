@@ -590,20 +590,34 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       return
     }
     
-    const totalGuarantorAmount = guarantorLoans.reduce((sum, gl) => sum + gl.amount, 0)
+    // חישוב כמה הלווה פרע מתוך ההלוואה המקורית
     const totalBorrowerRepaid = updatedLoan.amount - updatedLoan.remaining
     
     console.log('  📊 Loan amount:', updatedLoan.amount, 'Borrower repaid:', totalBorrowerRepaid, 'Remaining:', updatedLoan.remaining)
     
+    // חישוב סה"כ הסכום המקורי שהועבר לערבים
+    const totalOriginalGuarantorAmount = guarantorLoans.reduce((sum, gl) => sum + gl.amount, 0)
+    
+    // חישוב הסכום החדש שצריך להישאר על הערבים
+    // זה היתרה של ההלוואה המקורית (מה שהלווה עדיין חייב)
+    const totalNewGuarantorAmount = updatedLoan.remaining
+    
+    console.log('  💰 Total original guarantor amount:', totalOriginalGuarantorAmount)
+    console.log('  💰 Total new guarantor amount:', totalNewGuarantorAmount)
+    
     for (const gl of guarantorLoans) {
       console.log('  👤 Processing guarantor loan:', gl.id)
-      console.log('    - Original notes:', gl.notes)
+      console.log('    - Original amount:', gl.amount)
+      console.log('    - Guarantor paid:', gl.total_repaid)
       
-      const guarantorShare = gl.amount / totalGuarantorAmount
-      const borrowerCoverage = Math.round(totalBorrowerRepaid * guarantorShare)
-      const newAmount = Math.max(0, gl.amount - borrowerCoverage)
+      // חישוב החלק היחסי של הערב מתוך הסכום הכולל
+      const guarantorShare = gl.amount / totalOriginalGuarantorAmount
       
-      console.log('    - Guarantor paid:', gl.total_repaid, 'New amount:', newAmount)
+      // חישוב הסכום החדש שהערב צריך (לפי החלק היחסי שלו)
+      const newAmount = Math.round(totalNewGuarantorAmount * guarantorShare)
+      
+      console.log('    - Guarantor share:', guarantorShare)
+      console.log('    - New amount:', newAmount)
       
       // ניקוי הערות ישנות על החזר
       let cleanNotes = (gl.notes || '')
@@ -612,15 +626,12 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         .join('\n')
         .trim()
       
-      console.log('    - Clean notes:', cleanNotes)
-      
       // בדיקה אם הערב שילם יותר מהנדרש
       if ((gl.total_repaid || 0) > newAmount) {
         const refund = (gl.total_repaid || 0) - newAmount
         const refundNote = `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪ ⚠️`
         
         console.log('    ✅ Refund due:', refund)
-        console.log('    - Final notes:', cleanNotes + refundNote)
         
         await guarantorLoansService.update(gl.id, { 
           amount: Math.max(gl.total_repaid || 0, newAmount),
@@ -629,9 +640,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         })
       } else {
         console.log('    ❌ No refund due')
-        console.log('    - Final notes:', cleanNotes)
         
-        // אין החזר - רק הערות נקיות
         await guarantorLoansService.update(gl.id, { 
           amount: newAmount,
           status: newAmount === 0 || (gl.total_repaid || 0) >= newAmount ? 'paid' : 'active',
@@ -817,6 +826,9 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     if (!editingRepayment || editRepaymentAmount <= 0) return
 
     try {
+      // שמירת הסכום הישן לפני העדכון
+      const oldAmount = editingRepayment.amount
+      
       await repaymentsService.update(editingRepayment.id, {
         amount: editRepaymentAmount,
         payment_date: editRepaymentDate,

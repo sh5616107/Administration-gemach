@@ -459,12 +459,12 @@ export default function Dashboard() {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <LoanIcon sx={{ mr: 1 }} />
-                <Typography variant="subtitle2">{t('dashboard.plannedLoans')}</Typography>
+                <Typography variant="subtitle2" noWrap>{t('dashboard.plannedLoans')}</Typography>
               </Box>
               <Typography variant="h4" fontWeight={700}>
                 {stats?.plannedLoans.count || 0}
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+              <Typography variant="body2" sx={{ opacity: 0.8 }} noWrap>
                 {formatCurrency(stats?.plannedLoans.total || 0)}
               </Typography>
             </CardContent>
