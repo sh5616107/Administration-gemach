@@ -39,6 +39,7 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Email as EmailIcon,
+  Autorenew as AutorenewIcon,
 } from '@mui/icons-material'
 import { borrowersService, guarantorsService, loansService, repaymentsService, guarantorLoansService, blacklistService, waitlistService, type WaitlistEntry } from '../../services/database'
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
@@ -333,7 +334,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
 
     // בדיקת רשימה שחורה - מניעת הלוואה חדשה ללווה ברשימה שחורה
     if (!selectedLoan && blacklistedBorrowerIds.includes(formData.borrower_id)) {
-      setSnackbar({ open: true, message: '⛔ לא ניתן ליצור הלוואה ללווה שנמצא ברשימה השחורה', severity: 'error' })
+      setSnackbar({ open: true, message: 'לא ניתן ליצור הלוואה ללווה שנמצא ברשימה השחורה', severity: 'error' })
       return
     }
 
@@ -421,7 +422,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         // If this loan was created from waitlist, approve the entry
         if (waitlistEntry) {
           await waitlistService.approveEntry(waitlistEntry.id, result.lastInsertRowid)
-          setSnackbar({ open: true, message: '✅ ההלוואה נוספה בהצלחה והבקשה אושרה בתור', severity: 'success' })
+          setSnackbar({ open: true, message: 'ההלוואה נוספה בהצלחה והבקשה אושרה בתור', severity: 'success' })
           setWaitlistEntry(null)
         } else {
           setSnackbar({ open: true, message: 'ההלוואה נוספה בהצלחה', severity: 'success' })
@@ -515,7 +516,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           const refundAmount = gl.total_repaid
           await guarantorLoansService.update(gl.id, { 
             status: 'paid',
-            notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע את החוב במלואו. מגיע החזר לערב: ${refundAmount}₪ ⚠️`
+            notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע את החוב במלואו. מגיע החזר לערב: ${refundAmount}₪`
           })
         } else {
           await guarantorLoansService.update(gl.id, { 
@@ -552,7 +553,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
             await guarantorLoansService.update(gl.id, { 
               amount: Math.max(gl.total_repaid || 0, newAmount),
               status: 'paid',
-              notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע חלק מהחוב. מגיע החזר לערב: ${refund}₪ ⚠️`
+              notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע חלק מהחוב. מגיע החזר לערב: ${refund}₪`
             })
           } else {
             await guarantorLoansService.update(gl.id, { 
@@ -629,7 +630,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       // בדיקה אם הערב שילם יותר מהנדרש
       if ((gl.total_repaid || 0) > newAmount) {
         const refund = (gl.total_repaid || 0) - newAmount
-        const refundNote = `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪ ⚠️`
+        const refundNote = `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪`
         
         console.log('    ✅ Refund due:', refund)
         
@@ -1165,7 +1166,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           </Grid>
           {selectedBorrower && blacklistedBorrowerIds.includes(selectedBorrower.id) && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              ⛔ לווה זה נמצא ברשימה השחורה. ניתן לצפות בהלוואות קיימות אך לא ליצור הלוואה חדשה.
+              לווה זה נמצא ברשימה השחורה. ניתן לצפות בהלוואות קיימות אך לא ליצור הלוואה חדשה.
             </Alert>
           )}
         </CardContent>
@@ -1229,7 +1230,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                         <TableCell align="center">
                           {loan.is_recurring === 1 && loan.recurring_loan_number && loan.recurring_loan_count && loan.recurring_loan_count > 1 ? (
                             <Chip 
-                              label={`🔄 ${loan.recurring_loan_number}/${loan.recurring_loan_count}`} 
+                              icon={<AutorenewIcon />}
+                              label={`${loan.recurring_loan_number}/${loan.recurring_loan_count}`} 
                               color="info" 
                               size="small" 
                               title={`הלוואה מחזורית מספר ${loan.recurring_loan_number} מתוך ${loan.recurring_loan_count}`}
@@ -1348,9 +1350,9 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                     InputLabelProps={{ shrink: true }}
                     helperText={
                       formData.auto_repayment === 1
-                        ? '⚠️ תאריך פירעון לא רלוונטי כאשר יש פירעון מחזורי'
+                        ? 'תאריך פירעון לא רלוונטי כאשר יש פירעון מחזורי'
                         : formData.due_date && formData.loan_date && formData.due_date < formData.loan_date 
-                        ? '⚠️ תאריך פירעון לא יכול להיות לפני תאריך ההלוואה' 
+                        ? 'תאריך פירעון לא יכול להיות לפני תאריך ההלוואה' 
                         : (settings.date_format === 'combined' && formData.due_date ? `📅 ${toHebrewDate(formData.due_date)}` : '')
                     }
                     error={formData.due_date && formData.loan_date && formData.due_date < formData.loan_date ? true : false}
@@ -1363,8 +1365,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                 <>
                   <Grid item xs={12}>
                     <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" color="primary" sx={{ mt: 1 }}>
-                      🔄 הלוואה מחזורית
+                    <Typography variant="subtitle2" color="primary" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <AutorenewIcon sx={{ fontSize: 18 }} /> הלוואה מחזורית
                     </Typography>
                   </Grid>
                   
@@ -1414,8 +1416,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   {/* Auto Repayment Section */}
                   <Grid item xs={12}>
                     <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" color="success.main" sx={{ mt: 1 }}>
-                      💰 פירעון מחזורי
+                    <Typography variant="subtitle2" color="success.main" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <PaymentIcon /> פירעון מחזורי
                     </Typography>
                   </Grid>
                   
@@ -1593,7 +1595,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                       <TableCell align="center">{formatCurrency(repayment.amount)}</TableCell>
                       <TableCell align="center">
                         {repayment.is_recurring === 1 && repayment.recurring_repayment_number && repayment.recurring_repayment_count && repayment.recurring_repayment_count > 1 ? (
-                          `🔄 ${repayment.recurring_repayment_number}/${repayment.recurring_repayment_count}`
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                            <AutorenewIcon sx={{ fontSize: 16 }} />
+                            {repayment.recurring_repayment_number}/{repayment.recurring_repayment_count}
+                          </Box>
                         ) : '-'}
                       </TableCell>
                       {settings.show_payment_method === 'yes' && <TableCell align="center">{getPaymentMethodLabel(repayment.payment_method as any) || '-'}</TableCell>}

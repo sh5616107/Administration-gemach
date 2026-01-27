@@ -16,7 +16,12 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material'
-import { Search as SearchIcon, Add as AddIcon, Save as SaveIcon } from '@mui/icons-material'
+import { 
+  Search as SearchIcon, 
+  Add as AddIcon, 
+  Save as SaveIcon,
+  Warning as WarningIcon,
+} from '@mui/icons-material'
 import { borrowersService, loansService, guarantorLoansService } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
@@ -501,7 +506,10 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
 
       {/* Duplicate Name Warning Dialog */}
       <Dialog open={duplicateNameDialog.open} onClose={() => setDuplicateNameDialog({ open: false, existingBorrower: null })}>
-        <DialogTitle>⚠️ שים לב - שם כפול</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningIcon color="warning" />
+          שים לב - שם כפול
+        </DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
             כבר קיים לווה בשם "{formData.first_name} {formData.last_name}" במערכת:

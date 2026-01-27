@@ -28,13 +28,16 @@ import {
 import {
   Search as SearchIcon,
   AccountBalance as LoanIcon,
-  Savings as DepositIcon,
+  AccountBalanceWallet as DepositIcon,
   VolunteerActivism as DonationIcon,
   AttachMoney as MoneyIcon,
   Description as ReportIcon,
   DeleteForever as ClearIcon,
   Edit as EditIcon,
   Email as EmailIcon,
+  ListAlt as ListIcon,
+  CheckCircle as CheckIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { statsService, borrowersService, loansService, db, waitlistService } from '../services/database'
@@ -488,7 +491,8 @@ export default function Dashboard() {
             >
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="subtitle2">📋 {t('dashboard.waitlist')}</Typography>
+                  <ListIcon sx={{ mr: 0.5, fontSize: 20 }} />
+                  <Typography variant="subtitle2">{t('dashboard.waitlist')}</Typography>
                 </Box>
                 <Typography variant="h4" fontWeight={700}>
                   {waitlistStats?.waiting || 0}
@@ -648,7 +652,7 @@ export default function Dashboard() {
                           label={t('dashboard.active')}
                           color="success"
                           size="small"
-                          icon={<span>✅</span>}
+                          icon={<CheckIcon />}
                         />
                       </TableCell>
                       <TableCell align="center">
@@ -754,7 +758,10 @@ export default function Dashboard() {
 
       {/* Clear Confirm Dialog */}
       <Dialog open={clearConfirmOpen} onClose={() => { setClearConfirmOpen(false); setClearConfirmText(''); }}>
-        <DialogTitle>⚠️ {t('dashboard.clearAllConfirm')}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningIcon color="warning" />
+          {t('dashboard.clearAllConfirm')}
+        </DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
             {t('dashboard.clearAllConfirm')}

@@ -21,7 +21,9 @@ import {
   Info as InfoIcon,
   CheckCircle as CheckIcon,
   OpenInNew as OpenIcon,
-  Savings as SavingsIcon,
+  AccountBalanceWallet as DepositIcon,
+  Notifications as NotificationsIcon,
+  Celebration as CelebrationIcon,
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { loansService, repaymentsService, db } from '../services/database'
@@ -410,7 +412,7 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
       case 'auto_repayment':
         return <EventIcon color="success" />
       case 'recurring_deposit':
-        return <SavingsIcon color="success" />
+        return <DepositIcon color="success" />
       default:
         return <InfoIcon color="info" />
     }
@@ -458,7 +460,8 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            🔔 התראות
+            <NotificationsIcon />
+            התראות
             {visibleAlerts.length > 0 && (
               <Chip label={visibleAlerts.length} color="error" size="small" />
             )}
@@ -472,9 +475,12 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
       </DialogTitle>
       <DialogContent>
         {visibleAlerts.length === 0 ? (
-          <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-            אין התראות חדשות 🎉
-          </Typography>
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <CelebrationIcon sx={{ fontSize: 48, color: 'success.main', mb: 1 }} />
+            <Typography color="text.secondary">
+              אין התראות חדשות
+            </Typography>
+          </Box>
         ) : (
           <List>
             {visibleAlerts.map((alert, index) => {
@@ -496,7 +502,8 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
                   <ListItemText
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {confirmed ? '✓ פירעון נוצר בהצלחה' : alert.title}
+                        {confirmed && <CheckIcon sx={{ fontSize: 18, color: 'success.main' }} />}
+                        {confirmed ? 'פירעון נוצר בהצלחה' : alert.title}
                         <Chip
                           label={confirmed ? 'אושר' : getChipLabel(alert.type)}
                           color={confirmed ? 'success' : getChipColor(alert.type) as any}

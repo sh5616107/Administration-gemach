@@ -36,6 +36,7 @@ import {
   Description as DocIcon,
   Email as EmailIcon,
   History as HistoryIcon,
+  Autorenew as AutorenewIcon,
 } from '@mui/icons-material'
 import { db, depositWithdrawalsService, type DepositWithdrawal } from '../../services/database'
 import { generateDepositDocument, openEmailWithDocument, createDepositEmailData, EmailProvider } from '../../services/documents'
@@ -726,11 +727,17 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                       <TableCell align="center">
                         {deposit.is_recurring === 1 ? (
                           deposit.recurring_deposit_number && deposit.recurring_deposit_count ? (
-                            `🔄 ${deposit.recurring_deposit_number}/${deposit.recurring_deposit_count}`
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <AutorenewIcon sx={{ fontSize: 16 }} />
+                              {deposit.recurring_deposit_number}/{deposit.recurring_deposit_count}
+                            </Box>
                           ) : (
                             deposit.recurring_months !== undefined && deposit.recurring_months >= 0 ? (
-                              `🔄 1/${deposit.recurring_months + 1}`
-                            ) : '🔄'
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <AutorenewIcon sx={{ fontSize: 16 }} />
+                                1/{deposit.recurring_months + 1}
+                              </Box>
+                            ) : <AutorenewIcon sx={{ fontSize: 16 }} />
                           )
                         ) : '-'}
                       </TableCell>

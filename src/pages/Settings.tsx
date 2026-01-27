@@ -34,6 +34,13 @@ import {
   Upload as UploadIcon,
   ExpandMore as ExpandMoreIcon,
   Lock as LockIcon,
+  Settings as SettingsIcon,
+  Visibility as VisibilityIcon,
+  Save as BackupIcon,
+  Email as EmailIcon,
+  Edit as EditIcon,
+  Description as DescriptionIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
 import { isProtectionEnabled, setProtectionEnabled, setUserPassword, getUserPassword, setCustomHint, getCustomHint } from '../services/protection'
@@ -219,8 +226,8 @@ export default function Settings() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 3 }}>
-                ⚙️ {t('settings.general')}
+              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SettingsIcon /> {t('settings.general')}
               </Typography>
 
               <FormControl fullWidth sx={{ mb: 3 }}>
@@ -397,17 +404,17 @@ export default function Settings() {
                 >
                   <MenuItem value="gmail">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <span>📧</span> {t('settings.emailGmail')}
+                      <EmailIcon sx={{ fontSize: 18 }} /> {t('settings.emailGmail')}
                     </Box>
                   </MenuItem>
                   <MenuItem value="outlook">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <span>📧</span> {t('settings.emailOutlook')}
+                      <EmailIcon sx={{ fontSize: 18 }} /> {t('settings.emailOutlook')}
                     </Box>
                   </MenuItem>
                   <MenuItem value="default">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <span>📧</span> {t('settings.emailDefault')}
+                      <EmailIcon sx={{ fontSize: 18 }} /> {t('settings.emailDefault')}
                     </Box>
                   </MenuItem>
                 </Select>
@@ -420,8 +427,8 @@ export default function Settings() {
         <Grid item xs={12} md={6}>
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 3 }}>
-                👁️ {t('settings.preview')}
+              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <VisibilityIcon /> {t('settings.preview')}
               </Typography>
 
               <Box
@@ -450,8 +457,8 @@ export default function Settings() {
 
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                💾 {t('settings.autoBackup')}
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <BackupIcon /> {t('settings.autoBackup')}
               </Typography>
 
               <FormControl fullWidth sx={{ mb: 2 }}>
@@ -572,7 +579,9 @@ export default function Settings() {
         <Grid item xs={12}>
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">📝 התאמת שמות שדות</Typography>
+              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <EditIcon /> התאמת שמות שדות
+              </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -620,7 +629,9 @@ export default function Settings() {
         <Grid item xs={12}>
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">📄 עריכת נוסח שטרות</Typography>
+              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <DescriptionIcon /> עריכת נוסח שטרות
+              </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -695,8 +706,8 @@ export default function Settings() {
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                ℹ️ {t('settings.about')}
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <InfoIcon /> {t('settings.about')}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 מינהל הגמ"ח
@@ -705,8 +716,8 @@ export default function Settings() {
                 {t('settings.version')}
               </Typography>
               <Divider sx={{ my: 2 }} />
-              <Typography variant="body2" color="text.secondary">
-                📧 {t('settings.developerEmail')}
+              <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
               </Typography>
             </CardContent>
           </Card>

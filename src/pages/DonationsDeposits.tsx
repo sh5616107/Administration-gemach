@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Box, Tabs, Tab, Paper, Grid } from '@mui/material'
+import {
+  CardGiftcard as GiftIcon,
+  Person as PersonIcon,
+  AccountBalanceWallet as DepositIcon,
+} from '@mui/icons-material'
 import DonationsTab from '../components/donations/DonationsTab'
 import DepositorsTab from '../components/donations/DepositorsTab'
 import DepositsTab from '../components/donations/DepositsTab'
@@ -66,9 +71,9 @@ export default function DonationsDeposits() {
           onChange={(_, newValue) => setTabValue(newValue)}
           variant="fullWidth"
         >
-          <Tab label="🎁 תרומות" />
-          <Tab label="👤 מפקידים" />
-          <Tab label="📥 הפקדות" />
+          <Tab icon={<GiftIcon />} iconPosition="start" label="תרומות" />
+          <Tab icon={<PersonIcon />} iconPosition="start" label="מפקידים" />
+          <Tab icon={<DepositIcon />} iconPosition="start" label="הפקדות" />
         </Tabs>
       </Paper>
 

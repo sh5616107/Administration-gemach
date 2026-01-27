@@ -42,7 +42,7 @@ import {
   AttachMoney as LoanIcon,
   Payment as RepaymentIcon,
   CardGiftcard as DonationIcon,
-  Savings as DepositIcon
+  AccountBalanceWallet as DepositIcon
 } from '@mui/icons-material'
 import {
   ImportType,

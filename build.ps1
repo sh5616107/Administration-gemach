@@ -9,8 +9,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Build successful!" -ForegroundColor Green
     
     # Copy installer to release folder
-    $source = "src-tauri\target\release\bundle\nsis\gemach-manager_3.6.0_x64-setup.exe"
-    $dest = "release\gemach-manager_3.6.0_x64-setup.exe"
+    $source = "src-tauri\target\release\bundle\nsis\gemach-manager_3.7.0_x64-setup.exe"
+    $dest = "release\gemach-manager_3.7.0_x64-setup.exe"
     
     if (Test-Path $source) {
         Copy-Item $source $dest -Force
@@ -34,7 +34,7 @@ if ($LASTEXITCODE -eq 0) {
     }
     
     Write-Host "`nDone! Files are in the release folder:" -ForegroundColor Cyan
-    Write-Host "  - gemach-manager_3.6.0_x64-setup.exe (Installer)" -ForegroundColor White
+    Write-Host "  - gemach-manager_3.7.0_x64-setup.exe (Installer)" -ForegroundColor White
     Write-Host "  - gemach-manager-portable.exe (Portable)" -ForegroundColor White
     Write-Host "  - portable.txt (Portable marker - optional)" -ForegroundColor Gray
 } else {

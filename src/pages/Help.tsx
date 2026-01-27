@@ -14,11 +14,25 @@ import {
 import {
   ExpandMore as ExpandMoreIcon,
   CheckCircle as CheckIcon,
+  Home as HomeIcon,
+  Person as PersonIcon,
+  Handshake as HandshakeIcon,
+  AccountBalance as AccountBalanceIcon,
+  ListAlt as ListAltIcon,
+  CardGiftcard as CardGiftcardIcon,
+  AccountBalanceWallet as DepositIcon,
+  VolunteerActivism as DonationIcon,
+  CalendarMonth as CalendarIcon,
+  Build as BuildIcon,
+  Settings as SettingsIcon,
+  HelpOutline as HelpIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material'
 
 const helpSections = [
   {
-    title: '🏠 דף הבית',
+    title: 'דף הבית',
+    icon: <HomeIcon />,
     content: [
       'צפייה בסטטיסטיקות הגמ"ח - הלוואות, הפקדות ותרומות',
       'חישוב כסף זמין אוטומטי (כולל הפחתת הוצאות הנהלת הגמ"ח)',
@@ -29,7 +43,8 @@ const helpSections = [
     ],
   },
   {
-    title: '👤 ניהול לווים',
+    title: 'ניהול לווים',
+    icon: <PersonIcon />,
     content: [
       'הוספת לווה חדש עם כל הפרטים',
       'חיפוש לווים לפי שם, טלפון, מ.ז. או עיר',
@@ -40,7 +55,8 @@ const helpSections = [
     ],
   },
   {
-    title: '🤝 ניהול ערבים',
+    title: 'ניהול ערבים',
+    icon: <HandshakeIcon />,
     content: [
       'הוספת ערבים חדשים למערכת',
       'מעקב אחר סכום הערבויות של כל ערב',
@@ -56,7 +72,8 @@ const helpSections = [
     ],
   },
   {
-    title: '💰 ניהול הלוואות',
+    title: 'ניהול הלוואות',
+    icon: <AccountBalanceIcon />,
     content: [
       'יצירת הלוואה חדשה עם כל הפרטים',
       'בחירת סוג הלוואה - קבועה או גמישה',
@@ -74,7 +91,8 @@ const helpSections = [
     ],
   },
   {
-    title: '📋 תור בקשות להלוואות',
+    title: 'תור בקשות להלוואות',
+    icon: <ListAltIcon />,
     content: [
       'ניהול תור ממתינים להלוואות',
       'הוספת בקשה חדשה לתור עם פרטים מלאים',
@@ -87,7 +105,8 @@ const helpSections = [
     ],
   },
   {
-    title: '🎁 תרומות',
+    title: 'תרומות',
+    icon: <CardGiftcardIcon />,
     content: [
       'רישום תרומות חדשות',
       'ניהול רשימת תורמים',
@@ -98,7 +117,8 @@ const helpSections = [
     ],
   },
   {
-    title: '📥 הפקדות',
+    title: 'הפקדות',
+    icon: <DepositIcon />,
     content: [
       'ניהול מפקידים - הוספה, עריכה, מחיקה',
       'חיפוש מפקידים לפי שם, טלפון, מ.ז.',
@@ -115,7 +135,8 @@ const helpSections = [
     ],
   },
   {
-    title: '📅 לוח שנה',
+    title: 'לוח שנה',
+    icon: <CalendarIcon />,
     content: [
       'תצוגת לוח שנה חודשי עם תאריכים לועזיים ועבריים',
       'הצגת חגים יהודיים מסורתיים (פסח, סוכות, חנוכה וכו\')',
@@ -134,7 +155,8 @@ const helpSections = [
     ],
   },
   {
-    title: '🛠️ כלים מתקדמים',
+    title: 'כלים מתקדמים',
+    icon: <BuildIcon />,
     content: [
       'גיבוי נתונים לקובץ JSON',
       'שחזור נתונים מגיבוי',
@@ -156,7 +178,8 @@ const helpSections = [
     ],
   },
   {
-    title: '⚙️ הגדרות',
+    title: 'הגדרות',
+    icon: <SettingsIcon />,
     content: [
       'עריכת שם הגמ"ח',
       'העלאת לוגו',
@@ -319,7 +342,7 @@ const faq = [
   },
   {
     question: 'איך מאשרים הלוואה מהתור?',
-    answer: 'יש ללחוץ על כפתור האישור (✓) ליד הבקשה. המערכת תעביר אוטומטית לטאב ההלוואות עם כל הפרטים ממולאים מראש - לווה, סכום, סוג הלוואה ותקופה. לאחר שמירת ההלוואה, הבקשה תסומן כ"אושר".',
+    answer: 'יש ללחוץ על כפתור האישור ליד הבקשה. המערכת תעביר אוטומטית לטאב ההלוואות עם כל הפרטים ממולאים מראש - לווה, סכום, סוג הלוואה ותקופה. לאחר שמירת ההלוואה, הבקשה תסומן כ"אושר".',
   },
   {
     question: 'איפה רואים את תור הבקשות בדף הבית?',
@@ -335,11 +358,11 @@ const faq = [
   },
   {
     question: 'אפשר לערוך בקשה שכבר אושרה?',
-    answer: 'כן, ניתן לערוך כל בקשה בכל סטטוס. פשוט לוחצים על כפתור העריכה (✎) ליד הבקשה. אבל אם הבקשה כבר אושרה, כדאי לערוך את ההלוואה עצמה ולא את הבקשה.',
+    answer: 'כן, ניתן לערוך כל בקשה בכל סטטוס. פשוט לוחצים על כפתור העריכה ליד הבקשה. אבל אם הבקשה כבר אושרה, כדאי לערוך את ההלוואה עצמה ולא את הבקשה.',
   },
   {
     question: 'איך מפיקים דוח ערב מפורט?',
-    answer: 'בטאב "ניהול ערבים", יש כפתור דוח (📄) ליד כל ערב בטבלה העליונה. הדוח כולל שני חלקים: הלוואות שהועברו לערב (עם היסטוריית תשלומים ויתרות), והלוואות פעילות שהערב ערב עליהן.',
+    answer: 'בטאב "ניהול ערבים", יש כפתור דוח ליד כל ערב בטבלה העליונה. הדוח כולל שני חלקים: הלוואות שהועברו לערב (עם היסטוריית תשלומים ויתרות), והלוואות פעילות שהערב ערב עליהן.',
   },
   {
     question: 'מה כולל דוח הערב?',
@@ -357,14 +380,17 @@ export default function Help() {
       {/* Guide */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h5" sx={{ mb: 3 }}>
-            📖 מדריך שימוש
+          <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DescriptionIcon /> מדריך שימוש
           </Typography>
 
           {helpSections.map((section, index) => (
             <Accordion key={index} defaultExpanded={index === 0}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography fontWeight={500}>{section.title}</Typography>
+                <Typography fontWeight={500} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {section.icon}
+                  {section.title}
+                </Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <List dense>
@@ -386,8 +412,8 @@ export default function Help() {
       {/* FAQ */}
       <Card>
         <CardContent>
-          <Typography variant="h5" sx={{ mb: 3 }}>
-            ❓ שאלות נפוצות
+          <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <HelpIcon /> שאלות נפוצות
           </Typography>
 
           {faq.map((item, index) => (

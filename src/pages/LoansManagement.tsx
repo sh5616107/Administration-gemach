@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Box, Tabs, Tab, Paper } from '@mui/material'
+import {
+  Person as PersonIcon,
+  Handshake as HandshakeIcon,
+  AccountBalance as AccountBalanceIcon,
+  ListAlt as ListAltIcon,
+} from '@mui/icons-material'
 import BorrowersTab from '../components/loans/BorrowersTab'
 import GuarantorsTab from '../components/loans/GuarantorsTab'
 import LoansTab from '../components/loans/LoansTab'
@@ -87,10 +93,10 @@ export default function LoansManagement() {
           onChange={handleTabChange}
           variant="fullWidth"
         >
-          <Tab label="👤 ניהול לווים" />
-          <Tab label="🤝 ניהול ערבים" />
-          <Tab label="💰 ניהול הלוואות" />
-          {showWaitlistTab && <Tab label="📋 תור בקשות" />}
+          <Tab icon={<PersonIcon />} iconPosition="start" label="ניהול לווים" />
+          <Tab icon={<HandshakeIcon />} iconPosition="start" label="ניהול ערבים" />
+          <Tab icon={<AccountBalanceIcon />} iconPosition="start" label="ניהול הלוואות" />
+          {showWaitlistTab && <Tab icon={<ListAltIcon />} iconPosition="start" label="תור בקשות" />}
         </Tabs>
       </Paper>
 

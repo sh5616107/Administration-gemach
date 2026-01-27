@@ -34,7 +34,7 @@ import {
   Notifications as NotificationsIcon,
   Search as SearchIcon,
   Person as PersonIcon,
-  Savings as DepositIcon,
+  AccountBalanceWallet as DepositIcon,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
 import { loansService, borrowersService, guarantorsService, donorsService, depositorsService } from '../services/database'
