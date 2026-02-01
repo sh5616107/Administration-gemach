@@ -1148,19 +1148,26 @@ export default function WaitlistTab() {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                  <TableSortLabel
-                    active={orderBy === 'requested_amount'}
-                    direction={orderBy === 'requested_amount' ? order : 'asc'}
-                    onClick={() => handleSort('requested_amount')}
-                    hideSortIcon={false}
-                    sx={{
-                      '& .MuiTableSortLabel-icon': {
-                        opacity: orderBy === 'requested_amount' ? 1 : 0.3,
-                      },
-                    }}
-                  >
-                    סכום מבוקש
-                  </TableSortLabel>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <TableSortLabel
+                      active={orderBy === 'requested_amount'}
+                      direction={orderBy === 'requested_amount' ? order : 'asc'}
+                      onClick={() => handleSort('requested_amount')}
+                      hideSortIcon={false}
+                      sx={{
+                        '& .MuiTableSortLabel-icon': {
+                          opacity: orderBy === 'requested_amount' ? 1 : 0.3,
+                          position: 'relative',
+                          left: 'auto',
+                          right: 'auto',
+                          marginLeft: '4px',
+                          marginRight: 0,
+                        },
+                      }}
+                    >
+                      סכום מבוקש
+                    </TableSortLabel>
+                  </Box>
                 </TableCell>
                 <TableCell align="center" sx={{ fontWeight: 'bold' }}>
                   <TableSortLabel

@@ -118,19 +118,39 @@ export default function ItemsListDialog<T extends Record<string, any>>({
                   {columns.map((column) => (
                     <TableCell key={column.id} align={column.align || 'left'}>
                       {column.sortable !== false ? (
-                        <TableSortLabel
-                          active={orderBy === column.id}
-                          direction={orderBy === column.id ? order : 'asc'}
-                          onClick={() => handleSort(column.id)}
-                          hideSortIcon={false}
-                          sx={{
-                            '& .MuiTableSortLabel-icon': {
-                              opacity: orderBy === column.id ? 1 : 0.3,
-                            },
-                          }}
-                        >
-                          {column.label}
-                        </TableSortLabel>
+                        column.align === 'right' ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <TableSortLabel
+                              active={orderBy === column.id}
+                              direction={orderBy === column.id ? order : 'asc'}
+                              onClick={() => handleSort(column.id)}
+                              hideSortIcon={false}
+                              sx={{
+                                '& .MuiTableSortLabel-icon': {
+                                  opacity: orderBy === column.id ? 1 : 0.3,
+                                  marginLeft: '4px',
+                                  marginRight: 0,
+                                },
+                              }}
+                            >
+                              {column.label}
+                            </TableSortLabel>
+                          </Box>
+                        ) : (
+                          <TableSortLabel
+                            active={orderBy === column.id}
+                            direction={orderBy === column.id ? order : 'asc'}
+                            onClick={() => handleSort(column.id)}
+                            hideSortIcon={false}
+                            sx={{
+                              '& .MuiTableSortLabel-icon': {
+                                opacity: orderBy === column.id ? 1 : 0.3,
+                              },
+                            }}
+                          >
+                            {column.label}
+                          </TableSortLabel>
+                        )
                       ) : (
                         column.label
                       )}
