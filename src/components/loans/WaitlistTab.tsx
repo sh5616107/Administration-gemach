@@ -340,10 +340,10 @@ export default function WaitlistTab() {
         // הלוואות גמישות - לא מחשבים כי אין ודאות מתי יפרעו
       }
       
-      // חישוב כסף מהפקדות מחזוריות
+      // חישוב כסף מהפקדות מחזוריות (כולל מתוכננות)
       const recurringDeposits = await db.query(
-        'SELECT * FROM deposits WHERE is_recurring = 1 AND status = ?', 
-        ['active']
+        'SELECT * FROM deposits WHERE is_recurring = 1 AND status IN (?, ?)', 
+        ['active', 'planned']
       ) as any[]
       
       for (const deposit of recurringDeposits) {
@@ -560,10 +560,10 @@ export default function WaitlistTab() {
         }
       }
       
-      // הפקדות מחזוריות
+      // הפקדות מחזוריות (כולל מתוכננות)
       const recurringDeposits = await db.query(
-        'SELECT * FROM deposits WHERE is_recurring = 1 AND status = ?', 
-        ['active']
+        'SELECT * FROM deposits WHERE is_recurring = 1 AND status IN (?, ?)', 
+        ['active', 'planned']
       ) as any[]
       
       const allDepositors = await depositorsService.getAll()

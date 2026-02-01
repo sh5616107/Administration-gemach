@@ -214,3 +214,46 @@
 
 ### תוצאה:
 עכשיו הפקדות מחזוריות מתנהגות בדיוק כמו הלוואות מחזוריות - תאריך מחושב נכון, סטטוס מתאים, וה-scheduler מפעיל אותן בזמן הנכון.
+
+
+## 17. ✅ הפקדות מתוכננות לא מופיעות בחישוב כספים צפויים
+**תאריך:** 01/02/2026
+**חומרה:** בינונית
+
+### תיאור הבעיה:
+לאחר תיקון באג #16 (הפקדות מחזוריות עם סטטוס `planned`), הפקדות מחזוריות חדשות שנוצרו עם תאריך עתידי לא הופיעו בפירוט הכספים הצפויים להשתחרר בתור ההמתנה.
+
+**הסיבה:**
+הפונקציות `calculateExpectedFunds` ו-`prepareExpectedFundsBreakdown` ב-`WaitlistTab.tsx` חיפשו רק הפקדות עם סטטוס `active`:
+```typescript
+const recurringDeposits = await db.query(
+  'SELECT * FROM deposits WHERE is_recurring = 1 AND status = ?', 
+  ['active']
+)
+```
+
+אבל הפקדות מחזוריות חדשות עם תאריך עתידי מקבלות סטטוס `planned` (לפי תיקון באג #16), ולכן לא נכללו בחישוב.
+
+### הפתרון:
+עדכון שתי הפונקציות לכלול גם הפקדות עם סטטוס `planned`:
+```typescript
+const recurringDeposits = await db.query(
+  'SELECT * FROM deposits WHERE is_recurring = 1 AND status IN (?, ?)', 
+  ['active', 'planned']
+)
+```
+
+### טסטים:
+הוספנו 3 טסטים חדשים ל-`expectedFunds.test.ts`:
+- ✅ הפקדה מחזורית עם סטטוס `planned` נכללת בחישוב
+- ✅ הפקדות `active` ו-`planned` נכללות ביחד
+- ✅ הפקדות עם סטטוס `withdrawn` לא נכללות
+
+סה"כ 23 טסטים עוברים בהצלחה ✅
+
+### קבצים שהשתנו:
+- `src/components/loans/WaitlistTab.tsx` - עדכון שתי הפונקציות
+- `src/__tests__/expectedFunds.test.ts` - הוספת 3 טסטים חדשים
+
+### תוצאה:
+עכשיו הפקדות מחזוריות מופיעות בפירוט הכספים הצפויים, בין אם הן `active` או `planned`.

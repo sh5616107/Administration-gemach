@@ -96,8 +96,8 @@ function calculateExpectedFunds(
     // הלוואות גמישות - לא מחשבים כי אין ודאות מתי יפרעו
   }
 
-  // חישוב כסף מהפקדות מחזוריות
-  const recurringDeposits = deposits.filter(d => d.is_recurring === 1 && d.status === 'active')
+  // חישוב כסף מהפקדות מחזוריות (כולל מתוכננות)
+  const recurringDeposits = deposits.filter(d => d.is_recurring === 1 && (d.status === 'active' || d.status === 'planned'))
 
   for (const deposit of recurringDeposits) {
     const amount = deposit.amount || 0
@@ -744,3 +744,90 @@ describe('Expected Funds Calculation', () => {
       expect(result.threeMonths).toBe(0)
     })
   })
+
+describe('הפקדות מתוכננות', () => {
+  const today = new Date('2026-02-01')
+  
+  it('צריך לכלול הפקדה מחזורית עם סטטוס planned', () => {
+    const deposits: Deposit[] = [
+      {
+        id: 1,
+        depositor_id: 1,
+        amount: 3000,
+        deposit_date: '2026-02-15', // הפקדה ראשונה עתידית
+        status: 'planned', // סטטוס מתוכננת
+        is_recurring: 1,
+        recurring_months: 1,
+        recurring_day: 15,
+      },
+    ]
+
+    const result = calculateExpectedFunds([], deposits, today)
+
+    // הפקדות: 15 פברואר (בטווח חודש), 15 מרץ, 15 אפריל
+    expect(result.month).toBe(3000) // רק פברואר בטווח 30 ימים מ-1 פברואר
+    expect(result.threeMonths).toBe(9000) // פברואר + מרץ + אפריל
+  })
+
+  it('צריך לכלול גם הפקדות active וגם planned', () => {
+    const deposits: Deposit[] = [
+      {
+        id: 1,
+        depositor_id: 1,
+        amount: 2000,
+        deposit_date: '2026-01-01',
+        status: 'active', // פעילה
+        is_recurring: 1,
+        recurring_months: 1,
+        recurring_day: 1,
+      },
+      {
+        id: 2,
+        depositor_id: 2,
+        amount: 1500,
+        deposit_date: '2026-02-20',
+        status: 'planned', // מתוכננת
+        is_recurring: 1,
+        recurring_months: 1,
+        recurring_day: 20,
+      },
+    ]
+
+    const result = calculateExpectedFunds([], deposits, today)
+
+    // הפקדות active: פברואר, מרץ, אפריל, מאי = 4 × 2000 = 8000
+    // הפקדות planned: 20 פברואר, 20 מרץ, 20 אפריל = 3 × 1500 = 4500
+    // סה"כ ב-3 חודשים: 12500
+    expect(result.threeMonths).toBe(12500)
+  })
+
+  it('לא צריך לכלול הפקדות עם סטטוס withdrawn', () => {
+    const deposits: Deposit[] = [
+      {
+        id: 1,
+        depositor_id: 1,
+        amount: 2000,
+        deposit_date: '2026-01-01',
+        status: 'withdrawn', // משוכה
+        is_recurring: 1,
+        recurring_months: 1,
+        recurring_day: 1,
+      },
+      {
+        id: 2,
+        depositor_id: 2,
+        amount: 1000,
+        deposit_date: '2026-01-01',
+        status: 'active',
+        is_recurring: 1,
+        recurring_months: 1,
+        recurring_day: 1,
+      },
+    ]
+
+    const result = calculateExpectedFunds([], deposits, today)
+
+    // רק ההפקדה הפעילה: פברואר, מרץ, אפריל, מאי = 4 × 1000 = 4000
+    expect(result.threeMonths).toBe(4000)
+  })
+})
