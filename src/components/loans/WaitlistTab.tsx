@@ -37,6 +37,7 @@ import {
   Cancel as RejectIcon,
   DragIndicator as DragIcon,
   TrendingUp as TrendingUpIcon,
+  Assessment as AssessmentIcon,
 } from '@mui/icons-material'
 import {
   DndContext,
@@ -1082,12 +1083,13 @@ export default function WaitlistTab() {
             <Button
               variant="outlined"
               size="small"
+              startIcon={<AssessmentIcon />}
               onClick={() => {
                 prepareExpectedFundsBreakdown()
                 setExpectedFundsDialogOpen(true)
               }}
             >
-              📊 הצג פירוט מלא
+              הצג פירוט מלא
             </Button>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
