@@ -113,12 +113,37 @@ export async function getGuarantorActiveCount(guarantorId: number): Promise<numb
 /**
  * Check if a guarantor has issues that should be warned about
  * Called when selecting a guarantor for a loan
+ * 
+ * @param guarantorId - The ID of the guarantor to check
+ * @param borrowerId - Optional: The ID of the borrower for this loan (to prevent self-guaranteeing)
  */
-export async function checkGuarantorForLoan(guarantorId: number): Promise<CrossCheckResult[]> {
+export async function checkGuarantorForLoan(guarantorId: number, borrowerId?: number): Promise<CrossCheckResult[]> {
   const results: CrossCheckResult[] = []
   const guarantor = await guarantorsService.getById(guarantorId) as any
   
   if (!guarantor) return results
+  
+  // Check if guarantor is the same person as the borrower (if borrowerId provided)
+  if (borrowerId) {
+    const borrower = await borrowersService.getById(borrowerId) as any
+    if (borrower) {
+      const borrowerPhone = (borrower.phone || '').replace(/\D/g, '')
+      const guarantorPhone = (guarantor.phone || '').replace(/\D/g, '')
+      
+      const isSamePerson = 
+        (borrowerPhone && guarantorPhone && borrowerPhone === guarantorPhone) ||
+        (borrower.id_number && guarantor.id_number && borrower.id_number === guarantor.id_number)
+      
+      if (isSamePerson) {
+        results.push({
+          type: 'error',
+          message: 'לא ניתן לבחור את הלווה כערב להלוואה שלו עצמו',
+          details: `הערב "${guarantor.first_name} ${guarantor.last_name}" הוא אותו אדם כמו הלווה`
+        })
+        return results // Return immediately - this is a blocking error
+      }
+    }
+  }
   
   // Check if guarantor exists as borrower with active debt
   const matchingBorrower = await findMatchingBorrower(guarantor.phone, guarantor.id_number)

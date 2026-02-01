@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard'
 import LoansManagement from './pages/LoansManagement'
 import DonationsDeposits from './pages/DonationsDeposits'
 import Calendar from './pages/Calendar'
+import Contacts from './pages/Contacts'
 import AdvancedTools from './pages/AdvancedTools'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
@@ -135,6 +136,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/loans/*" element={<LoansManagement />} />
             <Route path="/donations" element={<DonationsDeposits />} />
+            <Route path="/contacts" element={<Contacts />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/tools" element={<AdvancedTools />} />
             <Route path="/settings" element={<Settings />} />

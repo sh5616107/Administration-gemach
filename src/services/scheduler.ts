@@ -134,6 +134,12 @@ export async function createRecurringLoan(originalLoanId: number): Promise<boole
     const loan = await loansService.getById(originalLoanId) as any
     if (!loan) return false
 
+    // בדיקה: אם אין יותר הלוואות ליצור, לא יוצרים
+    if (!loan.recurring_months || loan.recurring_months <= 0) {
+      console.log(`[CREATE RECURRING] Loan #${originalLoanId} has no more recurring months (${loan.recurring_months})`)
+      return false
+    }
+
     const today = new Date().toISOString().split('T')[0]
     
     // חישוב מספר ההלוואה המחזורית
@@ -152,7 +158,7 @@ export async function createRecurringLoan(originalLoanId: number): Promise<boole
       guarantor1_id: loan.guarantor1_id,
       guarantor2_id: loan.guarantor2_id,
       is_recurring: loan.is_recurring,
-      recurring_months: loan.recurring_months ? loan.recurring_months - 1 : 0,
+      recurring_months: loan.recurring_months - 1,
       recurring_day: loan.recurring_day,
       recurring_loan_number: newLoanNumber,
       recurring_loan_count: totalCount,
@@ -164,11 +170,9 @@ export async function createRecurringLoan(originalLoanId: number): Promise<boole
     })
 
     // Update original loan to reduce recurring months
-    if (loan.recurring_months) {
-      await loansService.update(originalLoanId, {
-        recurring_months: loan.recurring_months - 1
-      })
-    }
+    await loansService.update(originalLoanId, {
+      recurring_months: loan.recurring_months - 1
+    })
 
     return true
   } catch (error) {
@@ -218,8 +222,12 @@ export async function runStartupChecks(): Promise<Alert[]> {
   console.log('[SCHEDULER] runStartupChecks started')
   
   // First, activate planned loans that have reached their date
-  const activated = await activatePlannedLoans()
-  console.log('[SCHEDULER] Activated planned loans:', activated)
+  const activatedLoans = await activatePlannedLoans()
+  console.log('[SCHEDULER] Activated planned loans:', activatedLoans)
+  
+  // Activate planned deposits that have reached their date
+  const activatedDeposits = await activatePlannedDeposits()
+  console.log('[SCHEDULER] Activated planned deposits:', activatedDeposits)
   
   const recurringAlerts = await checkRecurringLoans()
   const repaymentAlerts = await checkAutoRepayments()
@@ -265,6 +273,37 @@ export async function activatePlannedLoans(): Promise<number> {
     console.log('[SCHEDULER] Total activated:', activatedCount)
   } catch (error) {
     console.error('[SCHEDULER] Error activating planned loans:', error)
+  }
+  
+  return activatedCount
+}
+
+// Activate planned deposits that have reached their deposit date
+export async function activatePlannedDeposits(): Promise<number> {
+  const today = new Date().toISOString().split('T')[0]
+  let activatedCount = 0
+  
+  console.log('[SCHEDULER] activatePlannedDeposits called, today:', today)
+  
+  try {
+    const deposits = await db.query('SELECT * FROM deposits WHERE status = ?', ['planned']) as any[]
+    console.log('[SCHEDULER] Planned deposits:', deposits.length)
+    
+    for (const deposit of deposits) {
+      console.log(`[SCHEDULER] Checking deposit #${deposit.id}: status=${deposit.status}, deposit_date=${deposit.deposit_date}, today=${today}`)
+      
+      // If deposit is planned and deposit_date has arrived or passed
+      if (deposit.deposit_date <= today) {
+        console.log(`[SCHEDULER] Activating deposit #${deposit.id}`)
+        await db.run('UPDATE deposits SET status = ? WHERE id = ?', ['active', deposit.id])
+        activatedCount++
+        console.log(`[SCHEDULER] ✅ Activated planned deposit #${deposit.id}`)
+      }
+    }
+    
+    console.log('[SCHEDULER] Total activated deposits:', activatedCount)
+  } catch (error) {
+    console.error('[SCHEDULER] Error activating planned deposits:', error)
   }
   
   return activatedCount

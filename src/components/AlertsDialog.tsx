@@ -14,6 +14,8 @@ import {
   Chip,
   Box,
   IconButton,
+  Snackbar,
+  Alert,
 } from '@mui/material'
 import {
   Warning as WarningIcon,
@@ -29,7 +31,7 @@ import { useNavigate } from 'react-router-dom'
 import { loansService, repaymentsService, db } from '../services/database'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
-import { createRecurringDeposit, activatePlannedLoans } from '../services/scheduler'
+import { createRecurringDeposit, createRecurringLoan, activatePlannedLoans } from '../services/scheduler'
 
 interface Alert {
   type: 'overdue' | 'recurring' | 'auto_repayment' | 'recurring_deposit' | 'info'
@@ -46,6 +48,12 @@ interface AlertsDialogProps {
   open: boolean
   onClose: () => void
   onAlertCountChange?: (count: number) => void
+}
+
+interface SnackbarState {
+  open: boolean
+  message: string
+  severity: 'success' | 'error'
 }
 
 // Store read alerts in localStorage
@@ -123,6 +131,7 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
   const [readAlerts, setReadAlerts] = useState<Set<string>>(getReadAlerts())
   const [confirmedRepayments, setConfirmedRepayments] = useState<Set<string>>(getConfirmedRepayments())
   const [initialized, setInitialized] = useState(false)
+  const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' })
 
   useEffect(() => {
     if (open) {
@@ -155,6 +164,11 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
     console.log('[ALERTS] Activating planned loans...')
     const activated = await activatePlannedLoans()
     console.log('[ALERTS] Activated planned loans:', activated)
+    
+    // Auto-create recurring loans
+    console.log('[ALERTS] Auto-creating recurring loans...')
+    await autoCreateRecurringLoans()
+    console.log('[ALERTS] Recurring loans auto-creation completed')
 
     // Check overdue loans
     const overdueLoans = await loansService.getOverdue()
@@ -192,18 +206,19 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
     })
     
     allLoans.forEach((loan: any) => {
-      // Recurring loan check - handle short months
+      // Check for newly created recurring loans today (for info alert)
       const recurringDay = loan.recurring_day || 1
       const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
       
-      if (loan.is_recurring && effectiveRecurringDay === day && loan.status === 'active') {
+      if (loan.is_recurring && loan.loan_date === todayStr && loan.recurring_loan_number > 1) {
+        // This is a newly created recurring loan - show info alert
         newAlerts.push({
-          type: 'recurring',
-          title: 'הלוואה מחזורית להיום',
-          message: `${loan.borrower_name} - סכום: ₪${loan.amount?.toLocaleString()}`,
+          type: 'info',
+          title: 'הלוואה מחזורית נוצרה',
+          message: `${loan.borrower_name} - הלוואה ${loan.recurring_loan_number}/${loan.recurring_loan_count} - סכום: ₪${loan.amount?.toLocaleString()}`,
           loanId: loan.id,
           borrowerId: loan.borrower_id,
-          key: `recurring-${loan.id}-${todayStr}`,
+          key: `recurring-created-${loan.id}-${todayStr}`,
         })
       }
       
@@ -387,6 +402,54 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
     }
   }
 
+  // Auto-create recurring loans that are due today
+  const autoCreateRecurringLoans = async () => {
+    const today = new Date()
+    const todayStr = today.toISOString().split('T')[0]
+    const day = today.getDate()
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+    
+    try {
+      const allLoans = await loansService.getAll() as any[]
+      
+      for (const loan of allLoans) {
+        // Skip if not recurring or no more loans to create
+        if (!loan.is_recurring || loan.recurring_months <= 0 || loan.status !== 'active') continue
+        
+        const recurringDay = loan.recurring_day || 1
+        const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
+        
+        // Check if today is the recurring day
+        if (effectiveRecurringDay !== day) continue
+        
+        // Check if loan already created today
+        const existingLoanToday = allLoans.find((l: any) => 
+          l.borrower_id === loan.borrower_id && 
+          l.amount === loan.amount && 
+          l.loan_date === todayStr &&
+          l.id !== loan.id
+        )
+        
+        if (existingLoanToday) {
+          console.log(`[AUTO-CREATE] Loan already exists for today: loan #${loan.id}`)
+          continue
+        }
+        
+        // Create the recurring loan
+        console.log(`[AUTO-CREATE] Creating recurring loan from loan #${loan.id}`)
+        const success = await createRecurringLoan(loan.id)
+        
+        if (success) {
+          console.log(`[AUTO-CREATE] ✅ Successfully created recurring loan from #${loan.id}`)
+        } else {
+          console.error(`[AUTO-CREATE] ❌ Failed to create recurring loan from #${loan.id}`)
+        }
+      }
+    } catch (error) {
+      console.error('[AUTO-CREATE] Error in autoCreateRecurringLoans:', error)
+    }
+  }
+
   const handleConfirmRecurringDeposit = async (alert: Alert) => {
     if (!alert.depositId || !alert.amount) return
     
@@ -525,6 +588,7 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
                         אשר
                       </Button>
                     )}
+
                     {alert.type === 'recurring_deposit' && (
                       <Button
                         size="small"
@@ -561,6 +625,17 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
       <DialogActions>
         <Button onClick={onClose}>סגור</Button>
       </DialogActions>
+      
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Dialog>
   )
 }
@@ -584,6 +659,35 @@ export async function getUnreadAlertCount(): Promise<number> {
   try {
     // First, activate any planned loans that have reached their date
     await activatePlannedLoans()
+    
+    // Auto-create recurring loans
+    console.log('[ALERT COUNT] Auto-creating recurring loans...')
+    const autoCreateRecurringLoans = async () => {
+      const allLoansForCreate = await loansService.getAll() as any[]
+      
+      for (const loan of allLoansForCreate) {
+        if (!loan.is_recurring || loan.recurring_months <= 0 || loan.status !== 'active') continue
+        
+        const recurringDay = loan.recurring_day || 1
+        const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
+        
+        if (effectiveRecurringDay !== day) continue
+        
+        const existingLoanToday = allLoansForCreate.find((l: any) => 
+          l.borrower_id === loan.borrower_id && 
+          l.amount === loan.amount && 
+          l.loan_date === todayStr &&
+          l.id !== loan.id
+        )
+        
+        if (!existingLoanToday) {
+          console.log(`[ALERT COUNT] Creating recurring loan from loan #${loan.id}`)
+          await createRecurringLoan(loan.id)
+        }
+      }
+    }
+    await autoCreateRecurringLoans()
+    console.log('[ALERT COUNT] Recurring loans auto-creation completed')
     
     const overdueLoans = await loansService.getOverdue()
     console.log('[ALERT COUNT] Overdue loans:', overdueLoans.length)
@@ -614,15 +718,12 @@ export async function getUnreadAlertCount(): Promise<number> {
     })
     
     allLoans.forEach((loan: any) => {
-      // Handle short months
-      const recurringDay = loan.recurring_day || 1
-      const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
-      
-      if (loan.is_recurring && effectiveRecurringDay === day && loan.status === 'active') {
-        const key = `recurring-${loan.id}-${todayStr}`
+      // Check for newly created recurring loans today
+      if (loan.is_recurring && loan.loan_date === todayStr && loan.recurring_loan_number > 1) {
+        const key = `recurring-created-${loan.id}-${todayStr}`
         if (!readAlerts.has(key)) {
           count++
-          console.log('[ALERT COUNT] Unread recurring:', key)
+          console.log('[ALERT COUNT] Unread recurring loan created:', key)
         }
       }
       

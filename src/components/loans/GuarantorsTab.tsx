@@ -675,21 +675,21 @@ export default function GuarantorsTab() {
       {/* Table */}
       <Card>
         <CardContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <span>הסבר סטטוסים:</span>
+          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="body2" color="text.secondary" component="span">הסבר סטטוסים:</Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <CheckCircleIcon sx={{ fontSize: 16, color: 'success.main' }} />
-              <span>פעיל - ערב רגיל</span>
+              <Typography variant="body2" color="text.secondary" component="span">פעיל - ערב רגיל</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <WarningIcon sx={{ fontSize: 16, color: 'warning.main' }} />
-              <span>בסיכון גבוה - מעל {formatCurrency(riskThreshold)} ערבויות</span>
+              <Typography variant="body2" color="text.secondary" component="span">בסיכון גבוה - מעל {formatCurrency(riskThreshold)} ערבויות</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <BlockIcon sx={{ fontSize: 16, color: 'error.main' }} />
-              <span>חסום - ברשימה שחורה</span>
+              <Typography variant="body2" color="text.secondary" component="span">חסום - ברשימה שחורה</Typography>
             </Box>
-          </Typography>
+          </Box>
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>

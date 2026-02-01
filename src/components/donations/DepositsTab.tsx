@@ -198,6 +198,32 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
     }
   }
 
+  // חישוב תאריך ההפקדה הראשונה בהפקדה מחזורית
+  const calculateFirstRecurringDepositDate = (recurringDay: number): string => {
+    const today = new Date()
+    const currentDay = today.getDate()
+    const currentMonth = today.getMonth()
+    const currentYear = today.getFullYear()
+    
+    // בדיקה אם היום קיים בחודש הנוכחי
+    const lastDayOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+    const effectiveDayThisMonth = Math.min(recurringDay, lastDayOfCurrentMonth)
+    
+    // אם היום בחודש עוד לא הגיע (והוא קיים בחודש הנוכחי) - ההפקדה תהיה החודש
+    if (effectiveDayThisMonth > currentDay) {
+      return `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(effectiveDayThisMonth).padStart(2, '0')}`
+    }
+    
+    // אם היום בחודש כבר עבר או שווה - ההפקדה תהיה בחודש הבא
+    // טיפול בחודשים קצרים (למשל 31 בפברואר)
+    const nextMonth = currentMonth + 1
+    const nextYear = nextMonth > 11 ? currentYear + 1 : currentYear
+    const adjustedMonth = nextMonth > 11 ? 0 : nextMonth
+    const lastDayOfNextMonth = new Date(nextYear, adjustedMonth + 1, 0).getDate()
+    const effectiveDay = Math.min(recurringDay, lastDayOfNextMonth)
+    return `${nextYear}-${String(adjustedMonth + 1).padStart(2, '0')}-${String(effectiveDay).padStart(2, '0')}`
+  }
+
   const handleSave = async () => {
     if (!selectedDepositor) {
       setSnackbar({ open: true, message: 'נא לבחור מפקיד תחילה', severity: 'error' })
@@ -221,6 +247,10 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
         ? formData.recurring_months + 1 
         : undefined
       
+      // חישוב סטטוס: אם תאריך ההפקדה בעתיד - מתוכננת, אחרת - פעילה
+      const today = new Date().toISOString().split('T')[0]
+      const status = formData.deposit_date > today ? 'planned' : 'active'
+      
       await db.run(
         'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
@@ -235,7 +265,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
           recurringDepositNumber,
           recurringDepositCount,
           formData.notes, 
-          'active', 
+          status,  // סטטוס מחושב
           paymentMethod.payment_method, 
           JSON.stringify(paymentMethod)
         ]
@@ -612,7 +642,18 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                 control={
                   <Checkbox
                     checked={formData.is_recurring === 1}
-                    onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked ? 1 : 0 })}
+                    onChange={(e) => {
+                      const isChecked = e.target.checked
+                      if (isChecked) {
+                        // כשמפעילים הפקדה מחזורית, מאתחלים את recurring_day ליום הנוכחי
+                        const today = new Date()
+                        const currentDay = today.getDate()
+                        const firstDepositDate = calculateFirstRecurringDepositDate(currentDay)
+                        setFormData({ ...formData, is_recurring: 1, recurring_day: currentDay, deposit_date: firstDepositDate })
+                      } else {
+                        setFormData({ ...formData, is_recurring: 0, deposit_date: new Date().toISOString().split('T')[0] })
+                      }
+                    }}
                   />
                 }
                 label="הפקדה מחזורית"
@@ -626,10 +667,20 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                     label="יום בחודש להפקדה"
                     type="number"
                     value={formData.recurring_day}
-                    onChange={(e) => setFormData({ ...formData, recurring_day: Math.min(31, Math.max(1, parseInt(e.target.value) || 1)) })}
+                    onChange={(e) => {
+                      const day = Math.min(31, Math.max(1, parseInt(e.target.value) || 1))
+                      const firstDepositDate = calculateFirstRecurringDepositDate(day)
+                      setFormData({ ...formData, recurring_day: day, deposit_date: firstDepositDate })
+                    }}
                     inputProps={{ min: 1, max: 31 }}
                     helperText="1-31"
                   />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Alert severity="info" sx={{ py: 0.5 }}>
+                    ההפקדה הראשונה תיווצר ב-{formatDisplayDate(formData.deposit_date, settings.date_format)}
+                    {formData.deposit_date > new Date().toISOString().split('T')[0] && ' (מתוכננת)'}
+                  </Alert>
                 </Grid>
                 <Grid item xs={12} md={3}>
                   <TextField
@@ -742,7 +793,9 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                         ) : '-'}
                       </TableCell>
                       <TableCell align="center">
-                        {deposit.status === 'active' ? (
+                        {deposit.status === 'planned' ? (
+                          <Typography color="info.main" fontWeight="bold">מתוכננת</Typography>
+                        ) : deposit.status === 'active' ? (
                           remaining === deposit.amount ? (
                             <Typography color="success.main" fontWeight="bold">פעילה</Typography>
                           ) : (

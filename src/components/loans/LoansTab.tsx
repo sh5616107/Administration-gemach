@@ -300,6 +300,32 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     }
   }
 
+  // חישוב תאריך ההלוואה הראשונה בהלוואה מחזורית
+  const calculateFirstRecurringLoanDate = (recurringDay: number): string => {
+    const today = new Date()
+    const currentDay = today.getDate()
+    const currentMonth = today.getMonth()
+    const currentYear = today.getFullYear()
+    
+    // בדיקה אם היום קיים בחודש הנוכחי
+    const lastDayOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+    const effectiveDayThisMonth = Math.min(recurringDay, lastDayOfCurrentMonth)
+    
+    // אם היום בחודש עוד לא הגיע (והוא קיים בחודש הנוכחי) - ההלוואה תהיה החודש
+    if (effectiveDayThisMonth > currentDay) {
+      return `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(effectiveDayThisMonth).padStart(2, '0')}`
+    }
+    
+    // אם היום בחודש כבר עבר או שווה - ההלוואה תהיה בחודש הבא
+    // טיפול בחודשים קצרים (למשל 31 בפברואר)
+    const nextMonth = currentMonth + 1
+    const nextYear = nextMonth > 11 ? currentYear + 1 : currentYear
+    const adjustedMonth = nextMonth > 11 ? 0 : nextMonth
+    const lastDayOfNextMonth = new Date(nextYear, adjustedMonth + 1, 0).getDate()
+    const effectiveDay = Math.min(recurringDay, lastDayOfNextMonth)
+    return `${nextYear}-${String(adjustedMonth + 1).padStart(2, '0')}-${String(effectiveDay).padStart(2, '0')}`
+  }
+
   const handleNewLoan = () => {
     setSelectedLoan(null)
     // Calculate default due date based on settings
@@ -1071,10 +1097,47 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       return
     }
 
-    // Run cross-check
-    const warnings = await checkGuarantorForLoan(guarantorId)
+    // בדיקה אם הערב הוא אותו אדם כמו הלווה
+    if (selectedBorrower) {
+      const guarantor = guarantors.find(g => g.id === guarantorId)
+      if (guarantor) {
+        // בדיקה לפי טלפון או ת.ז.
+        const borrowerPhone = (selectedBorrower as any).phone?.replace(/\D/g, '') || ''
+        const guarantorPhone = (guarantor as any).phone?.replace(/\D/g, '') || ''
+        const borrowerIdNumber = (selectedBorrower as any).id_number || ''
+        const guarantorIdNumber = (guarantor as any).id_number || ''
+        
+        const isSamePerson = 
+          (borrowerPhone && guarantorPhone && borrowerPhone === guarantorPhone) ||
+          (borrowerIdNumber && guarantorIdNumber && borrowerIdNumber === guarantorIdNumber)
+        
+        if (isSamePerson) {
+          setSnackbar({ 
+            open: true, 
+            message: 'לא ניתן לבחור את הלווה כערב להלוואה שלו עצמו', 
+            severity: 'error' 
+          })
+          return
+        }
+      }
+    }
+
+    // Run cross-check with borrower ID
+    const warnings = await checkGuarantorForLoan(guarantorId, selectedBorrower?.id)
     
     if (warnings.length > 0) {
+      // Check if there's a blocking error
+      const hasError = warnings.some(w => w.type === 'error')
+      if (hasError) {
+        setSnackbar({ 
+          open: true, 
+          message: warnings[0].message, 
+          severity: 'error' 
+        })
+        return
+      }
+      
+      // Only warnings - show dialog
       setCrossCheckWarnings(warnings)
       setPendingGuarantorId({ field, id: guarantorId })
       setCrossCheckDialogOpen(true)
@@ -1375,7 +1438,18 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                       control={
                         <Checkbox
                           checked={formData.is_recurring === 1}
-                          onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked ? 1 : 0 })}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked
+                            if (isChecked && !selectedLoan) {
+                              // כשמפעילים הלוואה מחזורית חדשה, מאתחלים את recurring_day ליום הנוכחי
+                              const today = new Date()
+                              const currentDay = today.getDate()
+                              const firstLoanDate = calculateFirstRecurringLoanDate(currentDay)
+                              setFormData({ ...formData, is_recurring: 1, recurring_day: currentDay, loan_date: firstLoanDate })
+                            } else {
+                              setFormData({ ...formData, is_recurring: isChecked ? 1 : 0 })
+                            }
+                          }}
                         />
                       }
                       label="הלוואה מחזורית"
@@ -1405,11 +1479,27 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                           label="יום בחודש"
                           type="number"
                           value={formData.recurring_day || ''}
-                          onChange={(e) => setFormData({ ...formData, recurring_day: Math.min(31, Math.max(1, parseInt(e.target.value) || 1)) })}
+                          onChange={(e) => {
+                            const day = Math.min(31, Math.max(1, parseInt(e.target.value) || 1))
+                            // חישוב תאריך ההלוואה הראשונה רק אם זו הלוואה חדשה (לא עריכה)
+                            if (!selectedLoan) {
+                              const firstLoanDate = calculateFirstRecurringLoanDate(day)
+                              setFormData({ ...formData, recurring_day: day, loan_date: firstLoanDate })
+                            } else {
+                              setFormData({ ...formData, recurring_day: day })
+                            }
+                          }}
                           inputProps={{ min: 1, max: 31 }}
                           helperText="1-31"
                         />
                       </Grid>
+                      {formData.is_recurring === 1 && formData.recurring_day && !selectedLoan && (
+                        <Grid item xs={12} md={3}>
+                          <Alert severity="info" sx={{ py: 0.5 }}>
+                            ההלוואה הראשונה תיווצר ב-{formatDisplayDate(formData.loan_date, settings.date_format)}
+                          </Alert>
+                        </Grid>
+                      )}
                     </>
                   )}
 

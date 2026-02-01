@@ -46,6 +46,7 @@ const menuItems = [
   { text: 'דף הבית', icon: <HomeIcon />, path: '/' },
   { text: 'לווים והלוואות', icon: <PeopleIcon />, path: '/loans' },
   { text: 'תרומות והפקדות', icon: <DonationIcon />, path: '/donations' },
+  { text: 'אנשי קשר', icon: <PersonIcon />, path: '/contacts' },
   { text: 'לוח שנה', icon: <CalendarIcon />, path: '/calendar' },
   { text: 'כלים מתקדמים', icon: <ToolsIcon />, path: '/tools' },
   { text: 'הגדרות', icon: <SettingsIcon />, path: '/settings' },

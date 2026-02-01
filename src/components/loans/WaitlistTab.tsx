@@ -58,6 +58,7 @@ import { borrowersService, waitlistService, type WaitlistEntry, statsService } f
 import { formatDisplayDate } from '../../utils/dateUtils'
 import { useSettings } from '../../hooks/useSettings'
 import AmountInput from '../AmountInput'
+import ExpectedFundsDialog from './ExpectedFundsDialog'
 
 interface Borrower {
   id: number
@@ -217,6 +218,8 @@ export default function WaitlistTab() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const [availableFunds, setAvailableFunds] = useState(0)
   const [expectedFunds, setExpectedFunds] = useState({ week: 0, month: 0, threeMonths: 0 })
+  const [expectedFundsDialogOpen, setExpectedFundsDialogOpen] = useState(false)
+  const [expectedFundsBreakdown, setExpectedFundsBreakdown] = useState<any>(null)
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -272,14 +275,15 @@ export default function WaitlistTab() {
 
   const calculateExpectedFunds = async () => {
     try {
-      const { loansService, db } = await import('../../services/database')
+      const { loansService, repaymentsService, db } = await import('../../services/database')
       const today = new Date()
+      today.setHours(0, 0, 0, 0)
       const oneWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
       const oneMonth = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
       const threeMonths = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
       
       const allLoans = await loansService.getAll()
-      const activeLoans = allLoans.filter(l => l.status === 'active' && l.due_date)
+      const activeLoans = allLoans.filter(l => l.status === 'active')
       
       let weekFunds = 0
       let monthFunds = 0
@@ -287,19 +291,53 @@ export default function WaitlistTab() {
       
       // חישוב כסף מהלוואות פעילות
       for (const loan of activeLoans) {
-        if (!loan.due_date) continue
-        const dueDate = new Date(loan.due_date)
         const remaining = loan.remaining || 0
+        if (remaining <= 0) continue
         
-        if (dueDate <= threeMonths) {
-          threeMonthsFunds += remaining
-          if (dueDate <= oneMonth) {
-            monthFunds += remaining
-            if (dueDate <= oneWeek) {
-              weekFunds += remaining
+        // רק הלוואות עם פירעון מחזורי או תאריך פירעון קבוע
+        if (loan.auto_repayment === 1 && loan.repayment_amount && loan.repayment_day) {
+          // הלוואות עם פירעון מחזורי
+          const monthlyAmount = loan.repayment_amount
+          
+          // בדיקת תקינות
+          if (monthlyAmount <= 0) {
+            console.warn(`Invalid repayment_amount for loan ${loan.id}: ${monthlyAmount}`)
+            continue
+          }
+          
+          // חישוב כמה פירעונים צפויים בכל תקופה
+          const paymentsInWeek = Math.min(1, Math.ceil(7 / 30)) // בערך 0-1 פירעונים
+          const paymentsInMonth = 1 // פירעון אחד בחודש
+          const paymentsInThreeMonths = 3 // 3 פירעונים ב-3 חודשים
+          
+          weekFunds += Math.min(paymentsInWeek * monthlyAmount, remaining)
+          monthFunds += Math.min(paymentsInMonth * monthlyAmount, remaining)
+          threeMonthsFunds += Math.min(paymentsInThreeMonths * monthlyAmount, remaining)
+        }
+        else if (loan.due_date) {
+          // הלוואות עם תאריך פירעון קבוע
+          const dueDate = new Date(loan.due_date)
+          
+          // בדיקת תקינות תאריך
+          if (isNaN(dueDate.getTime())) {
+            console.warn(`Invalid due_date for loan ${loan.id}: ${loan.due_date}`)
+            continue
+          }
+          
+          dueDate.setHours(0, 0, 0, 0)
+          
+          // רק אם תאריך הפירעון בטווח הזמן - נוסיף את כל היתרה
+          if (dueDate <= threeMonths) {
+            threeMonthsFunds += remaining
+            if (dueDate <= oneMonth) {
+              monthFunds += remaining
+              if (dueDate <= oneWeek) {
+                weekFunds += remaining
+              }
             }
           }
         }
+        // הלוואות גמישות - לא מחשבים כי אין ודאות מתי יפרעו
       }
       
       // חישוב כסף מהפקדות מחזוריות
@@ -310,26 +348,433 @@ export default function WaitlistTab() {
       
       for (const deposit of recurringDeposits) {
         const amount = deposit.amount || 0
+        const recurringDay = deposit.recurring_day || 1
         const recurringMonths = deposit.recurring_months || 1
         
-        // חישוב כמה הפקדות צפויות בכל טווח זמן
-        const daysInWeek = 7
-        const daysInMonth = 30
-        const daysInThreeMonths = 90
+        // בדיקות תקינות
+        if (amount <= 0) {
+          console.warn(`Invalid amount for deposit ${deposit.id}: ${amount}`)
+          continue
+        }
         
-        // הערכה פשוטה: כמה הפקדות צפויות בכל תקופה
-        const depositsInWeek = Math.floor(daysInWeek / (recurringMonths * 30))
-        const depositsInMonth = Math.floor(daysInMonth / (recurringMonths * 30))
-        const depositsInThreeMonths = Math.floor(daysInThreeMonths / (recurringMonths * 30))
+        if (recurringMonths <= 0) {
+          console.warn(`Invalid recurring_months for deposit ${deposit.id}: ${recurringMonths}`)
+          continue
+        }
         
-        weekFunds += depositsInWeek * amount
-        monthFunds += depositsInMonth * amount
-        threeMonthsFunds += depositsInThreeMonths * amount
+        // חישוב תאריכי הפקדות עתידיות
+        const nextDeposits: Date[] = []
+        let currentDate = new Date(deposit.deposit_date || today)
+        
+        // בדיקת תקינות תאריך
+        if (isNaN(currentDate.getTime())) {
+          console.warn(`Invalid deposit_date for deposit ${deposit.id}: ${deposit.deposit_date}`)
+          continue
+        }
+        
+        // מצא את ההפקדה הבאה
+        let iterations = 0
+        while (currentDate <= today && iterations < 100) {
+          currentDate.setMonth(currentDate.getMonth() + recurringMonths)
+          iterations++
+        }
+        
+        if (iterations >= 100) {
+          console.warn(`Too many iterations for deposit ${deposit.id}, skipping`)
+          continue
+        }
+        
+        // צור רשימה של הפקדות עתידיות עד 3 חודשים
+        while (currentDate <= threeMonths && nextDeposits.length < 10) {
+          nextDeposits.push(new Date(currentDate))
+          currentDate.setMonth(currentDate.getMonth() + recurringMonths)
+        }
+        
+        // חשב כמה הפקדות בכל טווח
+        for (const depositDate of nextDeposits) {
+          if (depositDate <= oneWeek) {
+            weekFunds += amount
+          }
+          if (depositDate <= oneMonth) {
+            monthFunds += amount
+          }
+          if (depositDate <= threeMonths) {
+            threeMonthsFunds += amount
+          }
+        }
+      }
+      
+      // גריעת הלוואות מחזוריות קיימות שטרם נוצרו
+      // (הלוואות מחזוריות שמחויבות לעתיד אבל עדיין לא נוצרו במערכת)
+      const recurringLoans = allLoans.filter(l => 
+        l.is_recurring === 1 && 
+        l.recurring_loan_number && 
+        l.recurring_loan_count &&
+        l.recurring_loan_number < l.recurring_loan_count
+      )
+      
+      for (const loan of recurringLoans) {
+        const currentNumber = loan.recurring_loan_number || 0
+        const totalCount = loan.recurring_loan_count || 0
+        const remainingLoans = totalCount - currentNumber
+        const loanAmount = loan.amount
+        
+        // בדיקות תקינות
+        if (loanAmount <= 0) {
+          console.warn(`Invalid amount for recurring loan ${loan.id}: ${loanAmount}`)
+          continue
+        }
+        
+        if (remainingLoans <= 0) {
+          console.warn(`Invalid remaining loans for loan ${loan.id}: ${remainingLoans}`)
+          continue
+        }
+        
+        // חישוב מתי ההלוואות הבאות צפויות להיווצר
+        if (loan.recurring_day && loan.recurring_months) {
+          const recurringMonths = loan.recurring_months || 1
+          
+          if (recurringMonths <= 0) {
+            console.warn(`Invalid recurring_months for loan ${loan.id}: ${recurringMonths}`)
+            continue
+          }
+          
+          // התחל מתאריך ההלוואה הנוכחית, לא מההלוואה הראשונה
+          let futureDate = new Date(loan.loan_date)
+          
+          // בדיקת תקינות תאריך
+          if (isNaN(futureDate.getTime())) {
+            console.warn(`Invalid loan_date for loan ${loan.id}: ${loan.loan_date}`)
+            continue
+          }
+          
+          // קפוץ קדימה לפי מספר ההלוואות שכבר נוצרו
+          for (let i = 0; i < currentNumber; i++) {
+            futureDate.setMonth(futureDate.getMonth() + recurringMonths)
+          }
+          
+          // עכשיו חשב את ההלוואות העתידיות
+          for (let i = 1; i <= remainingLoans; i++) {
+            futureDate = new Date(futureDate)
+            futureDate.setMonth(futureDate.getMonth() + recurringMonths)
+            
+            if (futureDate <= threeMonths) {
+              threeMonthsFunds -= loanAmount
+              if (futureDate <= oneMonth) {
+                monthFunds -= loanAmount
+                if (futureDate <= oneWeek) {
+                  weekFunds -= loanAmount
+                }
+              }
+            }
+          }
+        }
       }
       
       setExpectedFunds({ week: weekFunds, month: monthFunds, threeMonths: threeMonthsFunds })
     } catch (error) {
       console.error('Error calculating expected funds:', error)
+    }
+  }
+
+  const prepareExpectedFundsBreakdown = async () => {
+    try {
+      const { loansService, borrowersService, depositorsService, db } = await import('../../services/database')
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const oneWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const oneMonth = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const threeMonths = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
+      
+      const allLoans = await loansService.getAll()
+      const activeLoans = allLoans.filter(l => l.status === 'active')
+      const allBorrowers = await borrowersService.getAll()
+      
+      const loansWithDueDate: any[] = []
+      const loansWithAutoRepayment: any[] = []
+      const recurringDepositsBreakdown: any[] = []
+      const recurringLoansDeduction: any[] = []
+      
+      // הלוואות עם תאריך פירעון
+      for (const loan of activeLoans) {
+        if (loan.due_date && !loan.auto_repayment) {
+          const dueDate = new Date(loan.due_date)
+          dueDate.setHours(0, 0, 0, 0)
+          const borrower = allBorrowers.find(b => b.id === loan.borrower_id)
+          const borrowerName = borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע'
+          
+          let period: 'week' | 'month' | 'threeMonths' | null = null
+          if (dueDate <= oneWeek) period = 'week'
+          else if (dueDate <= oneMonth) period = 'month'
+          else if (dueDate <= threeMonths) period = 'threeMonths'
+          
+          if (period) {
+            loansWithDueDate.push({
+              id: loan.id,
+              borrower_name: borrowerName,
+              amount: loan.remaining || 0,
+              due_date: loan.due_date,
+              period
+            })
+          }
+        }
+      }
+      
+      // הלוואות עם פירעון מחזורי
+      for (const loan of activeLoans) {
+        if (loan.auto_repayment === 1 && loan.repayment_amount) {
+          const borrower = allBorrowers.find(b => b.id === loan.borrower_id)
+          const borrowerName = borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע'
+          const monthlyAmount = loan.repayment_amount
+          const remaining = loan.remaining || 0
+          
+          // שבוע
+          loansWithAutoRepayment.push({
+            id: loan.id,
+            borrower_name: borrowerName,
+            monthly_amount: monthlyAmount,
+            remaining,
+            period: 'week' as const,
+            expected_amount: Math.min(Math.ceil(7 / 30) * monthlyAmount, remaining)
+          })
+          
+          // חודש
+          loansWithAutoRepayment.push({
+            id: loan.id,
+            borrower_name: borrowerName,
+            monthly_amount: monthlyAmount,
+            remaining,
+            period: 'month' as const,
+            expected_amount: Math.min(monthlyAmount, remaining)
+          })
+          
+          // 3 חודשים
+          loansWithAutoRepayment.push({
+            id: loan.id,
+            borrower_name: borrowerName,
+            monthly_amount: monthlyAmount,
+            remaining,
+            period: 'threeMonths' as const,
+            expected_amount: Math.min(3 * monthlyAmount, remaining)
+          })
+        }
+      }
+      
+      // הפקדות מחזוריות
+      const recurringDeposits = await db.query(
+        'SELECT * FROM deposits WHERE is_recurring = 1 AND status = ?', 
+        ['active']
+      ) as any[]
+      
+      const allDepositors = await depositorsService.getAll()
+      
+      for (const deposit of recurringDeposits) {
+        const amount = deposit.amount || 0
+        const recurringMonths = deposit.recurring_months || 1
+        const depositor = allDepositors.find(d => d.id === deposit.depositor_id)
+        const depositorName = depositor ? `${depositor.first_name} ${depositor.last_name}` : 'לא ידוע'
+        
+        // בדיקות תקינות
+        if (amount <= 0) {
+          console.warn(`Invalid amount for deposit ${deposit.id}: ${amount}`)
+          continue
+        }
+        
+        if (recurringMonths <= 0) {
+          console.warn(`Invalid recurring_months for deposit ${deposit.id}: ${recurringMonths}`)
+          continue
+        }
+        
+        // חישוב תאריכי הפקדות עתידיות
+        const nextDeposits: string[] = []
+        let currentDate = new Date(deposit.deposit_date || today)
+        
+        // בדיקת תקינות תאריך
+        if (isNaN(currentDate.getTime())) {
+          console.warn(`Invalid deposit_date for deposit ${deposit.id}: ${deposit.deposit_date}`)
+          continue
+        }
+        
+        // מצא את ההפקדה הבאה
+        let iterations = 0
+        while (currentDate <= today && iterations < 100) {
+          currentDate.setMonth(currentDate.getMonth() + recurringMonths)
+          iterations++
+        }
+        
+        if (iterations >= 100) {
+          console.warn(`Too many iterations for deposit ${deposit.id}, skipping`)
+          continue
+        }
+        
+        // צור רשימה של הפקדות עתידיות עד 3 חודשים
+        while (currentDate <= threeMonths && nextDeposits.length < 10) {
+          nextDeposits.push(currentDate.toISOString().split('T')[0])
+          currentDate = new Date(currentDate)
+          currentDate.setMonth(currentDate.getMonth() + recurringMonths)
+        }
+        
+        if (nextDeposits.length > 0) {
+          const weekDates = nextDeposits.filter(d => new Date(d) <= oneWeek)
+          const monthDates = nextDeposits.filter(d => new Date(d) <= oneMonth)
+          
+          if (weekDates.length > 0) {
+            recurringDepositsBreakdown.push({
+              id: deposit.id,
+              depositor_name: depositorName,
+              amount,
+              next_dates: weekDates,
+              period: 'week' as const,
+              total_amount: weekDates.length * amount
+            })
+          }
+          
+          if (monthDates.length > 0) {
+            recurringDepositsBreakdown.push({
+              id: deposit.id,
+              depositor_name: depositorName,
+              amount,
+              next_dates: monthDates,
+              period: 'month' as const,
+              total_amount: monthDates.length * amount
+            })
+          }
+          
+          recurringDepositsBreakdown.push({
+            id: deposit.id,
+            depositor_name: depositorName,
+            amount,
+            next_dates: nextDeposits,
+            period: 'threeMonths' as const,
+            total_amount: nextDeposits.length * amount
+          })
+        }
+      }
+      
+      // הלוואות מחזוריות עתידיות - גריעה
+      for (const loan of activeLoans) {
+        if (loan.is_recurring === 1 && loan.recurring_loan_number && loan.recurring_loan_count &&
+            loan.recurring_loan_number < loan.recurring_loan_count && loan.recurring_months) {
+          const borrower = allBorrowers.find(b => b.id === loan.borrower_id)
+          const borrowerName = borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע'
+          const currentNumber = loan.recurring_loan_number || 0
+          const remainingLoans = loan.recurring_loan_count - currentNumber
+          const loanAmount = loan.amount
+          const recurringMonths = loan.recurring_months
+          
+          // בדיקות תקינות
+          if (loanAmount <= 0) {
+            console.warn(`Invalid amount for recurring loan ${loan.id}: ${loanAmount}`)
+            continue
+          }
+          
+          if (remainingLoans <= 0) {
+            console.warn(`Invalid remaining loans for loan ${loan.id}: ${remainingLoans}`)
+            continue
+          }
+          
+          if (recurringMonths <= 0) {
+            console.warn(`Invalid recurring_months for loan ${loan.id}: ${recurringMonths}`)
+            continue
+          }
+          
+          const futureDates: string[] = []
+          let futureDate = new Date(loan.loan_date)
+          
+          // בדיקת תקינות תאריך
+          if (isNaN(futureDate.getTime())) {
+            console.warn(`Invalid loan_date for loan ${loan.id}: ${loan.loan_date}`)
+            continue
+          }
+          
+          // קפוץ קדימה לפי מספר ההלוואות שכבר נוצרו
+          for (let i = 0; i < currentNumber; i++) {
+            futureDate.setMonth(futureDate.getMonth() + recurringMonths)
+          }
+          
+          // עכשיו חשב את ההלוואות העתידיות
+          for (let i = 1; i <= remainingLoans; i++) {
+            futureDate = new Date(futureDate)
+            futureDate.setMonth(futureDate.getMonth() + recurringMonths)
+            if (futureDate <= threeMonths) {
+              futureDates.push(futureDate.toISOString().split('T')[0])
+            }
+          }
+          
+          if (futureDates.length > 0) {
+            const weekDates = futureDates.filter(d => new Date(d) <= oneWeek)
+            const monthDates = futureDates.filter(d => new Date(d) <= oneMonth)
+            
+            if (weekDates.length > 0) {
+              recurringLoansDeduction.push({
+                id: loan.id,
+                borrower_name: borrowerName,
+                amount: loanAmount,
+                future_dates: weekDates,
+                period: 'week' as const,
+                total_deduction: weekDates.length * loanAmount
+              })
+            }
+            
+            if (monthDates.length > 0) {
+              recurringLoansDeduction.push({
+                id: loan.id,
+                borrower_name: borrowerName,
+                amount: loanAmount,
+                future_dates: monthDates,
+                period: 'month' as const,
+                total_deduction: monthDates.length * loanAmount
+              })
+            }
+            
+            recurringLoansDeduction.push({
+              id: loan.id,
+              borrower_name: borrowerName,
+              amount: loanAmount,
+              future_dates: futureDates,
+              period: 'threeMonths' as const,
+              total_deduction: futureDates.length * loanAmount
+            })
+          }
+        }
+      }
+      
+      // חישוב סיכומים
+      const totals = {
+        week: { income: 0, deduction: 0, net: 0 },
+        month: { income: 0, deduction: 0, net: 0 },
+        threeMonths: { income: 0, deduction: 0, net: 0 }
+      }
+      
+      loansWithDueDate.forEach(l => {
+        totals[l.period].income += l.amount
+      })
+      
+      loansWithAutoRepayment.forEach(l => {
+        totals[l.period].income += l.expected_amount
+      })
+      
+      recurringDepositsBreakdown.forEach(d => {
+        totals[d.period].income += d.total_amount
+      })
+      
+      recurringLoansDeduction.forEach(d => {
+        totals[d.period].deduction += d.total_deduction
+      })
+      
+      totals.week.net = totals.week.income - totals.week.deduction
+      totals.month.net = totals.month.income - totals.month.deduction
+      totals.threeMonths.net = totals.threeMonths.income - totals.threeMonths.deduction
+      
+      setExpectedFundsBreakdown({
+        loansWithDueDate,
+        loansWithAutoRepayment,
+        recurringDeposits: recurringDepositsBreakdown,
+        recurringLoansDeduction,
+        totals
+      })
+    } catch (error) {
+      console.error('Error preparing breakdown:', error)
     }
   }
 
@@ -563,6 +1008,18 @@ export default function WaitlistTab() {
               </Box>
             </Grid>
           </Grid>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                prepareExpectedFundsBreakdown()
+                setExpectedFundsDialogOpen(true)
+              }}
+            >
+              📊 הצג פירוט מלא
+            </Button>
+          </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
             * כולל פירעון הלוואות פעילות והפקדות מחזוריות צפויות
           </Typography>
@@ -716,6 +1173,18 @@ export default function WaitlistTab() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Expected Funds Breakdown Dialog */}
+      {expectedFundsBreakdown && (
+        <ExpectedFundsDialog
+          open={expectedFundsDialogOpen}
+          onClose={() => setExpectedFundsDialogOpen(false)}
+          breakdown={expectedFundsBreakdown}
+          formatCurrency={formatCurrency}
+          formatDisplayDate={formatDisplayDate}
+          dateFormat={settings.date_format}
+        />
+      )}
 
       {/* Snackbar */}
       <Snackbar

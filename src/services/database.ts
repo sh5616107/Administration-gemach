@@ -18,6 +18,7 @@ interface DataStore {
   guarantorLoanRepayments: Record<string, any>
   guarantorRefunds: Record<string, any>
   waitlist: Record<string, any>
+  contacts: Record<string, any>
 }
 
 const STORAGE_KEY = 'gemach_data_v1'
@@ -39,6 +40,7 @@ const defaultData: DataStore = {
   guarantorLoanRepayments: {},
   guarantorRefunds: {},
   waitlist: {},
+  contacts: {},
 }
 
 let data: DataStore = JSON.parse(JSON.stringify(defaultData))
@@ -122,6 +124,13 @@ function clearStore(storeName: keyof DataStore): void {
 // Database service
 export const db = {
   async query(sql: string, params?: unknown[]): Promise<unknown[]> {
+    if (sql.includes('FROM contacts')) {
+      const items = getAllItems<any>('contacts')
+      if (params && params.length > 0 && sql.includes('WHERE phone')) {
+        return items.filter(c => c.phone === params[0])
+      }
+      return items
+    }
     if (sql.includes('FROM donors')) {
       const items = getAllItems<any>('donors')
       if (params && params.length >= 3) {
@@ -141,12 +150,27 @@ export const db = {
     if (sql.includes('FROM deposits')) {
       const deposits = getAllItems<any>('deposits')
       const depositors = getAllItems<any>('depositors')
-      // אם יש פילטר לפי depositor_id
+      
+      let filtered = deposits
+      
+      // פילטר לפי depositor_id
       if (params && params.length > 0 && sql.includes('WHERE depositor_id')) {
-        const filtered = deposits.filter(d => d.depositor_id === params[0])
+        filtered = filtered.filter(d => d.depositor_id === params[0])
         return filtered.sort((a: any, b: any) => new Date(b.deposit_date).getTime() - new Date(a.deposit_date).getTime())
       }
-      return deposits.map(d => ({ ...d, depositor_name: depositors.find(dep => dep.id === d.depositor_id)?.first_name + ' ' + depositors.find(dep => dep.id === d.depositor_id)?.last_name || '' }))
+      
+      // פילטר לפי is_recurring
+      if (sql.includes('is_recurring = 1')) {
+        filtered = filtered.filter(d => d.is_recurring === 1)
+      }
+      
+      // פילטר לפי status
+      if (sql.includes('status = ?') && params && params.length > 0) {
+        const statusParam = params[params.length - 1] // הפרמטר האחרון הוא בדרך כלל ה-status
+        filtered = filtered.filter(d => d.status === statusParam)
+      }
+      
+      return filtered.map(d => ({ ...d, depositor_name: depositors.find(dep => dep.id === d.depositor_id)?.first_name + ' ' + depositors.find(dep => dep.id === d.depositor_id)?.last_name || '' }))
     }
     if (sql.includes('FROM donations')) {
       const donations = getAllItems<any>('donations')
@@ -169,6 +193,8 @@ export const db = {
     if (sql.includes('DELETE FROM deposits') && !sql.includes('WHERE')) { clearStore('deposits'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM depositors') && !sql.includes('WHERE')) { clearStore('depositors'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM depositors WHERE id') && params) { removeItem('depositors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM contacts') && !sql.includes('WHERE')) { clearStore('contacts'); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM contacts WHERE phone') && params) { removeItem('contacts', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('UPDATE depositors SET') && params) {
       const d = getItem<any>('depositors', String(params[7]));
       if (d) {
@@ -190,6 +216,49 @@ export const db = {
     if (sql.includes('DELETE FROM depositWithdrawals') && !sql.includes('WHERE')) { clearStore('depositWithdrawals'); return { lastInsertRowid: 0, changes: 1 } }
 
     if (sql.includes('INSERT INTO blacklist') && params) { const id = generateId('blacklist'); setItem('blacklist', String(id), { id, entity_type: params[0], entity_id: params[1], reason: params[2], added_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (sql.includes('INSERT INTO contacts') && params) { 
+      const phone = String(params[0])
+      setItem('contacts', phone, { 
+        phone: params[0], 
+        first_name: params[1], 
+        last_name: params[2], 
+        id_number: params[3], 
+        city: params[4], 
+        address: params[5], 
+        email: params[6], 
+        notes: params[7], 
+        tags: params[8] || '[]',
+        borrower_id: null,
+        guarantor_id: null,
+        donor_id: null,
+        depositor_id: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      return { lastInsertRowid: 0, changes: 1 } 
+    }
+    if (sql.includes('UPDATE contacts SET') && params) {
+      const phone = String(params[params.length - 1])
+      const c = getItem<any>('contacts', phone)
+      if (c) {
+        // עדכון כל השדות שנשלחו
+        if (params[0] !== undefined) c.first_name = params[0]
+        if (params[1] !== undefined) c.last_name = params[1]
+        if (params[2] !== undefined) c.id_number = params[2]
+        if (params[3] !== undefined) c.city = params[3]
+        if (params[4] !== undefined) c.address = params[4]
+        if (params[5] !== undefined) c.email = params[5]
+        if (params[6] !== undefined) c.notes = params[6]
+        if (params[7] !== undefined) c.tags = params[7]
+        if (params[8] !== undefined) c.borrower_id = params[8]
+        if (params[9] !== undefined) c.guarantor_id = params[9]
+        if (params[10] !== undefined) c.donor_id = params[10]
+        if (params[11] !== undefined) c.depositor_id = params[11]
+        c.updated_at = new Date().toISOString()
+        setItem('contacts', phone, c)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
     if (sql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (sql.includes('INSERT INTO donations') && params) { const id = generateId('donations'); setItem('donations', String(id), { id, donor_id: params[0], amount: params[1], donation_date: params[2], notes: params[3], payment_method: params[4] || '', payment_details: params[5] || '', created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (sql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
@@ -1046,6 +1115,113 @@ export const depositWithdrawalsService = {
   async getTotalWithdrawn(depositId: number): Promise<number> {
     const withdrawals = await this.getByDeposit(depositId)
     return withdrawals.reduce((sum, w) => sum + w.amount, 0)
+  }
+}
+
+// Contacts Service - אנשי קשר מאוחדים
+export interface Contact {
+  phone: string // מפתח ראשי
+  first_name: string
+  last_name: string
+  id_number?: string
+  city?: string
+  address?: string
+  email?: string
+  notes?: string
+  tags: string // JSON array
+  borrower_id?: number
+  guarantor_id?: number
+  donor_id?: number
+  depositor_id?: number
+  created_at: string
+  updated_at: string
+}
+
+export const contactsService = {
+  async getAll(): Promise<Contact[]> {
+    return getAllItems<Contact>('contacts').sort((a, b) => 
+      `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+    )
+  },
+  
+  async getByPhone(phone: string): Promise<Contact | null> {
+    return getItem<Contact>('contacts', phone)
+  },
+  
+  async search(term: string): Promise<Contact[]> {
+    const t = term.toLowerCase()
+    return (await this.getAll()).filter(c => 
+      c.first_name?.toLowerCase().includes(t) || 
+      c.last_name?.toLowerCase().includes(t) || 
+      c.phone?.includes(term) ||
+      c.id_number?.includes(term) ||
+      c.city?.toLowerCase().includes(t)
+    ).slice(0, 50) // הגבלה ל-50 תוצאות לביצועים
+  },
+  
+  async create(contact: Omit<Contact, 'created_at' | 'updated_at'>): Promise<{ phone: string }> {
+    const now = new Date().toISOString()
+    setItem('contacts', contact.phone, { 
+      ...contact, 
+      created_at: now,
+      updated_at: now
+    })
+    return { phone: contact.phone }
+  },
+  
+  async update(phone: string, data: Partial<Contact>): Promise<void> {
+    const existing = await this.getByPhone(phone)
+    if (existing) {
+      setItem('contacts', phone, { 
+        ...existing, 
+        ...data,
+        updated_at: new Date().toISOString()
+      })
+    }
+  },
+  
+  async delete(phone: string): Promise<void> {
+    removeItem('contacts', phone)
+  },
+  
+  async findByIdNumber(idNumber: string): Promise<Contact | null> {
+    const contacts = await this.getAll()
+    return contacts.find(c => c.id_number === idNumber) || null
+  },
+  
+  async addTag(phone: string, tag: string): Promise<void> {
+    const contact = await this.getByPhone(phone)
+    if (contact) {
+      const tags = JSON.parse(contact.tags || '[]')
+      if (!tags.includes(tag)) {
+        tags.push(tag)
+        await this.update(phone, { tags: JSON.stringify(tags) })
+      }
+    }
+  },
+  
+  async removeTag(phone: string, tag: string): Promise<void> {
+    const contact = await this.getByPhone(phone)
+    if (contact) {
+      const tags = JSON.parse(contact.tags || '[]')
+      const filtered = tags.filter((t: string) => t !== tag)
+      await this.update(phone, { tags: JSON.stringify(filtered) })
+    }
+  },
+  
+  async filterByRoles(roles: Array<'borrower' | 'guarantor' | 'donor' | 'depositor'>): Promise<Contact[]> {
+    const contacts = await this.getAll()
+    return contacts.filter(c => {
+      return roles.some(role => {
+        switch (role) {
+          case 'borrower': return c.borrower_id !== undefined && c.borrower_id !== null
+          case 'guarantor': return c.guarantor_id !== undefined && c.guarantor_id !== null
+          case 'donor': return c.donor_id !== undefined && c.donor_id !== null
+          case 'depositor': return c.depositor_id !== undefined && c.depositor_id !== null
+          default: return false
+        }
+      })
+    })
   }
 }
 

@@ -350,6 +350,7 @@ describe('checkRecurringDeposits', () => {
       amount: 2000,
       is_recurring: 1,
       recurring_day: 10, // היום!
+      recurring_months: 5, // יש עוד 5 הפקדות ליצור
       status: 'active',
       deposit_date: '2025-12-10',
     }
