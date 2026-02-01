@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -13,6 +14,7 @@ import {
   CircularProgress,
   Box,
   Typography,
+  TableSortLabel,
 } from '@mui/material'
 import { Close as CloseIcon } from '@mui/icons-material'
 
@@ -21,6 +23,8 @@ export interface ColumnDefinition<T> {
   label: string
   align?: 'left' | 'center' | 'right'
   format?: (item: T) => string | React.ReactNode
+  sortable?: boolean
+  sortValue?: (item: T) => string | number
 }
 
 export interface ItemsListDialogProps<T> {
@@ -34,6 +38,8 @@ export interface ItemsListDialogProps<T> {
   emptyMessage?: string
 }
 
+type SortOrder = 'asc' | 'desc'
+
 export default function ItemsListDialog<T extends Record<string, any>>({
   open,
   onClose,
@@ -44,6 +50,49 @@ export default function ItemsListDialog<T extends Record<string, any>>({
   loading = false,
   emptyMessage = 'אין פריטים להצגה',
 }: ItemsListDialogProps<T>) {
+  const [orderBy, setOrderBy] = useState<string | null>(null)
+  const [order, setOrder] = useState<SortOrder>('asc')
+
+  const handleSort = (columnId: string) => {
+    const isAsc = orderBy === columnId && order === 'asc'
+    setOrder(isAsc ? 'desc' : 'asc')
+    setOrderBy(columnId)
+  }
+
+  const sortedItems = useMemo(() => {
+    if (!orderBy) return items
+
+    const column = columns.find(col => col.id === orderBy)
+    if (!column) return items
+
+    return [...items].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      if (column.sortValue) {
+        aValue = column.sortValue(a)
+        bValue = column.sortValue(b)
+      } else {
+        aValue = a[column.id]
+        bValue = b[column.id]
+      }
+
+      // Handle null/undefined values
+      if (aValue == null) return 1
+      if (bValue == null) return -1
+
+      // Compare values
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue, 'he')
+        return order === 'asc' ? comparison : -comparison
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1
+      if (aValue > bValue) return order === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [items, orderBy, order, columns])
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -68,13 +117,29 @@ export default function ItemsListDialog<T extends Record<string, any>>({
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
                   {columns.map((column) => (
                     <TableCell key={column.id} align={column.align || 'left'}>
-                      {column.label}
+                      {column.sortable !== false ? (
+                        <TableSortLabel
+                          active={orderBy === column.id}
+                          direction={orderBy === column.id ? order : 'asc'}
+                          onClick={() => handleSort(column.id)}
+                          hideSortIcon={false}
+                          sx={{
+                            '& .MuiTableSortLabel-icon': {
+                              opacity: orderBy === column.id ? 1 : 0.3,
+                            },
+                          }}
+                        >
+                          {column.label}
+                        </TableSortLabel>
+                      ) : (
+                        column.label
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
               </TableHead>
               <TableBody>
-                {items.map((item, index) => (
+                {sortedItems.map((item, index) => (
                   <TableRow
                     key={index}
                     hover

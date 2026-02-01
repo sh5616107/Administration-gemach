@@ -27,6 +27,7 @@ import {
   Autocomplete,
   Alert,
   Snackbar,
+  TableSortLabel,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -220,6 +221,8 @@ export default function WaitlistTab() {
   const [expectedFunds, setExpectedFunds] = useState({ week: 0, month: 0, threeMonths: 0 })
   const [expectedFundsDialogOpen, setExpectedFundsDialogOpen] = useState(false)
   const [expectedFundsBreakdown, setExpectedFundsBreakdown] = useState<any>(null)
+  const [orderBy, setOrderBy] = useState<string | null>(null)
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -913,8 +916,75 @@ export default function WaitlistTab() {
     }).format(amount)
   }
 
+  const handleSort = (columnId: string) => {
+    const isAsc = orderBy === columnId && order === 'asc'
+    setOrder(isAsc ? 'desc' : 'asc')
+    setOrderBy(columnId)
+  }
+
+  const getSortedWaitlist = () => {
+    if (!orderBy) return waitlist
+
+    return [...waitlist].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      switch (orderBy) {
+        case 'position':
+          aValue = a.position
+          bValue = b.position
+          break
+        case 'borrower_name':
+          aValue = a.borrower_name
+          bValue = b.borrower_name
+          break
+        case 'requested_amount':
+          aValue = a.requested_amount
+          bValue = b.requested_amount
+          break
+        case 'request_date':
+          aValue = new Date(a.request_date).getTime()
+          bValue = new Date(b.request_date).getTime()
+          break
+        case 'loan_type':
+          aValue = a.loan_type
+          bValue = b.loan_type
+          break
+        case 'requested_months':
+          aValue = a.requested_months || 0
+          bValue = b.requested_months || 0
+          break
+        case 'priority':
+          aValue = a.priority === 'urgent' ? 0 : 1
+          bValue = b.priority === 'urgent' ? 0 : 1
+          break
+        case 'status':
+          aValue = a.status
+          bValue = b.status
+          break
+        default:
+          return 0
+      }
+
+      // Handle null/undefined values
+      if (aValue == null) return 1
+      if (bValue == null) return -1
+
+      // Compare values
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue, 'he')
+        return order === 'asc' ? comparison : -comparison
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1
+      if (aValue > bValue) return order === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
   const waitingEntries = waitlist.filter(e => e.status === 'waiting')
   const totalRequested = waitingEntries.reduce((sum, e) => sum + e.requested_amount, 0)
+  const sortedWaitlist = getSortedWaitlist()
 
   return (
     <Box>
@@ -1047,19 +1117,131 @@ export default function WaitlistTab() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell align="center" sx={{ fontWeight: 'bold' }}>מיקום</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>שם לווה</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold' }}>סכום מבוקש</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold' }}>תאריך בקשה</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold' }}>סוג הלוואה</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold' }}>תקופה</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold' }}>עדיפות</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold' }}>סטטוס</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'position'}
+                    direction={orderBy === 'position' ? order : 'asc'}
+                    onClick={() => handleSort('position')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'position' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    מיקום
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'borrower_name'}
+                    direction={orderBy === 'borrower_name' ? order : 'asc'}
+                    onClick={() => handleSort('borrower_name')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'borrower_name' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    שם לווה
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'requested_amount'}
+                    direction={orderBy === 'requested_amount' ? order : 'asc'}
+                    onClick={() => handleSort('requested_amount')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'requested_amount' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    סכום מבוקש
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'request_date'}
+                    direction={orderBy === 'request_date' ? order : 'asc'}
+                    onClick={() => handleSort('request_date')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'request_date' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    תאריך בקשה
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'loan_type'}
+                    direction={orderBy === 'loan_type' ? order : 'asc'}
+                    onClick={() => handleSort('loan_type')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'loan_type' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    סוג הלוואה
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'requested_months'}
+                    direction={orderBy === 'requested_months' ? order : 'asc'}
+                    onClick={() => handleSort('requested_months')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'requested_months' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    תקופה
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'priority'}
+                    direction={orderBy === 'priority' ? order : 'asc'}
+                    onClick={() => handleSort('priority')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'priority' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    עדיפות
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                    hideSortIcon={false}
+                    sx={{
+                      '& .MuiTableSortLabel-icon': {
+                        opacity: orderBy === 'status' ? 1 : 0.3,
+                      },
+                    }}
+                  >
+                    סטטוס
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell align="center" sx={{ fontWeight: 'bold' }}>פעולות</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {waitlist.length === 0 ? (
+              {sortedWaitlist.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} align="center">
                     <Typography color="textSecondary">אין בקשות בתור</Typography>
@@ -1067,10 +1249,10 @@ export default function WaitlistTab() {
                 </TableRow>
               ) : (
                 <SortableContext
-                  items={waitlist.map(item => item.id)}
+                  items={sortedWaitlist.map(item => item.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {waitlist.map((entry, index) => (
+                  {sortedWaitlist.map((entry, index) => (
                     <SortableRow
                       key={entry.id}
                       entry={entry}

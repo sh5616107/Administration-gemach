@@ -344,18 +344,21 @@ export default function Dashboard() {
       label: 'סכום הלוואה',
       align: 'center' as const,
       format: (loan: any) => formatCurrency(loan.amount),
+      sortValue: (loan: any) => loan.amount,
     },
     {
       id: 'remaining',
       label: 'יתרה',
       align: 'center' as const,
       format: (loan: any) => formatCurrency(loan.remaining || 0),
+      sortValue: (loan: any) => loan.remaining || 0,
     },
     {
       id: 'loan_date',
       label: 'תאריך',
       align: 'center' as const,
       format: (loan: any) => new Date(loan.loan_date).toLocaleDateString('he-IL'),
+      sortValue: (loan: any) => new Date(loan.loan_date).getTime(),
     },
   ]
 
@@ -370,12 +373,14 @@ export default function Dashboard() {
       label: 'סכום',
       align: 'center' as const,
       format: (loan: any) => formatCurrency(loan.amount),
+      sortValue: (loan: any) => loan.amount,
     },
     {
       id: 'loan_date',
       label: 'תאריך מתוכנן',
       align: 'center' as const,
       format: (loan: any) => new Date(loan.loan_date).toLocaleDateString('he-IL'),
+      sortValue: (loan: any) => new Date(loan.loan_date).getTime(),
     },
   ]
 
@@ -390,12 +395,14 @@ export default function Dashboard() {
       label: 'סכום',
       align: 'center' as const,
       format: (deposit: any) => formatCurrency(deposit.amount),
+      sortValue: (deposit: any) => deposit.amount,
     },
     {
       id: 'deposit_date',
       label: 'תאריך',
       align: 'center' as const,
       format: (deposit: any) => new Date(deposit.deposit_date).toLocaleDateString('he-IL'),
+      sortValue: (deposit: any) => new Date(deposit.deposit_date).getTime(),
     },
   ]
 
