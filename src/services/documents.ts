@@ -258,29 +258,29 @@ export function generateLoanDocument(data: LoanDocumentData) {
 
   // HTML להלוואה מחזורית - רק אם יש יותר מהלוואה אחת בסדרה
   const recurringLoanHtml = data.isRecurring && data.recurringLoanNumber && data.recurringLoanCount && data.recurringLoanCount > 1 ? `
-    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
-      <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
+    <div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 6px; border: 2px solid #2196f3;">
+      <p style="margin: 0; font-size: 16px; font-weight: bold; color: #1976d2;">
         🔄 הלוואה מחזורית - מספר ${data.recurringLoanNumber} מתוך ${data.recurringLoanCount}
       </p>
-      <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
+      <p style="margin: 3px 0 0 0; font-size: 13px; color: #555;">
         זוהי הלוואה מחזורית מספר ${data.recurringLoanNumber} שניתנה ללווה זה
       </p>
     </div>
   ` : ''
 
   const guarantorsHtml = (data.guarantor1Name || data.guarantor2Name) ? `
-    <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px;">
-      <div style="font-weight: bold; margin-bottom: 10px;">ערבים:</div>
+    <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 12px;">
+      <div style="font-weight: bold; margin-bottom: 8px;">ערבים:</div>
       ${data.guarantor1Name ? `
-        <div style="margin-bottom: 15px;">
+        <div style="margin-bottom: 10px;">
           <span>ערב 1: ${data.guarantor1Name}</span>
-          <span style="margin-right: 30px;">חתימה: _______________________</span>
+          <span style="margin-right: 20px;">חתימה: _______________________</span>
         </div>
       ` : ''}
       ${data.guarantor2Name ? `
         <div>
           <span>ערב 2: ${data.guarantor2Name}</span>
-          <span style="margin-right: 30px;">חתימה: _______________________</span>
+          <span style="margin-right: 20px;">חתימה: _______________________</span>
         </div>
       ` : ''}
     </div>
@@ -296,14 +296,14 @@ export function generateLoanDocument(data: LoanDocumentData) {
   
   // HTML לפירעונות
   const repaymentsHtml = data.repayments && data.repayments.length > 0 ? `
-    <div style="margin-top: 30px; padding: 15px; background: #e8f5e9; border-radius: 8px;">
-      <h3 style="margin: 0 0 15px 0; color: #2e7d32;">פירעונות שבוצעו:</h3>
-      <table style="width: 100%; border-collapse: collapse;">
+    <div style="margin-top: 20px; padding: 12px; background: #e8f5e9; border-radius: 6px;">
+      <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #2e7d32;">פירעונות שבוצעו:</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
         <thead>
           <tr style="background: #4caf50;">
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">תאריך פירעון</th>
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">סכום</th>
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">מחזורי</th>
+            <th style="padding: 6px; border: 1px solid #ddd; text-align: center; color: white;">תאריך פירעון</th>
+            <th style="padding: 6px; border: 1px solid #ddd; text-align: center; color: white;">סכום</th>
+            <th style="padding: 6px; border: 1px solid #ddd; text-align: center; color: white;">מחזורי</th>
           </tr>
         </thead>
         <tbody>
@@ -313,41 +313,41 @@ export function generateLoanDocument(data: LoanDocumentData) {
               : '-'
             return `
             <tr>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(r.amount)}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${formatCurrency(r.amount)}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
             </tr>
           `}).join('')}
           <tr style="background: #f1f8e9; font-weight: bold;">
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נפרע</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;" colspan="2">${formatCurrency(totalRepaid)}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">סה"כ נפרע</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;" colspan="2">${formatCurrency(totalRepaid)}</td>
           </tr>
         </tbody>
       </table>
-      <p style="margin-top: 15px; font-size: 18px; font-weight: bold; color: ${remaining > 0 ? '#d32f2f' : '#2e7d32'};">
+      <p style="margin-top: 10px; font-size: 16px; font-weight: bold; color: ${remaining > 0 ? '#d32f2f' : '#2e7d32'};">
         יתרת חוב: ${formatCurrency(remaining)}
       </p>
     </div>
   ` : ''
 
   const htmlContent = `
-    <div style="text-align: center; padding: 20px;">
+    <div style="text-align: center; padding: 15px; max-width: 800px; margin: 0 auto;">
       ${logoHtml}
-      <h1 style="font-size: 28px; margin: 10px 0;">שטר הלוואה</h1>
-      <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
+      <h1 style="font-size: 24px; margin: 8px 0;">שטר הלוואה</h1>
+      <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+      <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
       
       ${recurringLoanHtml}
       
-      <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>אני הח"מ <strong>${data.borrowerName}</strong></p>
-        <p>${commitmentText}</p>
-        <p style="font-size: 20px; margin: 20px 0;">
+      <div style="text-align: right; font-size: 15px; line-height: 1.6;">
+        <p style="margin: 8px 0;">אני הח"מ <strong>${data.borrowerName}</strong></p>
+        <p style="margin: 8px 0;">${commitmentText}</p>
+        <p style="font-size: 18px; margin: 15px 0;">
           סכום הלוואה מקורי: <strong>${formatCurrency(data.amount)}</strong>
         </p>
-        <p>בתאריך: <strong>${loanDateDisplay}</strong>${loanDateHebrew ? ` <span style="color: #666;">(${loanDateHebrew})</span>` : ''}</p>
-        <p style="margin-top: 20px;">
+        <p style="margin: 8px 0;">בתאריך: <strong>${loanDateDisplay}</strong>${loanDateHebrew ? ` <span style="color: #666;">(${loanDateHebrew})</span>` : ''}</p>
+        <p style="margin: 8px 0;">
           ${data.loanType === 'fixed' && dueDateDisplay 
             ? `תאריך החזרה: <strong>${dueDateDisplay}</strong>${dueDateHebrew ? ` <span style="color: #666;">(${dueDateHebrew})</span>` : ''}`
             : 'החזרה: לפי התראה'
@@ -357,17 +357,17 @@ export function generateLoanDocument(data: LoanDocumentData) {
       
       ${repaymentsHtml}
       
-      <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
+      <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;" />
       
-      <div style="text-align: right; margin-top: 30px;">
-        <p>חתימת הלווה: _______________________</p>
+      <div style="text-align: right; margin-top: 20px;">
+        <p style="margin: 8px 0;">חתימת הלווה: _______________________</p>
       </div>
       
       ${guarantorsHtml}
       
-      <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
+      <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;" />
       
-      <div style="text-align: right; font-size: 12px; color: #666;">
+      <div style="text-align: right; font-size: 11px; color: #666;">
         תאריך הפקת השטר: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
       </div>
     </div>

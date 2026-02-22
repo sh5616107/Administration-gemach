@@ -649,10 +649,11 @@ export default function Settings() {
               <TextField
                 fullWidth
                 multiline
-                rows={3}
+                rows={2}
                 value={localSettings.loan_document_text}
                 onChange={(e) => setLocalSettings({ ...localSettings, loan_document_text: e.target.value })}
                 placeholder="מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע."
+                helperText="מומלץ לשמור על נוסח קצר (עד 2 שורות) כדי שהשטר יישאר בדף אחד"
                 sx={{ mb: 3 }}
               />
               
@@ -667,10 +668,11 @@ export default function Settings() {
               <TextField
                 fullWidth
                 multiline
-                rows={3}
+                rows={2}
                 value={localSettings.deposit_document_text}
                 onChange={(e) => setLocalSettings({ ...localSettings, deposit_document_text: e.target.value })}
                 placeholder="ואני מתחייב להחזיר את הסכום בתנאים שנקבעו."
+                helperText="מומלץ לשמור על נוסח קצר (עד 2 שורות) כדי שהשטר יישאר בדף אחד"
                 sx={{ mb: 2 }}
               />
               
