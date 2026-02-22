@@ -21,6 +21,7 @@ import {
   loansService,
   repaymentsService,
   contactsService as dbContactsService,
+  depositWithdrawalsService,
   Borrower,
   Guarantor,
   Loan
