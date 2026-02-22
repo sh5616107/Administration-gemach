@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Suppress React Router v7 warnings
@@ -7,23 +7,35 @@ const routerFutureConfig = {
   v7_startTransition: true,
   v7_relativeSplatPath: true,
 }
-import { Box } from '@mui/material'
+import { Box, CircularProgress } from '@mui/material'
 import Layout from './components/Layout'
 import LockScreen from './components/LockScreen'
-import Dashboard from './pages/Dashboard'
-import LoansManagement from './pages/LoansManagement'
-import DonationsDeposits from './pages/DonationsDeposits'
-import Calendar from './pages/Calendar'
-import Contacts from './pages/Contacts'
-import AdvancedTools from './pages/AdvancedTools'
-import Settings from './pages/Settings'
-import Help from './pages/Help'
+
+// Lazy load pages for better performance
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const LoansManagement = lazy(() => import('./pages/LoansManagement'))
+const Donations = lazy(() => import('./pages/Donations'))
+const Deposits = lazy(() => import('./pages/Deposits'))
+const Calendar = lazy(() => import('./pages/Calendar'))
+const Contacts = lazy(() => import('./pages/Contacts'))
+const AdvancedTools = lazy(() => import('./pages/AdvancedTools'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Help = lazy(() => import('./pages/Help'))
+
 import { exportAllData } from './services/database'
 import { isProtectionEnabled, checkAuthenticated } from './services/protection'
 import { runPendingMigrations } from './services/migrations'
 import localforage from 'localforage'
 
 const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
+
+// Loading component
+const PageLoader = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', flexDirection: 'column', gap: 2 }}>
+    <CircularProgress size={60} />
+    <Box sx={{ fontSize: '1.2rem', color: 'text.secondary' }}>טוען...</Box>
+  </Box>
+)
 
 // Auto backup function
 async function checkAutoBackup() {
@@ -132,16 +144,19 @@ function App() {
     <BrowserRouter future={routerFutureConfig}>
       <Box sx={{ display: 'flex', minHeight: '100vh' }}>
         <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/loans/*" element={<LoansManagement />} />
-            <Route path="/donations" element={<DonationsDeposits />} />
-            <Route path="/contacts" element={<Contacts />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/tools" element={<AdvancedTools />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/help" element={<Help />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/loans/*" element={<LoansManagement />} />
+              <Route path="/donations" element={<Donations />} />
+              <Route path="/deposits" element={<Deposits />} />
+              <Route path="/contacts" element={<Contacts />} />
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/tools" element={<AdvancedTools />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/help" element={<Help />} />
+            </Routes>
+          </Suspense>
         </Layout>
       </Box>
     </BrowserRouter>

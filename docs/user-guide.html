@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מדריך משתמש - מערכת ניהול גמ"ח</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        nav {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 3px solid #667eea;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        nav a {
+            text-decoration: none;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 25px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        
+        nav a:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        section {
+            margin-bottom: 60px;
+            scroll-margin-top: 80px;
+        }
+        
+        h2 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        
+        h3 {
+            color: #764ba2;
+            font-size: 1.5em;
+            margin: 30px 0 15px 0;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        
+        .screenshot-placeholder {
+            background: #f8f9fa;
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            margin: 20px 0;
+            text-align: center;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .screenshot-placeholder .icon {
+            font-size: 4em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        
+        .screenshot-placeholder h4 {
+            color: #667eea;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+        
+        .screenshot-placeholder p {
+            color: #666;
+            font-size: 0.95em;
+            max-width: 600px;
+        }
+        
+        .feature-list {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        
+        .feature-list ul {
+            list-style: none;
+            padding-right: 20px;
+        }
+        
+        .feature-list li {
+            padding: 8px 0;
+            position: relative;
+        }
+        
+        .feature-list li:before {
+            content: "✓";
+            color: #667eea;
+            font-weight: bold;
+            position: absolute;
+            right: -20px;
+        }
+        
+        .tip-box {
+            background: #fff3cd;
+            border-right: 5px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .tip-box strong {
+            color: #856404;
+        }
+        
+        .warning-box {
+            background: #f8d7da;
+            border-right: 5px solid #dc3545;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .warning-box strong {
+            color: #721c24;
+        }
+        
+        footer {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 30px;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            nav {
+                display: none;
+            }
+            
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>📚 מדריך משתמש מלא</h1>
+            <p>מערכת ניהול גמ"ח - גרסה 3.8.0</p>
+        </header>
+        
+        <nav>
+            <ul>
+                <li><a href="#intro">מבוא</a></li>
+                <li><a href="#dashboard">לוח בקרה</a></li>
+                <li><a href="#loans">הלוואות</a></li>
+                <li><a href="#donations">תרומות</a></li>
+                <li><a href="#deposits">הפקדות</a></li>
+                <li><a href="#contacts">אנשי קשר</a></li>
+                <li><a href="#calendar">לוח שנה</a></li>
+                <li><a href="#tools">כלים מתקדמים</a></li>
+                <li><a href="#settings">הגדרות</a></li>
+            </ul>
+        </nav>
+        
+        <div class="content">
+            <!-- מבוא -->
+            <section id="intro">
+                <h2>🎯 מבוא למערכת</h2>
+                
+                <p>
+                    ברוכים הבאים למערכת ניהול הגמ"ח המתקדמת! מערכת זו תוכננה במיוחד לניהול יעיל ומקצועי של גמ"חים,
+                    עם דגש על קלות שימוש, אבטחת מידע ויכולות דיווח מתקדמות.
+                </p>
+                
+                <div class="feature-list">
+                    <h3>תכונות עיקריות של המערכת:</h3>
+                    <ul>
+                        <li>ניהול הלוואות מלא - מעקב אחר לווים, ערבים, החזרים ותשלומים</li>
+                        <li>ניהול תרומות והפקדות - מעקב אחר תורמים, מפקידים ותנועות כספיות</li>
+                        <li>לוח שנה אינטראקטיבי - תצוגה ויזואלית של כל האירועים</li>
+                        <li>דוחות מתקדמים - יצירת דוחות PDF ושליחה במייל</li>
+                        <li>גיבוי אוטומטי - שמירת המידע באופן אוטומטי</li>
+                        <li>אבטחת מידע - הגנה בסיסמה ונעילת מסך</li>
+                        <li>ממשק דו-לשוני - תמיכה בעברית ואנגלית</li>
+                    </ul>
+                </div>
+
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 1: מסך הכניסה למערכת</h4>
+                    <p>צלם את מסך הכניסה הראשוני של המערכת, כולל לוגו ושדות התחברות (אם קיימים)</p>
+                </div>
+                
+                <div class="tip-box">
+                    <strong>💡 טיפ:</strong> מומלץ להגדיר סיסמה למערכת בהגדרות כדי להגן על המידע הרגיש.
+                </div>
+            </section>
+            
+            <!-- לוח בקרה -->
+            <section id="dashboard">
+                <h2>📊 לוח הבקרה</h2>
+                
+                <p>
+                    לוח הבקרה הוא המסך הראשי של המערכת, המציג סקירה כללית של כל הפעילות בגמ"ח.
+                    כאן תוכלו לראות במבט חטוף את המצב הכספי, הלוואות פעילות, התראות ועוד.
+                </p>
+                
+                <h3>סטטיסטיקות ראשיות</h3>
+                <p>
+                    בחלק העליון של לוח הבקרה מוצגות 4 כרטיסיות עם הנתונים החשובים ביותר:
+                </p>
+                
+                <div class="feature-list">
+                    <ul>
+                        <li><strong>סך הלוואות פעילות</strong> - סכום כולל של כל ההלוואות שטרם הוחזרו במלואן</li>
+                        <li><strong>סך תרומות</strong> - סכום כולל של כל התרומות שהתקבלו</li>
+                        <li><strong>סך הפקדות</strong> - סכום כולל של כל ההפקדות הפעילות</li>
+                        <li><strong>יתרת קופה</strong> - חישוב אוטומטי: תרומות + הפקדות - הלוואות פעילות</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 2: לוח הבקרה המלא</h4>
+                    <p>צלם את לוח הבקרה כולל הכרטיסיות הסטטיסטיות, הגרפים והטבלאות</p>
+                </div>
+
+                
+                <h3>התראות ותזכורות</h3>
+                <p>
+                    המערכת מציגה התראות אוטומטיות על אירועים חשובים:
+                </p>
+                <div class="feature-list">
+                    <ul>
+                        <li>הלוואות שמועד ההחזרה שלהן עבר</li>
+                        <li>הלוואות שמועד ההחזרה שלהן מתקרב (7 ימים)</li>
+                        <li>הפקדות שמועד המשיכה שלהן הגיע</li>
+                        <li>לווים ברשימה שחורה</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 3: חלון התראות</h4>
+                    <p>צלם את חלון ההתראות כשהוא פתוח, מציג התראות שונות</p>
+                </div>
+            </section>
+            
+            <!-- הלוואות -->
+            <section id="loans">
+                <h2>💰 ניהול הלוואות</h2>
+                
+                <p>
+                    מודול ההלוואות הוא הלב של המערכת, ומאפשר ניהול מלא של כל תהליך ההלוואה -
+                    מרישום הלווה, דרך מתן ההלוואה, מעקב אחר החזרים ועד לסגירת ההלוואה.
+                </p>
+                
+                <h3>טאב לווים</h3>
+                <p>
+                    בטאב זה ניתן לראות רשימה של כל הלווים במערכת, להוסיף לווים חדשים ולערוך פרטים קיימים.
+                </p>
+                
+                <div class="feature-list">
+                    <h4>פעולות זמינות:</h4>
+                    <ul>
+                        <li>הוספת לווה חדש - כולל שם, טלפון, כתובת, תעודת זהות</li>
+                        <li>עריכת פרטי לווה קיים</li>
+                        <li>צפייה בהיסטוריית הלוואות של הלווה</li>
+                        <li>הוספה/הסרה מרשימה שחורה</li>
+                        <li>יצירת דוח PDF על פעילות הלווה</li>
+                    </ul>
+                </div>
+
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 4: טאב לווים</h4>
+                    <p>צלם את טאב הלווים כולל הטבלה עם רשימת הלווים והכפתורים</p>
+                </div>
+                
+                <h3>טאב הלוואות</h3>
+                <p>
+                    כאן מנוהלות ההלוואות עצמן - רישום הלוואה חדשה, מעקב אחר הלוואות פעילות,
+                    רישום החזרים וסגירת הלוואות.
+                </p>
+                
+                <div class="feature-list">
+                    <h4>מידע על הלוואה:</h4>
+                    <ul>
+                        <li>סכום ההלוואה</li>
+                        <li>תאריך מתן ההלוואה</li>
+                        <li>תאריך החזרה צפוי</li>
+                        <li>אמצעי תשלום (מזומן/צ'ק/העברה בנקאית)</li>
+                        <li>ערבים (אפשרות להוסיף עד 3 ערבים)</li>
+                        <li>הערות</li>
+                        <li>סטטוס (פעיל/הוחזר/באיחור)</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 5: טופס הוספת הלוואה חדשה</h4>
+                    <p>צלם את הדיאלוג של הוספת הלוואה חדשה עם כל השדות</p>
+                </div>
+                
+                <h3>רישום החזרים</h3>
+                <p>
+                    המערכת מאפשרת לרשום החזרים חלקיים או מלאים. בעת רישום החזר, המערכת מעדכנת
+                    אוטומטית את יתרת החוב ואת סטטוס ההלוואה.
+                </p>
+                
+                <div class="tip-box">
+                    <strong>💡 טיפ:</strong> ניתן לרשום מספר החזרים להלוואה אחת, והמערכת תעקוב אחר היתרה הנותרת.
+                </div>
+
+                
+                <h3>טאב ערבים</h3>
+                <p>
+                    ניהול מאגר הערבים של הגמ"ח. כל ערב יכול לערוב למספר הלוואות, והמערכת
+                    מעקבת אחר סך החוב שהוא ערב לו.
+                </p>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 6: טאב ערבים</h4>
+                    <p>צלם את טאב הערבים כולל הטבלה עם פרטי הערבים וסכומי הערבויות</p>
+                </div>
+                
+                <h3>טאב רשימת המתנה</h3>
+                <p>
+                    כאשר אין מספיק כסף בקופה להעניק הלוואה, ניתן להוסיף את הבקשה לרשימת המתנה.
+                    המערכת תתריע כאשר יהיה מספיק כסף זמין.
+                </p>
+                
+                <div class="warning-box">
+                    <strong>⚠️ שים לב:</strong> המערכת בודקת אוטומטית את יתרת הקופה לפני מתן הלוואה חדשה.
+                </div>
+            </section>
+            
+            <!-- תרומות -->
+            <section id="donations">
+                <h2>🎁 ניהול תרומות</h2>
+                
+                <p>
+                    מודול התרומות מנהל את כל התרומות שמתקבלות בגמ"ח, כולל מעקב אחר תורמים
+                    ויצירת דוחות מפורטים.
+                </p>
+                
+                <h3>טאב תורמים</h3>
+                <p>
+                    רשימת כל התורמים לגמ"ח, כולל פרטי קשר והיסטוריית תרומות.
+                </p>
+                
+                <div class="feature-list">
+                    <h4>פעולות זמינות:</h4>
+                    <ul>
+                        <li>הוספת תורם חדש</li>
+                        <li>עריכת פרטי תורם</li>
+                        <li>צפייה בהיסטוריית תרומות</li>
+                        <li>יצירת דוח תורם (PDF)</li>
+                        <li>שליחת דוח במייל</li>
+                    </ul>
+                </div>
+
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 7: טאב תורמים</h4>
+                    <p>צלם את טאב התורמים כולל הטבלה והכפתורים</p>
+                </div>
+                
+                <h3>טאב תרומות</h3>
+                <p>
+                    רישום תרומות חדשות ומעקב אחר כל התרומות שהתקבלו.
+                </p>
+                
+                <div class="feature-list">
+                    <h4>מידע על תרומה:</h4>
+                    <ul>
+                        <li>תורם (בחירה מרשימת התורמים)</li>
+                        <li>סכום התרומה</li>
+                        <li>תאריך קבלת התרומה</li>
+                        <li>אמצעי תשלום</li>
+                        <li>הערות</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 8: טופס הוספת תרומה</h4>
+                    <p>צלם את הדיאלוג של הוספת תרומה חדשה</p>
+                </div>
+                
+                <div class="tip-box">
+                    <strong>💡 טיפ:</strong> ניתן ליצור דוח שנתי לתורם עם כל התרומות שלו לצורכי מס.
+                </div>
+            </section>
+            
+            <!-- הפקדות -->
+            <section id="deposits">
+                <h2>🏦 ניהול הפקדות</h2>
+                
+                <p>
+                    מודול ההפקדות מנהל כספים שהופקדו בגמ"ח על ידי מפקידים, כולל מעקב אחר
+                    תאריכי משיכה ותשלום ריבית (אם רלוונטי).
+                </p>
+
+                
+                <h3>טאב מפקידים</h3>
+                <p>
+                    רשימת כל המפקידים בגמ"ח, כולל פרטי קשר והיסטוריית הפקדות.
+                </p>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 9: טאב מפקידים</h4>
+                    <p>צלם את טאב המפקידים כולל הטבלה</p>
+                </div>
+                
+                <h3>טאב הפקדות</h3>
+                <p>
+                    רישום הפקדות חדשות, מעקב אחר הפקדות פעילות ורישום משיכות.
+                </p>
+                
+                <div class="feature-list">
+                    <h4>מידע על הפקדה:</h4>
+                    <ul>
+                        <li>מפקיד (בחירה מרשימת המפקידים)</li>
+                        <li>סכום ההפקדה</li>
+                        <li>תאריך ההפקדה</li>
+                        <li>תאריך משיכה צפוי</li>
+                        <li>אחוז ריבית (אופציונלי)</li>
+                        <li>אמצעי תשלום</li>
+                        <li>סטטוס (פעיל/נמשך)</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 10: טופס הוספת הפקדה</h4>
+                    <p>צלם את הדיאלוג של הוספת הפקדה חדשה</p>
+                </div>
+                
+                <h3>המרת הפקדה לתרומה</h3>
+                <p>
+                    המערכת מאפשרת להמיר הפקדה קיימת לתרומה במקרה שהמפקיד מוותר על ההפקדה.
+                    פעולה זו מעבירה את ההפקדה למודול התרומות.
+                </p>
+                
+                <div class="warning-box">
+                    <strong>⚠️ שים לב:</strong> המרת הפקדה לתרומה היא פעולה בלתי הפיכה!
+                </div>
+            </section>
+
+            
+            <!-- אנשי קשר -->
+            <section id="contacts">
+                <h2>👥 ניהול אנשי קשר</h2>
+                
+                <p>
+                    מודול אנשי הקשר מרכז את כל האנשים במערכת - לווים, תורמים, מפקידים וערבים.
+                    כאן ניתן לראות תצוגה מאוחדת של כל הפעילות של כל איש קשר.
+                </p>
+                
+                <div class="feature-list">
+                    <h4>תכונות מיוחדות:</h4>
+                    <ul>
+                        <li>חיפוש מהיר לפי שם, טלפון או תעודת זהות</li>
+                        <li>סינון לפי סוג איש קשר (לווה/תורם/מפקיד/ערב)</li>
+                        <li>ציר זמן של פעילות - כל ההלוואות, תרומות והפקדות במקום אחד</li>
+                        <li>קישור אנשי קשר כפולים</li>
+                        <li>ייצוא רשימת אנשי קשר</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 11: עמוד אנשי קשר</h4>
+                    <p>צלם את עמוד אנשי הקשר כולל הטבלה, חיפוש וסינונים</p>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 12: חלון פרטי איש קשר</h4>
+                    <p>צלם את חלון הפרטים של איש קשר כולל ציר הזמן של הפעילות</p>
+                </div>
+            </section>
+            
+            <!-- לוח שנה -->
+            <section id="calendar">
+                <h2>📅 לוח שנה</h2>
+                
+                <p>
+                    לוח השנה מציג תצוגה ויזואלית של כל האירועים בגמ"ח - הלוואות, תרומות,
+                    הפקדות, תאריכי החזרה ותאריכי משיכה.
+                </p>
+
+                
+                <div class="feature-list">
+                    <h4>תכונות לוח השנה:</h4>
+                    <ul>
+                        <li>תצוגה חודשית עם אינדיקטורים צבעוניים</li>
+                        <li>מקרא צבעים - כל סוג אירוע בצבע שונה</li>
+                        <li>חיפוש לפי תאריך</li>
+                        <li>חיפוש מתקדם לפי סוג אירוע, סכום, איש קשר</li>
+                        <li>לחיצה על יום מציגה את כל האירועים באותו יום</li>
+                        <li>ניווט בין חודשים</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 13: לוח השנה</h4>
+                    <p>צלם את לוח השנה כולל המקרא והאירועים</p>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 14: חיפוש מתקדם בלוח השנה</h4>
+                    <p>צלם את חלון החיפוש המתקדם עם כל האפשרויות</p>
+                </div>
+                
+                <div class="tip-box">
+                    <strong>💡 טיפ:</strong> השתמש בלוח השנה כדי לתכנן מראש את תזרים המזומנים של הגמ"ח.
+                </div>
+            </section>
+            
+            <!-- כלים מתקדמים -->
+            <section id="tools">
+                <h2>🔧 כלים מתקדמים</h2>
+                
+                <p>
+                    מודול הכלים המתקדמים מכיל פונקציות ניהול מערכת, גיבוי, ייבוא וייצוא נתונים.
+                </p>
+                
+                <h3>גיבוי ושחזור</h3>
+                <div class="feature-list">
+                    <ul>
+                        <li><strong>גיבוי ידני</strong> - יצירת קובץ גיבוי מלא של כל הנתונים</li>
+                        <li><strong>שחזור מגיבוי</strong> - טעינת נתונים מקובץ גיבוי קודם</li>
+                        <li><strong>גיבוי אוטומטי</strong> - המערכת יוצרת גיבוי אוטומטי מדי יום</li>
+                    </ul>
+                </div>
+
+                
+                <h3>ייבוא מאקסל</h3>
+                <p>
+                    ניתן לייבא נתונים מקובץ Excel, כולל לווים, תורמים, מפקידים והלוואות.
+                    המערכת תזהה אוטומטית את העמודות ותמפה אותן לשדות המתאימים.
+                </p>
+                
+                <div class="warning-box">
+                    <strong>⚠️ שים לב:</strong> לפני ייבוא נתונים, מומלץ ליצור גיבוי של המערכת!
+                </div>
+                
+                <h3>בדיקת תקינות</h3>
+                <p>
+                    כלי לבדיקת תקינות הנתונים במערכת - זיהוי רשומות כפולות, אי התאמות
+                    בחישובים ובעיות אחרות.
+                </p>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 15: עמוד כלים מתקדמים</h4>
+                    <p>צלם את עמוד הכלים המתקדמים עם כל האפשרויות</p>
+                </div>
+            </section>
+            
+            <!-- הגדרות -->
+            <section id="settings">
+                <h2>⚙️ הגדרות</h2>
+                
+                <p>
+                    בעמוד ההגדרות ניתן להתאים את המערכת לצרכים שלך.
+                </p>
+                
+                <h3>הגדרות כלליות</h3>
+                <div class="feature-list">
+                    <ul>
+                        <li><strong>שם הגמ"ח</strong> - יופיע בדוחות ובמסמכים</li>
+                        <li><strong>שפת ממשק</strong> - עברית או אנגלית</li>
+                        <li><strong>מטבע</strong> - ₪ או $</li>
+                        <li><strong>פורמט תאריך</strong> - DD/MM/YYYY או MM/DD/YYYY</li>
+                    </ul>
+                </div>
+
+                
+                <h3>הגדרות אבטחה</h3>
+                <div class="feature-list">
+                    <ul>
+                        <li><strong>הגדרת סיסמה</strong> - הגנה על המערכת בסיסמה</li>
+                        <li><strong>נעילה אוטומטית</strong> - נעילת המסך אחרי זמן חוסר פעילות</li>
+                        <li><strong>גיבוי אוטומטי</strong> - הפעלה/כיבוי של גיבוי אוटומטי יומי</li>
+                    </ul>
+                </div>
+                
+                <h3>הגדרות התראות</h3>
+                <div class="feature-list">
+                    <ul>
+                        <li><strong>התראות על הלוואות באיחור</strong></li>
+                        <li><strong>התראות על הלוואות מתקרבות</strong> - כמה ימים מראש</li>
+                        <li><strong>התראות על הפקדות</strong></li>
+                        <li><strong>התראות על יתרת קופה נמוכה</strong></li>
+                    </ul>
+                </div>
+                
+                <h3>הגדרות דוחות</h3>
+                <div class="feature-list">
+                    <ul>
+                        <li><strong>לוגו הגמ"ח</strong> - העלאת לוגו שיופיע בדוחות PDF</li>
+                        <li><strong>פרטי קשר</strong> - כתובת, טלפון, אימייל לדוחות</li>
+                        <li><strong>הגדרות מייל</strong> - שרת SMTP לשליחת דוחות במייל</li>
+                    </ul>
+                </div>
+                
+                <div class="screenshot-placeholder">
+                    <div class="icon">🖼️</div>
+                    <h4>צילום מסך 16: עמוד הגדרות</h4>
+                    <p>צלם את עמוד ההגדרות עם כל הקטגוריות</p>
+                </div>
+                
+                <div class="tip-box">
+                    <strong>💡 טיפ:</strong> מומלץ להגדיר סיסמה ולהפעיל גיבוי אוטומטי מיד בהתחלת השימוש במערכת.
+                </div>
+            </section>
+        </div>
+        
+        <footer>
+            <p>מערכת ניהול גמ"ח - גרסה 3.8.0</p>
+            <p>© 2026 כל הזכויות שמורות</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">
+                לתמיכה טכנית או שאלות, אנא פנה למפתח המערכת
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

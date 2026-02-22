@@ -175,7 +175,24 @@ export const db = {
     if (sql.includes('FROM donations')) {
       const donations = getAllItems<any>('donations')
       const donors = getAllItems<any>('donors')
-      return donations.map(d => ({ ...d, donor_name: donors.find(don => don.id === d.donor_id)?.first_name + ' ' + donors.find(don => don.id === d.donor_id)?.last_name || '' }))
+      
+      let filtered = donations
+      
+      // פילטר לפי donor_id
+      if (sql.includes('WHERE d.donor_id') || sql.includes('WHERE donor_id')) {
+        // חילוץ ה-donor_id מה-SQL (תמיכה בשני פורמטים)
+        const match = sql.match(/donor_id\s*=\s*(\d+)/)
+        if (match) {
+          const donorId = parseInt(match[1], 10)
+          filtered = filtered.filter(d => d.donor_id === donorId)
+        }
+      }
+      
+      return filtered.map(d => ({ 
+        ...d, 
+        donor_name: donors.find(don => don.id === d.donor_id)?.first_name + ' ' + donors.find(don => don.id === d.donor_id)?.last_name || '',
+        donor_email: donors.find(don => don.id === d.donor_id)?.email || ''
+      })).sort((a: any, b: any) => new Date(b.donation_date).getTime() - new Date(a.donation_date).getTime())
     }
     if (sql.includes('FROM blacklist')) return getAllItems<any>('blacklist')
     if (sql.includes('FROM repayments')) return getAllItems<any>('repayments')

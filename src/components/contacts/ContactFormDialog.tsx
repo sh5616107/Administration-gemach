@@ -180,10 +180,43 @@ export default function ContactFormDialog({ open, onClose, onSave, contact }: Co
     }
   }
 
-  const handleLinkToExisting = () => {
-    // TODO: מימוש קישור לאיש קשר קיים
-    setDuplicateWarning(null)
-    onClose()
+  const handleLinkToExisting = async () => {
+    if (!duplicateWarning) return
+    
+    try {
+      setSaving(true)
+      // מיזוג התפקידים החדשים עם התפקידים הקיימים
+      const existingRoles = duplicateWarning.roles.map(r => r.type)
+      const newRoles = formData.initial_roles || []
+      const mergedRoles = [...new Set([...existingRoles, ...newRoles])]
+      
+      // עדכון איש הקשר הקיים עם התפקידים המשולבים
+      // מעדכנים רק את השדות שהשתנו, לא את initial_roles
+      const updateData: Partial<UnifiedContact> = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        id_number: formData.id_number,
+        city: formData.city,
+        address: formData.address,
+        email: formData.email,
+        notes: formData.notes,
+        tags: formData.tags
+      }
+      
+      await updateContact(duplicateWarning.phone, updateData)
+      
+      // הוספת התפקידים החדשים בנפרד
+      // TODO: צריך להוסיף פונקציה להוספת תפקידים
+      
+      setDuplicateWarning(null)
+      onSave()
+      onClose()
+    } catch (error) {
+      console.error('שגיאה בקישור לאיש קשר:', error)
+      setErrors({ general: 'שגיאה בקישור לאיש קשר קיים' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

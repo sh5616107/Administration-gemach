@@ -45,7 +45,8 @@ const drawerWidth = 220
 const menuItems = [
   { text: 'דף הבית', icon: <HomeIcon />, path: '/' },
   { text: 'לווים והלוואות', icon: <PeopleIcon />, path: '/loans' },
-  { text: 'תרומות והפקדות', icon: <DonationIcon />, path: '/donations' },
+  { text: 'תרומות', icon: <DonationIcon />, path: '/donations' },
+  { text: 'הפקדות', icon: <DepositIcon />, path: '/deposits' },
   { text: 'אנשי קשר', icon: <PersonIcon />, path: '/contacts' },
   { text: 'לוח שנה', icon: <CalendarIcon />, path: '/calendar' },
   { text: 'כלים מתקדמים', icon: <ToolsIcon />, path: '/tools' },
@@ -146,10 +147,10 @@ export default function Layout({ children }: LayoutProps) {
         navigate(`/loans?tab=1`)
         break
       case 'donor':
-        navigate(`/donations?tab=0`)
+        navigate(`/donations?tab=1`)
         break
       case 'depositor':
-        navigate(`/donations?tab=1`)
+        navigate(`/deposits?tab=1`)
         break
     }
   }

@@ -21,11 +21,13 @@ import {
   Add as AddIcon, 
   Save as SaveIcon,
   Warning as WarningIcon,
+  Description as ReportIcon,
 } from '@mui/icons-material'
-import { borrowersService, loansService, guarantorLoansService } from '../../services/database'
+import { borrowersService, loansService, guarantorLoansService, repaymentsService } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkNewBorrower, type CrossCheckResult } from '../../services/crossCheck'
+import { generateBorrowerReport } from '../../services/documents'
 
 interface Borrower {
   id?: number
@@ -245,6 +247,58 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
   const handleConfirmDuplicateName = async () => {
     setDuplicateNameDialog({ open: false, existingBorrower: null })
     await doSave()
+  }
+
+  const handleGenerateReport = async (borrower: Borrower) => {
+    if (!borrower.id) return
+    
+    try {
+      // טעינת הלוואות הלווה
+      const loans = await loansService.getByBorrower(borrower.id) as any[]
+      
+      // טעינת פירעונות לכל הלוואה
+      const loansWithRepayments = await Promise.all(
+        loans.map(async (loan) => {
+          const repayments = await repaymentsService.getByLoan(loan.id)
+          return {
+            id: loan.id,
+            amount: loan.amount,
+            loanDate: loan.loan_date,
+            remaining: loan.remaining || 0,
+            status: loan.status,
+            isRecurring: loan.is_recurring === 1,
+            recurringLoanNumber: loan.recurring_loan_number,
+            recurringLoanCount: loan.recurring_loan_count,
+            repayments: repayments.map((r: any) => ({
+              amount: r.amount,
+              payment_date: r.payment_date,
+              isRecurring: r.is_recurring === 1,
+              recurringRepaymentNumber: r.recurring_repayment_number,
+              recurringRepaymentCount: r.recurring_repayment_count,
+            }))
+          }
+        })
+      )
+      
+      // חישוב סה"כ חוב
+      const totalDebt = loans
+        .filter(l => l.status === 'active')
+        .reduce((sum, l) => sum + (l.remaining || 0), 0)
+      
+      // הפקת הדוח
+      generateBorrowerReport({
+        gemachName: settings.gemach_name || 'גמ"ח שלי',
+        gemachLogo: settings.gemach_logo,
+        borrowerName: `${borrower.first_name} ${borrower.last_name}`,
+        loans: loansWithRepayments,
+        totalDebt
+      })
+      
+      setSnackbar({ open: true, message: 'הדוח הופק בהצלחה', severity: 'success' })
+    } catch (error) {
+      console.error('Error generating report:', error)
+      setSnackbar({ open: true, message: 'שגיאה בהפקת הדוח', severity: 'error' })
+    }
   }
 
   const handleDelete = async () => {
@@ -484,13 +538,23 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
               {selectedBorrower ? 'עדכן לווה' : 'שמור לווה'}
             </Button>
             {selectedBorrower && (
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={handleDelete}
-              >
-                מחק לווה
-              </Button>
+              <>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<ReportIcon />}
+                  onClick={() => handleGenerateReport(selectedBorrower)}
+                >
+                  הפק דוח
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleDelete}
+                >
+                  מחק לווה
+                </Button>
+              </>
             )}
           </Box>
         </CardContent>

@@ -1086,7 +1086,7 @@ export interface EmailData {
   to: string
   subject: string
   body: string
-  documentType: 'loan' | 'deposit' | 'donation' | 'borrower_report' | 'depositor_report' | 'guarantor_debt'
+  documentType: 'loan' | 'deposit' | 'donation' | 'borrower_report' | 'depositor_report' | 'donor_report' | 'guarantor_debt'
   htmlContent?: string
   filename?: string
 }
@@ -1918,4 +1918,214 @@ export function generateGuarantorStatement(data: GuarantorStatementData): void {
   `
 
   downloadPdf(htmlContent, `דוח-ערב-${data.guarantorName}`)
+}
+
+
+// Generate donor report
+export interface DonorReportData {
+  gemachName: string
+  gemachLogo?: string
+  donorName: string
+  donorPhone?: string
+  donorIdNumber?: string
+  donations: Array<{
+    id: number
+    amount: number
+    donation_date: string
+    notes?: string
+  }>
+  totalDonations: number
+  dateFormat?: string
+}
+
+export function generateDonorReport(data: DonorReportData): void {
+  const today = new Date().toLocaleDateString('he-IL')
+  const logoHtml = data.gemachLogo ? `<img src="${data.gemachLogo}" alt="לוגו" style="max-width: 120px; max-height: 60px; margin-bottom: 15px;" />` : ''
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    if (data.dateFormat === 'hebrew') {
+      return toHebrewDate(dateStr)
+    }
+    return date.toLocaleDateString('he-IL')
+  }
+
+  const donationsHtml = data.donations.length > 0 ? `
+    <table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 11px;">
+      <thead>
+        <tr style="background: #fafafa; border-bottom: 2px solid #e0e0e0;">
+          <th style="padding: 8px 6px; text-align: right; font-weight: 600; color: #616161;">מס'</th>
+          <th style="padding: 8px 6px; text-align: center; font-weight: 600; color: #616161;">תאריך</th>
+          <th style="padding: 8px 6px; text-align: center; font-weight: 600; color: #616161;">סכום</th>
+          <th style="padding: 8px 6px; text-align: right; font-weight: 600; color: #616161;">הערות</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.donations.map((don, i) => `
+          <tr style="border-bottom: 1px solid #f5f5f5; ${i % 2 === 0 ? 'background: #fafafa;' : ''}">
+            <td style="padding: 8px 6px; text-align: right;">${don.id}</td>
+            <td style="padding: 8px 6px; text-align: center; color: #757575;">${formatDate(don.donation_date)}</td>
+            <td style="padding: 8px 6px; text-align: center; font-weight: 600; color: #2e7d32;">${formatCurrency(don.amount)}</td>
+            <td style="padding: 8px 6px; text-align: right; color: #757575;">${don.notes || '-'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  ` : '<p style="color: #9e9e9e; margin-top: 8px; font-size: 11px; text-align: center;">אין תרומות</p>'
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+      <meta charset="UTF-8">
+      <title>דוח תורם - ${data.donorName}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap');
+        body { 
+          font-family: 'Heebo', Arial, sans-serif; 
+          margin: 0;
+          padding: 20px;
+          background: white;
+          color: #212121;
+        }
+        .page-container {
+          max-width: 750px;
+          margin: 0 auto;
+          padding: 25px;
+          background: white;
+        }
+        @media print {
+          body { padding: 10px; }
+          .page-container { padding: 15px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="page-container">
+        <div style="text-align: center; margin-bottom: 25px;">
+          ${logoHtml}
+          <h1 style="font-size: 24px; margin: 8px 0; color: #212121; font-weight: 600;">${data.gemachName}</h1>
+          <h2 style="font-size: 16px; margin: 4px 0; color: #757575; font-weight: 400;">דוח תורם</h2>
+        </div>
+
+        <div style="background: #fafafa; padding: 15px; margin-bottom: 20px; border-left: 3px solid #424242;">
+          <p style="margin: 0 0 6px 0; font-size: 14px; color: #212121; font-weight: 600;">פרטי התורם</p>
+          <table style="width: 100%; font-size: 12px;">
+            <tr>
+              <td style="padding: 3px 0; color: #757575; width: 30%;">שם:</td>
+              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.donorName}</td>
+            </tr>
+            ${data.donorPhone ? `
+            <tr>
+              <td style="padding: 3px 0; color: #757575;">טלפון:</td>
+              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.donorPhone}</td>
+            </tr>` : ''}
+            ${data.donorIdNumber ? `
+            <tr>
+              <td style="padding: 3px 0; color: #757575;">ת.ז.:</td>
+              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.donorIdNumber}</td>
+            </tr>` : ''}
+            <tr>
+              <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">תאריך הפקה:</td>
+              <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">${today}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #e8f5e9; padding: 15px; margin-bottom: 20px; border-left: 3px solid #2e7d32;">
+          <p style="margin: 0; font-size: 18px; color: #2e7d32; font-weight: 700;">
+            סה"כ תרומות: ${formatCurrency(data.totalDonations)}
+          </p>
+          <p style="margin: 5px 0 0 0; font-size: 12px; color: #2e7d32;">
+            מספר תרומות: ${data.donations.length}
+          </p>
+        </div>
+
+        <div style="margin-top: 25px;">
+          <h3 style="color: #424242; border-bottom: 2px solid #e0e0e0; padding-bottom: 8px; font-size: 16px; font-weight: 600;">פירוט תרומות</h3>
+          ${donationsHtml}
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; text-align: center;">
+          <p style="margin: 0; font-size: 10px; color: #9e9e9e;">דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
+          <p style="margin: 5px 0 0 0; font-size: 10px; color: #9e9e9e;">תודה רבה על תרומתך הנדיבה! 🙏</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  downloadPdf(htmlContent, `דוח-תורם-${data.donorName}`)
+}
+
+// Email data for donor report
+export function createDonorReportEmailData(params: {
+  gemachName: string
+  donorName: string
+  donorEmail: string
+  totalDonations: number
+  donations: Array<{ id: number; amount: number; donation_date: string; notes?: string }>
+}): EmailData {
+  const formattedTotal = formatCurrency(params.totalDonations)
+  
+  const donationsHtml = params.donations.map(don => `
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;">${don.id}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(don.amount)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${new Date(don.donation_date).toLocaleDateString('he-IL')}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${don.notes || '-'}</td>
+    </tr>
+  `).join('')
+
+  const htmlContent = `
+    <div style="padding: 20px;">
+      <div style="text-align: center;">
+        <h1 style="font-size: 24px; margin: 10px 0;">דוח תורם</h1>
+        <h2 style="font-size: 16px; color: #666;">${params.gemachName}</h2>
+      </div>
+      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+      <div style="text-align: right; font-size: 16px;">
+        <p><strong>שם התורם:</strong> ${params.donorName}</p>
+        <p><strong>תאריך הפקה:</strong> ${new Date().toLocaleDateString('he-IL')}</p>
+        <p style="font-size: 18px; margin-top: 15px;"><strong>סה"כ תרומות:</strong> ${formattedTotal}</p>
+      </div>
+      <h3 style="text-align: right; margin-top: 30px;">פירוט תרומות:</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: right;">
+        <thead>
+          <tr style="background: #e8f5e9;">
+            <th style="padding: 10px; border: 1px solid #ddd;">מס'</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">תאריך</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">הערות</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${donationsHtml || '<tr><td colspan="4" style="padding: 20px; text-align: center;">אין תרומות</td></tr>'}
+        </tbody>
+      </table>
+      <div style="margin-top: 30px; padding: 15px; background: #e8f5e9; border-radius: 8px; text-align: center;">
+        <p style="margin: 0; font-size: 16px; color: #2e7d32;">תודה רבה על תרומתך הנדיבה! 🙏</p>
+      </div>
+    </div>
+  `
+  
+  return {
+    to: params.donorEmail,
+    subject: `דוח תרומות - ${params.gemachName}`,
+    body: `שלום ${params.donorName},
+
+מצורף דוח תרומות מגמ"ח "${params.gemachName}".
+
+סה"כ תרומות: ${formattedTotal}
+מספר תרומות: ${params.donations.length}
+
+תודה רבה על תרומתך הנדיבה!
+
+בברכה,
+${params.gemachName}`,
+    documentType: 'donor_report',
+    htmlContent,
+    filename: `דוח-תורם-${params.donorName}`
+  }
 }
