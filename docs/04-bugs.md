@@ -257,3 +257,82 @@ const recurringDeposits = await db.query(
 
 ### תוצאה:
 עכשיו הפקדות מחזוריות מופיעות בפירוט הכספים הצפויים, בין אם הן `active` או `planned`.
+
+
+## 18. ✅ הפקדות מחזוריות לא מוצגות נכון בסיכומים
+**תאריך:** 22/02/2026
+**חומרה:** גבוהה
+
+### תיאור הבעיה:
+משתמש דיווח בפורום על שתי בעיות עם הפקדות מחזוריות:
+
+1. **בעיה ראשונה - חישוב סה"כ הפקדות**: 
+   כשמכניסים הפקדה מחזורית ומציינים שכבר הופקדו X חודשים (למשל 5 חודשים של 1000₪), הסיכום מציג רק את הסכום החודשי (1000₪) ולא את סך כל ההפקדה (5000₪).
+
+2. **בעיה שנייה - חישוב יתרה עם משיכות**:
+   כשמפקיד משך חלק מסכום ההפקדה, הסיכום מציג את הסכום המלא ולא את היתרה האמיתית (רק בפרטי המפקיד רואים את המשיכה).
+
+### הסיבה:
+בכל המקומות שמחשבים סכומי הפקדות, הקוד השתמש רק ב-`deposit.amount` (הסכום החודשי) ולא התחשב ב-`recurring_deposit_number` (כמה הפקדות כבר בוצעו).
+
+**דוגמה לקוד בעייתי:**
+```typescript
+const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0)
+```
+
+**קוד נכון:**
+```typescript
+const totalDeposits = deposits.reduce((sum, d) => {
+  let depositAmount = d.amount
+  if (d.is_recurring === 1 && d.recurring_deposit_number) {
+    depositAmount = d.amount * d.recurring_deposit_number
+  }
+  return sum + depositAmount
+}, 0)
+```
+
+### הפתרון:
+עדכנו את כל המקומות שמחשבים סכומי הפקדות:
+
+1. **DepositorsTab.tsx** - טאב המפקידים:
+   - `loadDepositors()` - חישוב `total_deposits` ו-`active_deposits` (כולל משיכות)
+   - `handleGenerateReport()` - דוח מפקיד
+   - `handleSendReportEmail()` - שליחת דוח במייל
+
+2. **DepositsTab.tsx** - טאב ההפקדות:
+   - חישוב `totalActive` בכרטיס המידע של המפקיד
+   - תצוגת הסכום בטבלה (עם פירוט: "5000₪ (1000₪ × 5)")
+
+3. **database.ts** - שירות הסטטיסטיקות:
+   - `getDashboardStats()` - סיכום בדשבורד
+   - `getPaymentMethodStats()` - סטטיסטיקות אמצעי תשלום
+
+4. **AdvancedTools.tsx** - כלים מתקדמים:
+   - `handleBorrowersReport()` - דוח לווים
+   - `handleStatisticsReport()` - דוח סטטיסטיקות
+   - `handleDepositorsReport()` - דוח מפקידים
+
+5. **contacts.ts** - שירות אנשי קשר:
+   - `getContactStats()` - סטטיסטיקות איש קשר (2 מקומות)
+
+6. **documents.ts** - שירות מסמכים:
+   - `generateDepositorReport()` - יצירת דוח מפקיד (כולל תצוגה: "5000₪ (1000₪ × 5)")
+
+### תוצאה:
+עכשיו כל הסיכומים והדוחות מציגים את הסכום הנכון:
+- הפקדה מחזורית של 1000₪ × 5 חודשים = 5000₪ ✅
+- אם נמשכו 2000₪, היתרה המוצגת היא 3000₪ ✅
+- הדוחות מציגים גם את הסכום הכולל וגם את הפירוט (1000₪ × 5) ✅
+
+### קבצים שהשתנו:
+- `src/components/donations/DepositorsTab.tsx` - 3 פונקציות
+- `src/components/donations/DepositsTab.tsx` - חישוב סיכום + תצוגה בטבלה
+- `src/services/database.ts` - 2 פונקציות
+- `src/pages/AdvancedTools.tsx` - 3 פונקציות
+- `src/services/contacts.ts` - 2 מקומות
+- `src/services/documents.ts` - פונקציה אחת
+
+### בדיקות:
+- ✅ כל הקבצים עוברים בדיקת TypeScript ללא שגיאות
+- ✅ הלוגיקה עקבית בכל המערכת
+- ✅ תמיכה במשיכות חלקיות (מפחיתים מהסכום המחושב)

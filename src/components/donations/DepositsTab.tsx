@@ -532,7 +532,15 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   }
 
   const activeDeposits = deposits.filter(d => d.status === 'active' || (d.amount - (d.withdrawn_amount || 0)) > 0)
-  const totalActive = activeDeposits.reduce((sum, d) => sum + (d.amount - (d.withdrawn_amount || 0)), 0)
+  const totalActive = activeDeposits.reduce((sum, d) => {
+    // חישוב סכום בפועל להפקדה מחזורית
+    let depositAmount = d.amount
+    if (d.is_recurring === 1 && d.recurring_deposit_number) {
+      // הפקדה מחזורית - מכפילים בכמות ההפקדות שכבר בוצעו
+      depositAmount = d.amount * d.recurring_deposit_number
+    }
+    return sum + (depositAmount - (d.withdrawn_amount || 0))
+  }, 0)
 
   return (
     <Box>
@@ -756,7 +764,12 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                 ) : (
                   deposits.map((deposit) => {
                     const withdrawn = deposit.withdrawn_amount || 0
-                    const remaining = deposit.amount - withdrawn
+                    // חישוב סכום בפועל להפקדה מחזורית
+                    let depositAmount = deposit.amount
+                    if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
+                      depositAmount = deposit.amount * deposit.recurring_deposit_number
+                    }
+                    const remaining = depositAmount - withdrawn
                     return (
                     <TableRow 
                       key={deposit.id}
@@ -764,7 +777,18 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                       hover
                       sx={{ bgcolor: deposit.status === 'withdrawn' ? 'grey.100' : undefined }}
                     >
-                      <TableCell align="center">{formatCurrency(deposit.amount)}</TableCell>
+                      <TableCell align="center">
+                        {deposit.is_recurring === 1 && deposit.recurring_deposit_number ? (
+                          <Box>
+                            <Typography variant="body2">{formatCurrency(depositAmount)}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              ({formatCurrency(deposit.amount)} × {deposit.recurring_deposit_number})
+                            </Typography>
+                          </Box>
+                        ) : (
+                          formatCurrency(deposit.amount)
+                        )}
+                      </TableCell>
                       <TableCell align="center" sx={{ color: withdrawn > 0 ? 'warning.main' : 'text.secondary' }}>
                         {withdrawn > 0 ? formatCurrency(withdrawn) : '-'}
                       </TableCell>

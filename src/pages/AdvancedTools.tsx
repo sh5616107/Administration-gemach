@@ -561,7 +561,14 @@ export default function AdvancedTools() {
       const donations = await db.query("SELECT * FROM donations") as any[]
 
       const totalLoanAmount = activeLoans.reduce((sum, l) => sum + (l.remaining || 0), 0)
-      const totalDepositAmount = deposits.reduce((sum, d) => sum + d.amount, 0)
+      const totalDepositAmount = deposits.reduce((sum, d) => {
+        // חישוב סכום בפועל להפקדה מחזורית
+        let depositAmount = d.amount
+        if (d.is_recurring === 1 && d.recurring_deposit_number) {
+          depositAmount = d.amount * d.recurring_deposit_number
+        }
+        return sum + depositAmount
+      }, 0)
       const totalDonationAmount = donations.reduce((sum, d) => sum + d.amount, 0)
 
       setBorrowersReportData({
@@ -650,10 +657,18 @@ export default function AdvancedTools() {
         allDeposits.map(async (deposit) => {
           const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
           const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+          
+          // חישוב סכום בפועל להפקדה מחזורית
+          let depositAmount = deposit.amount
+          if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
+            depositAmount = deposit.amount * deposit.recurring_deposit_number
+          }
+          
           return {
             ...deposit,
+            amount: depositAmount, // עדכון הסכום לסכום המחושב
             withdrawn_amount: totalWithdrawn,
-            remaining: deposit.amount - totalWithdrawn
+            remaining: depositAmount - totalWithdrawn
           }
         })
       )
@@ -738,9 +753,23 @@ export default function AdvancedTools() {
       // Calculate totals
       const totalLoansOut = loans.reduce((sum, l) => sum + (l.amount || 0), 0)
       const totalRepaymentsIn = repayments.reduce((sum, r) => sum + (r.amount || 0), 0)
-      const totalDepositsIn = deposits.reduce((sum, d) => sum + (d.amount || 0), 0)
+      const totalDepositsIn = deposits.reduce((sum, d) => {
+        // חישוב סכום בפועל להפקדה מחזורית
+        let depositAmount = d.amount || 0
+        if (d.is_recurring === 1 && d.recurring_deposit_number) {
+          depositAmount = (d.amount || 0) * d.recurring_deposit_number
+        }
+        return sum + depositAmount
+      }, 0)
       const totalDonationsIn = donations.reduce((sum, d) => sum + (d.amount || 0), 0)
-      const totalWithdrawalsOut = withdrawnDeposits.reduce((sum, d) => sum + (d.amount || 0), 0)
+      const totalWithdrawalsOut = withdrawnDeposits.reduce((sum, d) => {
+        // חישוב סכום בפועל להפקדה מחזורית
+        let depositAmount = d.amount || 0
+        if (d.is_recurring === 1 && d.recurring_deposit_number) {
+          depositAmount = (d.amount || 0) * d.recurring_deposit_number
+        }
+        return sum + depositAmount
+      }, 0)
       const totalExpensesOut = gemachExpenses.reduce((sum, e) => sum + (e.amount || 0), 0)
 
       const totalIn = totalRepaymentsIn + totalDepositsIn + totalDonationsIn

@@ -84,15 +84,40 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
       // חישוב סה"כ הפקדות לכל מפקיד
       const deposits = await db.query('SELECT * FROM deposits') as any[]
       
-      const depositorsWithStats = deps.map(dep => {
+      const depositorsWithStats = await Promise.all(deps.map(async dep => {
         const depositorDeposits = deposits.filter(d => d.depositor_id === dep.id)
-        const activeDeposits = depositorDeposits.filter(d => d.status === 'active')
+        
+        // חישוב סה"כ הופקד (כולל הפקדות מחזוריות)
+        let totalDeposited = 0
+        let totalActive = 0
+        
+        for (const deposit of depositorDeposits) {
+          // חישוב סכום בפועל להפקדה מחזורית
+          let depositAmount = deposit.amount
+          if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
+            // הפקדה מחזורית - מכפילים בכמות ההפקדות שכבר בוצעו
+            depositAmount = deposit.amount * deposit.recurring_deposit_number
+          }
+          
+          totalDeposited += depositAmount
+          
+          // חישוב יתרה פעילה (מפחיתים משיכות)
+          if (deposit.status === 'active' || deposit.status === 'planned') {
+            const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+            const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+            const remaining = depositAmount - totalWithdrawn
+            if (remaining > 0) {
+              totalActive += remaining
+            }
+          }
+        }
+        
         return {
           ...dep,
-          total_deposits: depositorDeposits.reduce((sum, d) => sum + (d.amount || 0), 0),
-          active_deposits: activeDeposits.reduce((sum, d) => sum + (d.amount || 0), 0),
+          total_deposits: totalDeposited,
+          active_deposits: totalActive,
         }
-      })
+      }))
       
       setDepositors(depositorsWithStats.sort((a, b) => 
         `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
@@ -197,11 +222,18 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
         deposits.map(async (deposit) => {
           const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
           const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+          
+          // חישוב סכום בפועל להפקדה מחזורית
+          let depositAmount = deposit.amount
+          if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
+            depositAmount = deposit.amount * deposit.recurring_deposit_number
+          }
+          
           return {
             ...deposit,
             withdrawals,
             withdrawn_amount: totalWithdrawn,
-            remaining: deposit.amount - totalWithdrawn
+            remaining: depositAmount - totalWithdrawn
           }
         })
       )
@@ -235,13 +267,28 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
     
     try {
       const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [depositor.id]) as any[]
-      const activeDeposits = deposits.filter(d => d.status === 'active')
+      
+      // חישוב יתרה פעילה (כולל מחזוריות ומשיכות)
+      let totalActive = 0
+      for (const d of deposits) {
+        if (d.status === 'active') {
+          let depositAmount = d.amount
+          if (d.is_recurring === 1 && d.recurring_deposit_number) {
+            depositAmount = d.amount * d.recurring_deposit_number
+          }
+          
+          // הפחתת משיכות
+          const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+          const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+          totalActive += (depositAmount - totalWithdrawn)
+        }
+      }
       
       const emailData = createDepositorReportEmailData({
         gemachName: settings.gemach_name || 'גמ"ח',
         depositorName: `${depositor.first_name} ${depositor.last_name}`,
         depositorEmail: depositor.email,
-        totalActive: activeDeposits.reduce((sum, d) => sum + (d.amount || 0), 0),
+        totalActive,
         deposits: deposits.map(d => ({
           id: d.id,
           amount: d.amount,

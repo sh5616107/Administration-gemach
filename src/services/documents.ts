@@ -973,8 +973,14 @@ export function generateDepositorReport(data: {
     : ''
 
   const depositsHtml = data.deposits.map(dep => {
+    // חישוב סכום בפועל להפקדה מחזורית
+    let depositAmount = dep.amount
+    if (dep.is_recurring === 1 && dep.recurring_deposit_number) {
+      depositAmount = dep.amount * dep.recurring_deposit_number
+    }
+    
     const withdrawn = dep.withdrawn_amount || 0
-    const remaining = dep.remaining !== undefined ? dep.remaining : (dep.amount - withdrawn)
+    const remaining = dep.remaining !== undefined ? dep.remaining : (depositAmount - withdrawn)
     const hasWithdrawals = dep.withdrawals && dep.withdrawals.length > 0
     const lastWithdrawalDate = hasWithdrawals && dep.withdrawals!.length > 0 
       ? new Date(dep.withdrawals![0].withdrawal_date).toLocaleDateString('he-IL')
@@ -985,10 +991,15 @@ export function generateDepositorReport(data: {
       ? `🔄 ${dep.recurring_deposit_number}/${dep.recurring_deposit_count}`
       : dep.is_recurring ? '🔄' : ''
     
+    // תצוגת סכום - אם מחזורי, מציגים גם פירוט
+    const amountDisplay = dep.is_recurring === 1 && dep.recurring_deposit_number && dep.recurring_deposit_number > 1
+      ? `${formatCurrency(depositAmount)}<br/><small style="color:#666;">(${formatCurrency(dep.amount)} × ${dep.recurring_deposit_number})</small>`
+      : formatCurrency(depositAmount)
+    
     return `
     <tr style="background: ${remaining === 0 ? '#f5f5f5' : 'white'};">
       <td style="padding: 8px; border: 1px solid #ddd;">${dep.id}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(dep.amount)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${amountDisplay}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${withdrawn > 0 ? `<span style="color: #f57c00;">${formatCurrency(withdrawn)}</span>` : '-'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${remaining > 0 ? `<span style="color: #2e7d32; font-weight: bold;">${formatCurrency(remaining)}</span>` : `<span style="color: #666;">-</span>`}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${new Date(dep.deposit_date).toLocaleDateString('he-IL')}${showHebrew ? `<br/><small style="color:#666;">${toHebrewDate(dep.deposit_date)}</small>` : ''}</td>

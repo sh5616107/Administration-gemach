@@ -447,14 +447,24 @@ export const statsService = {
       (l.status === 'planned' || l.loan_date > t) && 
       !(l.is_recurring && l.recurring_loan_number && l.recurring_loan_number > 1)
     )
-    const deps = getAllItems<{ amount: number; status: string }>('deposits').filter(d => d.status === 'active')
+    const deps = getAllItems<{ amount: number; status: string; is_recurring?: number; recurring_deposit_number?: number }>('deposits').filter(d => d.status === 'active')
+    
+    // חישוב סה"כ הפקדות (כולל מחזוריות)
+    const totalDeposits = deps.reduce((sum, d) => {
+      let depositAmount = d.amount
+      if (d.is_recurring === 1 && d.recurring_deposit_number) {
+        depositAmount = d.amount * d.recurring_deposit_number
+      }
+      return sum + depositAmount
+    }, 0)
+    
     const dons = getAllItems<{ amount: number }>('donations')
     const expenses = getAllItems<{ amount: number; paid_by: string }>('expenses')
     const gemachExpenses = expenses.filter(e => e.paid_by === 'gemach').reduce((s, e) => s + e.amount, 0)
     return {
       activeLoans: { count: active.length, total: active.reduce((s, l) => s + (l.remaining || 0), 0) },
       plannedLoans: { count: planned.length, total: planned.reduce((s, l) => s + l.amount, 0) },
-      deposits: { count: deps.length, total: deps.reduce((s, d) => s + d.amount, 0) },
+      deposits: { count: deps.length, total: totalDeposits },
       donations: { count: dons.length, total: dons.reduce((s, d) => s + d.amount, 0) },
       gemachExpenses,
     }
@@ -505,14 +515,20 @@ export const statsService = {
     
     // הפקדות (כניסה) ומשיכות (יציאה)
     for (const d of deposits) {
+      // חישוב סכום בפועל להפקדה מחזורית
+      let depositAmount = d.amount || 0
+      if (d.is_recurring === 1 && d.recurring_deposit_number) {
+        depositAmount = (d.amount || 0) * d.recurring_deposit_number
+      }
+      
       const method = d.payment_method || 'unknown'
       if (d.status === 'active') {
-        if (stats[method]) stats[method].depositsIn += d.amount || 0
-        else stats['unknown'].depositsIn += d.amount || 0
+        if (stats[method]) stats[method].depositsIn += depositAmount
+        else stats['unknown'].depositsIn += depositAmount
       } else if (d.status === 'withdrawn') {
         const wMethod = d.withdrawal_payment_method || 'unknown'
-        if (stats[wMethod]) stats[wMethod].withdrawalsOut += d.amount || 0
-        else stats['unknown'].withdrawalsOut += d.amount || 0
+        if (stats[wMethod]) stats[wMethod].withdrawalsOut += depositAmount
+        else stats['unknown'].withdrawalsOut += depositAmount
       }
     }
     

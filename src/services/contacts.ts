@@ -377,10 +377,34 @@ async function calculateContactStats(contact: UnifiedContact): Promise<ContactSt
     // סטטיסטיקות מפקיד
     if (contact.depositor_id) {
       const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [contact.depositor_id]) as any[]
+      
+      // חישוב סה"כ הופקד (כולל מחזוריות)
+      const totalDeposited = deposits.reduce((sum, d) => {
+        let depositAmount = d.amount
+        if (d.is_recurring === 1 && d.recurring_deposit_number) {
+          depositAmount = d.amount * d.recurring_deposit_number
+        }
+        return sum + depositAmount
+      }, 0)
+      
+      // חישוב יתרה פעילה (כולל מחזוריות, מפחיתים משיכות)
+      const activeDepositAmount = await deposits.filter(d => d.status === 'active').reduce(async (sumPromise, d) => {
+        const sum = await sumPromise
+        let depositAmount = d.amount
+        if (d.is_recurring === 1 && d.recurring_deposit_number) {
+          depositAmount = d.amount * d.recurring_deposit_number
+        }
+        
+        // הפחתת משיכות
+        const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+        const totalWithdrawn = withdrawals.reduce((s, w) => s + w.amount, 0)
+        return sum + (depositAmount - totalWithdrawn)
+      }, Promise.resolve(0))
+      
       stats.total_deposits = deposits.length
       stats.active_deposits = deposits.filter(d => d.status === 'active').length
-      stats.total_deposited = deposits.reduce((sum, d) => sum + d.amount, 0)
-      stats.active_deposit_amount = deposits.filter(d => d.status === 'active').reduce((sum, d) => sum + d.amount, 0)
+      stats.total_deposited = totalDeposited
+      stats.active_deposit_amount = await activeDepositAmount
     }
 
     // חישוב מאזן נטו - רק חוב ממשי (לווה + הלוואות שהועברו לערב)
@@ -469,10 +493,34 @@ export async function getContactStats(phone: string): Promise<ContactStats> {
   // סטטיסטיקות מפקיד
   if (contact.depositor_id) {
     const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [contact.depositor_id]) as any[]
+    
+    // חישוב סה"כ הופקד (כולל מחזוריות)
+    const totalDeposited = deposits.reduce((sum, d) => {
+      let depositAmount = d.amount
+      if (d.is_recurring === 1 && d.recurring_deposit_number) {
+        depositAmount = d.amount * d.recurring_deposit_number
+      }
+      return sum + depositAmount
+    }, 0)
+    
+    // חישוב יתרה פעילה (כולל מחזוריות, מפחיתים משיכות)
+    const activeDepositAmount = await deposits.filter(d => d.status === 'active').reduce(async (sumPromise, d) => {
+      const sum = await sumPromise
+      let depositAmount = d.amount
+      if (d.is_recurring === 1 && d.recurring_deposit_number) {
+        depositAmount = d.amount * d.recurring_deposit_number
+      }
+      
+      // הפחתת משיכות
+      const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+      const totalWithdrawn = withdrawals.reduce((s, w) => s + w.amount, 0)
+      return sum + (depositAmount - totalWithdrawn)
+    }, Promise.resolve(0))
+    
     stats.total_deposits = deposits.length
     stats.active_deposits = deposits.filter(d => d.status === 'active').length
-    stats.total_deposited = deposits.reduce((sum, d) => sum + d.amount, 0)
-    stats.active_deposit_amount = deposits.filter(d => d.status === 'active').reduce((sum, d) => sum + d.amount, 0)
+    stats.total_deposited = totalDeposited
+    stats.active_deposit_amount = await activeDepositAmount
   }
 
   // חישוב מאזן נטו - רק חוב ממשי (לווה + הלוואות שהועברו לערב)
