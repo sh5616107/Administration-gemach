@@ -336,3 +336,66 @@ const totalDeposits = deposits.reduce((sum, d) => {
 - ✅ כל הקבצים עוברים בדיקת TypeScript ללא שגיאות
 - ✅ הלוגיקה עקבית בכל המערכת
 - ✅ תמיכה במשיכות חלקיות (מפחיתים מהסכום המחושב)
+
+
+## 19. ✅ כסף זמין בדשבורד לא מפחית משיכות חלקיות
+**תאריך:** 22/02/2026
+**חומרה:** בינונית-גבוהה
+
+### תיאור הבעיה:
+בעמוד הפתיחה (דשבורד), חישוב "כסף זמין" לא התחשב במשיכות חלקיות מהפקדות. 
+
+**דוגמה לבעיה:**
+- הפקדה של 10,000₪
+- נמשכו 3,000₪ (משיכה חלקית)
+- יתרה אמיתית: 7,000₪
+- **לפני התיקון**: הדשבורד הציג 10,000₪ בכסף זמין ❌
+- **אחרי התיקון**: הדשבורד מציג 7,000₪ בכסף זמין ✅
+
+**הערה**: משיכות של קופות שלמות (סטטוס `withdrawn`) כן הופחתו נכון, הבעיה הייתה רק במשיכות חלקיות.
+
+### הסיבה:
+הפונקציה `getDashboardStats()` ב-`database.ts` חישבה את סך ההפקדות (כולל מחזוריות) אבל לא הפחיתה משיכות מטבלת `depositWithdrawals`.
+
+**קוד בעייתי:**
+```typescript
+const totalDeposits = deps.reduce((sum, d) => {
+  let depositAmount = d.amount
+  if (d.is_recurring === 1 && d.recurring_deposit_number) {
+    depositAmount = d.amount * d.recurring_deposit_number
+  }
+  return sum + depositAmount
+}, 0)
+```
+
+### הפתרון:
+עדכון הפונקציה להפחית משיכות מכל הפקדה:
+
+```typescript
+let totalDeposits = 0
+for (const d of deps) {
+  let depositAmount = d.amount
+  if (d.is_recurring === 1 && d.recurring_deposit_number) {
+    depositAmount = d.amount * d.recurring_deposit_number
+  }
+  
+  // הפחתת משיכות
+  const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+  const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+  totalDeposits += (depositAmount - totalWithdrawn)
+}
+```
+
+### תוצאה:
+עכשיו חישוב "כסף זמין" בדשבורד מדויק:
+- מתחשב בהפקדות מחזוריות ✅
+- מפחית משיכות חלקיות ✅
+- מפחית משיכות מלאות ✅
+- מציג יתרה אמיתית ✅
+
+### קבצים שהשתנו:
+- `src/services/database.ts` - פונקציה `getDashboardStats()`
+
+### בדיקות:
+- ✅ כל 290 הטסטים עוברים בהצלחה
+- ✅ אין שגיאות קומפילציה

@@ -447,16 +447,21 @@ export const statsService = {
       (l.status === 'planned' || l.loan_date > t) && 
       !(l.is_recurring && l.recurring_loan_number && l.recurring_loan_number > 1)
     )
-    const deps = getAllItems<{ amount: number; status: string; is_recurring?: number; recurring_deposit_number?: number }>('deposits').filter(d => d.status === 'active')
+    const deps = getAllItems<{ id: number; amount: number; status: string; is_recurring?: number; recurring_deposit_number?: number }>('deposits').filter(d => d.status === 'active')
     
-    // חישוב סה"כ הפקדות (כולל מחזוריות)
-    const totalDeposits = deps.reduce((sum, d) => {
+    // חישוב סה"כ הפקדות (כולל מחזוריות, מפחיתים משיכות)
+    let totalDeposits = 0
+    for (const d of deps) {
       let depositAmount = d.amount
       if (d.is_recurring === 1 && d.recurring_deposit_number) {
         depositAmount = d.amount * d.recurring_deposit_number
       }
-      return sum + depositAmount
-    }, 0)
+      
+      // הפחתת משיכות
+      const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+      const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+      totalDeposits += (depositAmount - totalWithdrawn)
+    }
     
     const dons = getAllItems<{ amount: number }>('donations')
     const expenses = getAllItems<{ amount: number; paid_by: string }>('expenses')
