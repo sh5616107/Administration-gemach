@@ -1465,12 +1465,17 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                           type="number"
                           value={formData.recurring_months ? formData.recurring_months + 1 : ''}
                           onChange={(e) => {
-                            const total = parseInt(e.target.value) || 0
+                            const value = e.target.value
+                            // אם השדה ריק, נאפס
+                            if (value === '') {
+                              setFormData({ ...formData, recurring_months: 0 })
+                              return
+                            }
+                            const total = parseInt(value) || 0
                             // recurring_months = סה"כ - 1 (כי ההלוואה הראשונה כבר נוצרת עכשיו)
                             setFormData({ ...formData, recurring_months: total > 0 ? total - 1 : 0 })
                           }}
-                          helperText="סה״כ כמה הלוואות ייוצרו (כולל הראשונה)"
-                          inputProps={{ min: 1 }}
+                          helperText="סה״כ כמה הלוואות ייוצרו (כולל הראשונה) - מינימום 2"
                         />
                       </Grid>
                       <Grid item xs={12} md={3}>
