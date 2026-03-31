@@ -623,6 +623,7 @@ export function generateBorrowerReport(data: {
       isRecurring?: boolean
       recurringRepaymentNumber?: number
       recurringRepaymentCount?: number
+      notes?: string
     }>
   }>
   expenses?: Array<{
@@ -640,57 +641,91 @@ export function generateBorrowerReport(data: {
     ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
+  // חישוב סטטיסטיקות
+  const totalLoansAmount = data.loans.reduce((sum, loan) => sum + loan.amount, 0)
+  const totalRepayments = data.loans.reduce((sum, loan) => {
+    return sum + (loan.repayments?.reduce((s, r) => s + r.amount, 0) || 0)
+  }, 0)
+  const activeLoansCount = data.loans.filter(l => l.status === 'active').length
+  const completedLoansCount = data.loans.filter(l => l.status === 'completed').length
+
+  // טבלת הלוואות - פשוטה וברורה
   const loansHtml = data.loans.map(loan => {
     const recurringInfo = loan.isRecurring && loan.recurringLoanNumber && loan.recurringLoanCount && loan.recurringLoanCount > 1
-      ? `🔄 ${loan.recurringLoanNumber}/${loan.recurringLoanCount}`
-      : ''
+      ? `<span class="recurring-badge">🔄 ${loan.recurringLoanNumber}/${loan.recurringLoanCount}</span>`
+      : '-'
     
-    // טבלת פרעונות להלוואה זו
-    const repaymentsHtml = loan.repayments && loan.repayments.length > 0 ? `
-      <tr style="background: #f0f8ff;">
-        <td colspan="6" style="padding: 10px; border: 1px solid #ddd;">
-          <strong>פרעונות להלוואה ${loan.id}:</strong>
-          <table style="width: 100%; margin-top: 5px; border-collapse: collapse;">
-            <thead>
-              <tr style="background: #e3f2fd;">
-                <th style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">תאריך</th>
-                <th style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">סכום</th>
-                <th style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">מחזורי</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${loan.repayments.map(r => {
-                const repRecurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
-                  ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
-                  : '-'
-                return `
-                <tr>
-                  <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
-                  <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${formatCurrency(r.amount)}</td>
-                  <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${repRecurringInfo}</td>
-                </tr>
-              `}).join('')}
-              <tr style="background: #e8f5e9; font-weight: bold;">
-                <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">סה"כ נפרע</td>
-                <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px; text-align: center;" colspan="2">${formatCurrency(loan.repayments.reduce((sum, r) => sum + r.amount, 0))}</td>
-              </tr>
-            </tbody>
-          </table>
-        </td>
-      </tr>
-    ` : ''
+    const statusText = loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'
+    const statusColor = loan.status === 'active' ? '#1976d2' : loan.status === 'planned' ? '#f57c00' : '#2e7d32'
+    const totalPaid = loan.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
     
     return `
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">${loan.id}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(loan.amount)}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${loan.loanDate}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(loan.remaining)}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${recurringInfo || '-'}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'}</td>
+      <td>${loan.id}</td>
+      <td>${new Date(loan.loanDate).toLocaleDateString('he-IL')}</td>
+      <td><strong>${formatCurrency(loan.amount)}</strong></td>
+      <td style="color: #2e7d32;">${formatCurrency(totalPaid)}</td>
+      <td style="color: ${loan.remaining > 0 ? '#d32f2f' : '#2e7d32'}; font-weight: bold;">${formatCurrency(loan.remaining)}</td>
+      <td>${recurringInfo}</td>
+      <td><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></td>
     </tr>
-    ${repaymentsHtml}
   `}).join('')
+
+  // טבלת פרעונות - נפרדת וברורה
+  const allRepayments = data.loans.flatMap(loan => 
+    (loan.repayments || []).map(r => ({
+      ...r,
+      loanId: loan.id
+    }))
+  ).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
+
+  // זיהוי פרעונות מרובים - פרעונות באותו תאריך עם הערה "פירעון מרובה"
+  const multiRepaymentDates = new Set(
+    allRepayments
+      .filter(r => r.notes?.includes('פירעון מרובה'))
+      .map(r => r.payment_date)
+  )
+
+  const repaymentsHtml = allRepayments.length > 0 ? `
+    <h3 class="section-title" style="color: #2e7d32;">✅ פירוט פרעונות</h3>
+    <table class="data-table">
+      <thead>
+        <tr class="repayments-header">
+          <th style="width: 12%;">מס' הלוואה</th>
+          <th style="width: 20%;">תאריך פרעון</th>
+          <th style="width: 20%;">סכום</th>
+          <th style="width: 48%;">סוג</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${allRepayments.map(r => {
+          const isMultiRepayment = r.notes?.includes('פירעון מרובה')
+          const repRecurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
+            ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
+            : '-'
+          
+          // אם זה פירעון מרובה, נציג אייקון מיוחד
+          const typeInfo = isMultiRepayment 
+            ? '<span class="multi-badge">📊 פירעון מרובה</span>'
+            : `<span class="recurring-badge">${repRecurringInfo}</span>`
+          
+          const rowClass = isMultiRepayment ? 'multi-repayment-row' : ''
+          
+          return `
+          <tr class="${rowClass}">
+            <td>${r.loanId}</td>
+            <td>${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
+            <td><strong>${formatCurrency(r.amount)}</strong></td>
+            <td>${typeInfo}</td>
+          </tr>
+        `}).join('')}
+        <tr class="total-row" style="background: #c8e6c9;">
+          <td colspan="2" style="text-align: right; font-size: 15px;">סה"כ פרעונות</td>
+          <td colspan="2" style="font-size: 16px;">${formatCurrency(totalRepayments)}</td>
+        </tr>
+      </tbody>
+    </table>
+  ` : ''
 
   const categoryLabels: Record<string, string> = {
     fee: 'עמלה',
@@ -701,73 +736,166 @@ export function generateBorrowerReport(data: {
   }
 
   const expensesHtml = data.expenses && data.expenses.length > 0 ? `
-    <h3 style="margin-top: 30px; text-align: right;">הוצאות ששולמו ע"י הלווה:</h3>
-    <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: right;">
+    <h3 class="section-title" style="color: #f57c00;">💳 הוצאות ששולמו ע"י הלווה</h3>
+    <table class="data-table">
       <thead>
-        <tr style="background: #fff3e0;">
-          <th style="padding: 10px; border: 1px solid #ddd;">מס'</th>
-          <th style="padding: 10px; border: 1px solid #ddd;">תיאור</th>
-          <th style="padding: 10px; border: 1px solid #ddd;">קטגוריה</th>
-          <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
-          <th style="padding: 10px; border: 1px solid #ddd;">תאריך</th>
+        <tr class="expenses-header">
+          <th style="width: 8%;">מס'</th>
+          <th style="width: 30%;">תיאור</th>
+          <th style="width: 17%;">קטגוריה</th>
+          <th style="width: 20%;">סכום</th>
+          <th style="width: 25%;">תאריך</th>
         </tr>
       </thead>
       <tbody>
         ${data.expenses.map(exp => `
           <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">${exp.id}</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${exp.description}</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${categoryLabels[exp.category] || exp.category}</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(exp.amount)}</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${new Date(exp.expense_date).toLocaleDateString('he-IL')}</td>
+            <td>${exp.id}</td>
+            <td style="text-align: right;">${exp.description}</td>
+            <td>${categoryLabels[exp.category] || exp.category}</td>
+            <td><strong>${formatCurrency(exp.amount)}</strong></td>
+            <td>${new Date(exp.expense_date).toLocaleDateString('he-IL')}</td>
           </tr>
         `).join('')}
-        <tr style="background: #fff3e0;">
-          <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"><strong>סה"כ הוצאות</strong></td>
-          <td colspan="2" style="padding: 8px; border: 1px solid #ddd;"><strong>${formatCurrency(data.expenses.reduce((sum, e) => sum + e.amount, 0))}</strong></td>
+        <tr class="total-row" style="background: #fff3e0;">
+          <td colspan="3" style="text-align: right; font-size: 15px;">סה"כ הוצאות</td>
+          <td colspan="2" style="font-size: 16px;"><strong>${formatCurrency(data.expenses.reduce((sum, e) => sum + e.amount, 0))}</strong></td>
         </tr>
       </tbody>
     </table>
   ` : ''
 
   const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .summary-box { 
+          background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%); 
+          padding: 20px; 
+          border-radius: 10px; 
+          margin: 20px 0; 
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .summary-table { width: 100%; border-collapse: collapse; }
+        .summary-table td { padding: 10px; border-bottom: 1px solid #ddd; }
+        .summary-table tr:last-child td { border-bottom: none; }
+        .debt-amount { font-size: 20px; font-weight: bold; }
+        .section-title { 
+          margin-top: 30px; 
+          padding-bottom: 8px; 
+          border-bottom: 2px solid #1976d2; 
+          color: #1976d2;
+          font-size: 18px;
+        }
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .data-table th { 
+          padding: 12px; 
+          border: 1px solid #ddd; 
+          font-weight: bold;
+          font-size: 14px;
+        }
+        .data-table td { 
+          padding: 10px; 
+          border: 1px solid #ddd; 
+          text-align: center;
+          font-size: 13px;
+        }
+        .loans-header { background: #e3f2fd; }
+        .repayments-header { background: #e8f5e9; }
+        .expenses-header { background: #fff3e0; }
+        .multi-repayment-row { background: #e3f2fd; }
+        .total-row { font-weight: bold; }
+        .multi-badge { 
+          color: #1976d2; 
+          font-weight: bold; 
+          background: white;
+          padding: 2px 8px;
+          border-radius: 4px;
+          display: inline-block;
+        }
+        .recurring-badge {
+          color: #2e7d32;
+          font-weight: bold;
+        }
+        @media print {
+          .summary-box { box-shadow: none; border: 1px solid #ddd; }
+        }
+      </style>
+    </head>
+    <body>
     <div style="padding: 20px;">
-      <div style="text-align: center;">
+      <div class="header">
         ${logoHtml}
-        <h1 style="font-size: 24px; margin: 10px 0;">דוח לווה</h1>
-        <h2 style="font-size: 16px; color: #666;">${data.gemachName}</h2>
+        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח לווה</h1>
+        <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
       </div>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
       
-      <div style="text-align: right; font-size: 16px;">
-        <p><strong>שם הלווה:</strong> ${data.borrowerName}</p>
-        <p><strong>תאריך הפקה:</strong> ${today}</p>
-        <p style="font-size: 18px; margin-top: 15px;">
-          <strong>סה"כ חוב:</strong> ${formatCurrency(data.totalDebt)}
-        </p>
+      <div style="text-align: right; font-size: 15px; margin-bottom: 20px;">
+        <p style="margin: 5px 0;"><strong>שם הלווה:</strong> ${data.borrowerName}</p>
+        <p style="margin: 5px 0;"><strong>תאריך הפקה:</strong> ${today}</p>
+      </div>
+
+      <!-- סיכום כללי -->
+      <div class="summary-box">
+        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
+        <table class="summary-table">
+          <tr>
+            <td style="width: 25%;"><strong>הלוואות פעילות:</strong></td>
+            <td style="width: 25%; text-align: left; color: #1976d2; font-size: 16px;"><strong>${activeLoansCount}</strong></td>
+            <td style="width: 25%;"><strong>הלוואות שנפרעו:</strong></td>
+            <td style="width: 25%; text-align: left; color: #2e7d32; font-size: 16px;"><strong>${completedLoansCount}</strong></td>
+          </tr>
+          <tr>
+            <td><strong>סה"כ הלוואות:</strong></td>
+            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalLoansAmount)}</td>
+            <td><strong>סה"כ פרעונות:</strong></td>
+            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalRepayments)}</td>
+          </tr>
+          <tr style="background: ${data.totalDebt > 0 ? '#ffebee' : '#e8f5e9'};">
+            <td colspan="2"><strong style="font-size: 16px;">יתרת חוב נוכחית:</strong></td>
+            <td colspan="2" style="text-align: left;">
+              <span class="debt-amount" style="color: ${data.totalDebt > 0 ? '#d32f2f' : '#2e7d32'};">
+                ${formatCurrency(data.totalDebt)}
+              </span>
+            </td>
+          </tr>
+        </table>
       </div>
       
-      <h3 style="margin-top: 30px; text-align: right;">פירוט הלוואות:</h3>
+      <h3 class="section-title">💰 פירוט הלוואות</h3>
       
-      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: right;">
+      <table class="data-table">
         <thead>
-          <tr style="background: #f5f5f5;">
-            <th style="padding: 10px; border: 1px solid #ddd;">מס'</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">תאריך</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">יתרה</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">מחזורית</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סטטוס</th>
+          <tr class="loans-header">
+            <th style="width: 8%;">מס'</th>
+            <th style="width: 15%;">תאריך</th>
+            <th style="width: 15%;">סכום הלוואה</th>
+            <th style="width: 15%;">נפרע</th>
+            <th style="width: 15%;">יתרה</th>
+            <th style="width: 17%;">מחזורית</th>
+            <th style="width: 15%;">סטטוס</th>
           </tr>
         </thead>
         <tbody>
-          ${loansHtml || '<tr><td colspan="6" style="padding: 20px; text-align: center;">אין הלוואות</td></tr>'}
+          ${loansHtml || '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #999;">אין הלוואות</td></tr>'}
         </tbody>
       </table>
       
+      ${repaymentsHtml}
       ${expensesHtml}
+      
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
+        <p>דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
+      </div>
     </div>
+    </body>
+    </html>
   `
 
   printHtml(htmlContent, `דוח לווה - ${data.borrowerName}`)

@@ -181,7 +181,8 @@ export default function Dashboard() {
               payment_date: r.payment_date,
               isRecurring: r.is_recurring === 1,
               recurringRepaymentNumber: r.recurring_repayment_number,
-              recurringRepaymentCount: r.recurring_repayment_count
+              recurringRepaymentCount: r.recurring_repayment_count,
+              notes: r.notes // הוספת שדה notes
             }))
           }
         })

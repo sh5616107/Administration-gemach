@@ -275,6 +275,7 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
               isRecurring: r.is_recurring === 1,
               recurringRepaymentNumber: r.recurring_repayment_number,
               recurringRepaymentCount: r.recurring_repayment_count,
+              notes: r.notes, // הוספת שדה notes
             }))
           }
         })
