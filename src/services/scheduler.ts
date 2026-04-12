@@ -78,6 +78,9 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
   
   // Get last day of current month
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  
+  // Get the first day of current month
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
 
   try {
     // Get all loans with auto repayment enabled
@@ -95,24 +98,33 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
       // If repayment day is greater than last day of month, use last day
       const effectiveDay = Math.min(loan.repayment_day || 1, lastDayOfMonth)
       
-      if (effectiveDay !== todayDay) continue
+      // Show alert if:
+      // 1. Today is the repayment day, OR
+      // 2. We're past the repayment day this month and no repayment was made yet this month
+      const shouldAlertToday = effectiveDay === todayDay
+      const isPastRepaymentDay = todayDay > effectiveDay
       
-      // Check if we already made a repayment today
-      const existingRepayment = await db.query(`
+      // Check if we already made a repayment this month
+      const existingRepaymentThisMonth = await db.query(`
         SELECT id FROM repayments 
         WHERE loan_id = ? 
-        AND payment_date = ?
-      `, [loan.id, todayStr])
+        AND payment_date >= ?
+        AND payment_date <= ?
+      `, [loan.id, firstDayOfMonth, todayStr])
 
-      if (existingRepayment.length === 0) {
+      if (existingRepaymentThisMonth.length === 0 && (shouldAlertToday || isPastRepaymentDay)) {
         const remaining = loan.remaining || loan.amount
         const repaymentAmount = Math.min(loan.repayment_amount, remaining)
+
+        const alertMessage = isPastRepaymentDay 
+          ? `פירעון מחזורי באיחור (היה אמור להתבצע ב-${effectiveDay} לחודש) - ${loan.borrower_name}`
+          : `הגיע מועד פירעון מחזורי עבור ${loan.borrower_name}`
 
         alerts.push({
           id: `repayment_${loan.id}_${todayStr}`,
           type: 'auto_repayment',
-          title: 'פירעון מחזורי',
-          message: `הגיע מועד פירעון מחזורי עבור ${loan.borrower_name}`,
+          title: isPastRepaymentDay ? 'פירעון מחזורי באיחור' : 'פירעון מחזורי',
+          message: alertMessage,
           loan_id: loan.id,
           borrower_name: loan.borrower_name,
           amount: repaymentAmount,
@@ -476,6 +488,9 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
   
   // Get last day of current month
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  
+  // Get the first day of current month
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
 
   try {
     // Get all active recurring deposits
@@ -504,23 +519,33 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
       // If recurring day is greater than last day of month, use last day
       const effectiveDay = Math.min(recurringDay, lastDayOfMonth)
       
-      if (effectiveDay === todayDay) {
+      // Show alert if:
+      // 1. Today is the recurring day, OR
+      // 2. We're past the recurring day this month and no deposit was created yet this month
+      const shouldAlertToday = effectiveDay === todayDay
+      const isPastRecurringDay = todayDay > effectiveDay
+      
+      if (shouldAlertToday || isPastRecurringDay) {
         // Check if we already created a deposit this month
-        const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-        const existingDeposit = await db.query(`
+        const existingDepositThisMonth = await db.query(`
           SELECT id FROM deposits 
           WHERE depositor_id = ? 
           AND amount = ? 
-          AND deposit_date LIKE ?
+          AND deposit_date >= ?
+          AND deposit_date <= ?
           AND id != ?
-        `, [deposit.depositor_id, deposit.amount, `${thisMonth}%`, deposit.id])
+        `, [deposit.depositor_id, deposit.amount, firstDayOfMonth, todayStr, deposit.id])
 
-        if (existingDeposit.length === 0) {
+        if (existingDepositThisMonth.length === 0) {
+          const alertMessage = isPastRecurringDay
+            ? `הפקדה מחזורית באיחור (היתה אמורה להתבצע ב-${effectiveDay} לחודש) - ${deposit.depositor_name}`
+            : `הגיע מועד הפקדה מחזורית עבור ${deposit.depositor_name}`
+          
           alerts.push({
             id: `recurring_deposit_${deposit.id}_${todayStr}`,
             type: 'recurring_deposit',
-            title: 'הפקדה מחזורית',
-            message: `הגיע מועד הפקדה מחזורית עבור ${deposit.depositor_name}`,
+            title: isPastRecurringDay ? 'הפקדה מחזורית באיחור' : 'הפקדה מחזורית',
+            message: alertMessage,
             loan_id: 0,
             borrower_name: '',
             deposit_id: deposit.id,
