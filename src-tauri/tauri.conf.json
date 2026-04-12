@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "gemach-manager",
-  "version": "3.9.0",
+  "version": "3.9.1",
   "identifier": "com.gemach.manager",
   "build": {
     "beforeBuildCommand": "npm run build",
@@ -57,3 +57,4 @@
     "longDescription": "מערכת לניהול גמ\"ח כספים"
   }
 }
+
