@@ -25,6 +25,7 @@ const Help = lazy(() => import('./pages/Help'))
 import { exportAllData } from './services/database'
 import { isProtectionEnabled, checkAuthenticated } from './services/protection'
 import { runPendingMigrations } from './services/migrations'
+import { runStartupChecks } from './services/scheduler'
 import localforage from 'localforage'
 
 const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
@@ -112,6 +113,13 @@ function App() {
     // Run pending migrations
     runPendingMigrations().catch(err => {
       console.error('Migration error:', err)
+    })
+    
+    // Run scheduler checks on app startup
+    runStartupChecks().then(alerts => {
+      console.log('[APP] Startup checks completed, alerts:', alerts.length)
+    }).catch(err => {
+      console.error('[APP] Scheduler error:', err)
     })
     
     // Check auto backup on app start

@@ -229,6 +229,14 @@ export async function runStartupChecks(): Promise<Alert[]> {
   const activatedDeposits = await activatePlannedDeposits()
   console.log('[SCHEDULER] Activated planned deposits:', activatedDeposits)
   
+  // Auto-create recurring loans that are due today
+  await autoCreateRecurringLoans()
+  console.log('[SCHEDULER] Auto-created recurring loans')
+  
+  // Auto-create recurring deposits that are due today
+  await autoCreateRecurringDeposits()
+  console.log('[SCHEDULER] Auto-created recurring deposits')
+  
   const recurringAlerts = await checkRecurringLoans()
   const repaymentAlerts = await checkAutoRepayments()
   const depositAlerts = await checkRecurringDeposits()
@@ -242,6 +250,105 @@ export async function runStartupChecks(): Promise<Alert[]> {
   })
   
   return [...recurringAlerts, ...repaymentAlerts, ...depositAlerts, ...plannedLoanAlerts]
+}
+
+// Auto-create recurring loans that are due today
+async function autoCreateRecurringLoans(): Promise<void> {
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  const day = today.getDate()
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  
+  try {
+    const allLoans = await loansService.getAll() as any[]
+    
+    for (const loan of allLoans) {
+      // Skip if not recurring or no more loans to create
+      if (!loan.is_recurring || loan.recurring_months <= 0 || loan.status !== 'active') continue
+      
+      const recurringDay = loan.recurring_day || 1
+      const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
+      
+      // Check if today is the recurring day
+      if (effectiveRecurringDay !== day) continue
+      
+      // Check if loan already created today
+      const existingLoanToday = allLoans.find((l: any) => 
+        l.borrower_id === loan.borrower_id && 
+        l.amount === loan.amount && 
+        l.loan_date === todayStr &&
+        l.id !== loan.id
+      )
+      
+      if (existingLoanToday) {
+        console.log(`[AUTO-CREATE] Loan already exists for today: loan #${loan.id}`)
+        continue
+      }
+      
+      // Create the recurring loan
+      console.log(`[AUTO-CREATE] Creating recurring loan from loan #${loan.id}`)
+      const success = await createRecurringLoan(loan.id)
+      
+      if (success) {
+        console.log(`[AUTO-CREATE] ✅ Successfully created recurring loan from #${loan.id}`)
+      } else {
+        console.error(`[AUTO-CREATE] ❌ Failed to create recurring loan from #${loan.id}`)
+      }
+    }
+  } catch (error) {
+    console.error('[AUTO-CREATE] Error in autoCreateRecurringLoans:', error)
+  }
+}
+
+// Auto-create recurring deposits that are due today
+async function autoCreateRecurringDeposits(): Promise<void> {
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  const day = today.getDate()
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  
+  try {
+    const deposits = await db.query(`
+      SELECT * FROM deposits 
+      WHERE is_recurring = 1 
+      AND status = 'active'
+      AND recurring_months > 0
+    `) as any[]
+    
+    for (const deposit of deposits) {
+      const recurringDay = deposit.recurring_day || new Date(deposit.deposit_date).getDate()
+      const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
+      
+      // Check if today is the recurring day
+      if (effectiveRecurringDay !== day) continue
+      
+      // Check if deposit already created today
+      const existingDepositToday = await db.query(`
+        SELECT id FROM deposits 
+        WHERE depositor_id = ? 
+        AND amount = ? 
+        AND deposit_date = ?
+        AND id != ?
+      `, [deposit.depositor_id, deposit.amount, todayStr, deposit.id])
+      
+      if (existingDepositToday.length > 0) {
+        console.log(`[AUTO-CREATE] Deposit already exists for today: deposit #${deposit.id}`)
+        continue
+      }
+      
+      // Create the recurring deposit
+      console.log(`[AUTO-CREATE] Creating recurring deposit from deposit #${deposit.id}`)
+      const success = await createRecurringDeposit(deposit.id)
+      
+      if (success) {
+        console.log(`[AUTO-CREATE] ✅ Successfully created recurring deposit from #${deposit.id}`)
+      } else {
+        console.error(`[AUTO-CREATE] ❌ Failed to create recurring deposit from #${deposit.id}`)
+      }
+    }
+  } catch (error) {
+    console.error('[AUTO-CREATE] Error in autoCreateRecurringDeposits:', error)
+  }
 }
 
 // Activate planned loans that have reached their loan date
