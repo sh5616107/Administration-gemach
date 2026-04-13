@@ -78,12 +78,13 @@ describe('Recurring Loan Duplication Prevention', () => {
       borrower_id: borrower.lastInsertRowid,
       amount: 1300,
       loan_date: '2026-03-05',
+      loan_type: 'fixed',
       is_recurring: 1,
       recurring_months: 10, // Still has 10 more to create
       recurring_day: 5,
       recurring_loan_number: 2,
       recurring_loan_count: 12,
-      status: 'active',
+      auto_repayment: 0,
     })
     
     console.log('Created loan 2/12:', loan2.lastInsertRowid)
@@ -100,12 +101,13 @@ describe('Recurring Loan Duplication Prevention', () => {
       borrower_id: borrower.lastInsertRowid,
       amount: 1300,
       loan_date: '2026-04-12', // Created today
+      loan_type: 'fixed',
       is_recurring: 1,
       recurring_months: 9,
       recurring_day: 5,
       recurring_loan_number: 3,
       recurring_loan_count: 12,
-      status: 'active',
+      auto_repayment: 0,
     })
     
     console.log('Created loan 3/12:', loan3.lastInsertRowid)
