@@ -943,7 +943,7 @@ dependencies = [
 
 [[package]]
 name = "gemach-manager"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "open",
  "serde",

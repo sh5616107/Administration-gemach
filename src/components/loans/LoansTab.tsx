@@ -358,6 +358,15 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       return
     }
 
+    // ולידציה: הלוואה מחזורית חייבת להיות לפחות 2 הלוואות
+    if (formData.is_recurring === 1 && formData.recurring_months !== undefined) {
+      const totalLoans = formData.recurring_months + 1
+      if (totalLoans < 2) {
+        setSnackbar({ open: true, message: 'הלוואה מחזורית חייבת להיות לפחות 2 הלוואות', severity: 'error' })
+        return
+      }
+    }
+
     // בדיקת רשימה שחורה - מניעת הלוואה חדשה ללווה ברשימה שחורה
     if (!selectedLoan && blacklistedBorrowerIds.includes(formData.borrower_id)) {
       setSnackbar({ open: true, message: 'לא ניתן ליצור הלוואה ללווה שנמצא ברשימה השחורה', severity: 'error' })
@@ -1462,20 +1471,34 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                         <TextField
                           fullWidth
                           label="סה״כ הלוואות"
-                          type="number"
-                          value={formData.recurring_months ? formData.recurring_months + 1 : ''}
+                          value={formData.recurring_months !== undefined ? formData.recurring_months + 1 : ''}
                           onChange={(e) => {
                             const value = e.target.value
+                            console.log('🔢 Total loans input:', value)
                             // אם השדה ריק, נאפס
                             if (value === '') {
+                              console.log('  → Empty, setting to 0')
                               setFormData({ ...formData, recurring_months: 0 })
                               return
                             }
+                            // אפשר רק מספרים
+                            if (!/^\d+$/.test(value)) {
+                              console.log('  → Invalid input, ignoring')
+                              return
+                            }
                             const total = parseInt(value) || 0
+                            const recurring = total > 0 ? total - 1 : 0
+                            console.log('  → Total:', total, 'Recurring:', recurring)
                             // recurring_months = סה"כ - 1 (כי ההלוואה הראשונה כבר נוצרת עכשיו)
-                            setFormData({ ...formData, recurring_months: total > 0 ? total - 1 : 0 })
+                            setFormData({ ...formData, recurring_months: recurring })
                           }}
-                          helperText="סה״כ כמה הלוואות ייוצרו (כולל הראשונה) - מינימום 2"
+                          error={formData.recurring_months !== undefined && formData.recurring_months + 1 < 2}
+                          helperText={
+                            formData.recurring_months !== undefined && formData.recurring_months + 1 < 2
+                              ? 'מינימום 2 הלוואות'
+                              : 'סה״כ כמה הלוואות ייוצרו (כולל הראשונה) - מינימום 2'
+                          }
+                          inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
                         />
                       </Grid>
                       <Grid item xs={12} md={3}>
