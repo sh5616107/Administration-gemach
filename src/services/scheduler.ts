@@ -290,18 +290,29 @@ async function autoCreateRecurringLoans(): Promise<void> {
       // Get the first day of current month
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
       
-      // Check if loan already created this month
+      // IMPORTANT: Skip if this loan was created this month!
+      // This prevents newly created loans from immediately creating another loan
+      if (loan.loan_date >= firstDayOfMonth && loan.loan_date <= todayStr) {
+        console.log(`[AUTO-CREATE] Loan #${loan.id} was created this month, skipping`)
+        continue
+      }
+      
+      // Check if loan already created this month - check by recurring number
+      const currentRecurringNumber = loan.recurring_loan_number || 1
+      const nextRecurringNumber = currentRecurringNumber + 1
+      
       const existingLoanThisMonth = allLoans.find((l: any) => 
         l.borrower_id === loan.borrower_id && 
         l.amount === loan.amount && 
         l.loan_date >= firstDayOfMonth &&
         l.loan_date <= todayStr &&
         l.id !== loan.id &&
-        l.is_recurring === 1
+        l.is_recurring === 1 &&
+        l.recurring_loan_number === nextRecurringNumber // Check for the NEXT number
       )
       
       if (existingLoanThisMonth) {
-        console.log(`[AUTO-CREATE] Loan already exists for this month: loan #${loan.id}`)
+        console.log(`[AUTO-CREATE] Loan #${nextRecurringNumber} already exists for this month: loan #${loan.id}`)
         continue
       }
       
