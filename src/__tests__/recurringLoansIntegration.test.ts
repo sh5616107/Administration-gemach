@@ -33,8 +33,8 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         recurring_loan_number: 1,
         recurring_loan_count: 12,
         auto_repayment: 0,
-        status: 'active',
       })
+      await loansService.update(loan1.lastInsertRowid, { status: 'active' })
       
       // Run auto-create
       await autoCreateRecurringLoans()
@@ -78,8 +78,8 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         recurring_loan_number: 1,
         recurring_loan_count: 12,
         auto_repayment: 0,
-        status: 'active',
       })
+      await loansService.update(loan1.lastInsertRowid, { status: 'active' })
       
       // Run auto-create
       await autoCreateRecurringLoans()
@@ -121,8 +121,8 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         recurring_loan_number: 1,
         recurring_loan_count: 12,
         auto_repayment: 0,
-        status: 'active',
       })
+      await loansService.update(loan1.lastInsertRowid, { status: 'active' })
       
       // Run auto-create
       await autoCreateRecurringLoans()
@@ -166,8 +166,8 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         recurring_loan_number: 1,
         recurring_loan_count: 12,
         auto_repayment: 0,
-        status: 'active',
       })
+      await loansService.update(loan1.lastInsertRowid, { status: 'active' })
       
       // Run auto-create TWICE
       await autoCreateRecurringLoans()
@@ -213,8 +213,8 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         recurring_loan_number: 1,
         recurring_loan_count: 12,
         auto_repayment: 0,
-        status: 'active',
       })
+      await loansService.update(loan1.lastInsertRowid, { status: 'active' })
       
       // Check alerts BEFORE creating the loan
       // Note: checkRecurringLoans only shows alerts if loan doesn't exist yet
@@ -253,12 +253,13 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         amount: 12000,
         loan_date: '2026-04-01',
         loan_type: 'fixed',
+        is_recurring: 0,
         auto_repayment: 1,
         repayment_amount: 1000,
         repayment_day: 10,
         repayment_start_date: '2026-04-10',
-        status: 'active',
       })
+      await loansService.update(loan.lastInsertRowid, { status: 'active' })
       
       // Check auto repayment alerts
       const alerts = await checkAutoRepayments()
@@ -294,12 +295,13 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         amount: 10000,
         loan_date: '2026-04-01',
         loan_type: 'fixed',
+        is_recurring: 0,
         auto_repayment: 1,
         repayment_amount: 1000,
         repayment_day: 10,
         repayment_start_date: '2026-04-10',
-        status: 'active',
       })
+      await loansService.update(loan.lastInsertRowid, { status: 'active' })
       
       // Check auto repayment alerts
       const alerts = await checkAutoRepayments()
@@ -342,8 +344,8 @@ describe('Recurring Loans & Repayments - Integration Tests', () => {
         recurring_loan_number: 1,
         recurring_loan_count: 12,
         auto_repayment: 0,
-        status: 'planned', // ← PLANNED, not active
       })
+      await loansService.update(loan.lastInsertRowid, { status: 'planned' }) // ← PLANNED, not active
       
       // Check alerts
       const alerts = await checkRecurringLoans()
