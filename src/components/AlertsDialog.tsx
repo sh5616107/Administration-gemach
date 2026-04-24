@@ -31,7 +31,7 @@ import { useNavigate } from 'react-router-dom'
 import { loansService, repaymentsService, db } from '../services/database'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
-import { createRecurringDeposit, createRecurringLoan, activatePlannedLoans } from '../services/scheduler'
+import { createRecurringDeposit, createRecurringLoan, getMissedLoansAlerts } from '../services/scheduler'
 
 interface Alert {
   type: 'overdue' | 'recurring' | 'auto_repayment' | 'recurring_deposit' | 'info'
@@ -160,15 +160,22 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
     // Get last day of current month
     const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
 
-    // First, activate any planned loans that have reached their date
-    console.log('[ALERTS] Activating planned loans...')
-    const activated = await activatePlannedLoans()
-    console.log('[ALERTS] Activated planned loans:', activated)
+    // NOTE: We do NOT call activatePlannedLoans() or autoCreateRecurringLoans() here!
+    // Those are called by scheduler.runStartupChecks() on app startup.
+    // AlertsDialog is ONLY responsible for displaying alerts, not executing business logic.
+    // This prevents race conditions and maintains separation of concerns.
     
-    // Auto-create recurring loans
-    console.log('[ALERTS] Auto-creating recurring loans...')
-    await autoCreateRecurringLoans()
-    console.log('[ALERTS] Recurring loans auto-creation completed')
+    // Check for missed recurring loans (from scheduler)
+    const missedLoans = getMissedLoansAlerts()
+    missedLoans.forEach((missed) => {
+      newAlerts.push({
+        type: 'info',
+        title: '⚠️ הלוואות מחזוריות שהוחמצו',
+        message: `${missed.borrowerName} - חסרות ${missed.monthsMissed} הלוואות (${missed.currentRecurringNumber}/${missed.totalCount}). תאריך אחרון: ${formatDisplayDate(missed.lastLoanDate, settings.date_format)}. יש ליצור ידנית.`,
+        loanId: missed.loanId,
+        key: `missed-loans-${missed.loanId}-${todayStr}`,
+      })
+    })
 
     // Check overdue loans
     const overdueLoans = await loansService.getOverdue()
@@ -402,54 +409,6 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
     }
   }
 
-  // Auto-create recurring loans that are due today
-  const autoCreateRecurringLoans = async () => {
-    const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
-    const day = today.getDate()
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-    
-    try {
-      const allLoans = await loansService.getAll() as any[]
-      
-      for (const loan of allLoans) {
-        // Skip if not recurring or no more loans to create
-        if (!loan.is_recurring || loan.recurring_months <= 0 || loan.status !== 'active') continue
-        
-        const recurringDay = loan.recurring_day || 1
-        const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
-        
-        // Check if today is the recurring day
-        if (effectiveRecurringDay !== day) continue
-        
-        // Check if loan already created today
-        const existingLoanToday = allLoans.find((l: any) => 
-          l.borrower_id === loan.borrower_id && 
-          l.amount === loan.amount && 
-          l.loan_date === todayStr &&
-          l.id !== loan.id
-        )
-        
-        if (existingLoanToday) {
-          console.log(`[AUTO-CREATE] Loan already exists for today: loan #${loan.id}`)
-          continue
-        }
-        
-        // Create the recurring loan
-        console.log(`[AUTO-CREATE] Creating recurring loan from loan #${loan.id}`)
-        const success = await createRecurringLoan(loan.id)
-        
-        if (success) {
-          console.log(`[AUTO-CREATE] ✅ Successfully created recurring loan from #${loan.id}`)
-        } else {
-          console.error(`[AUTO-CREATE] ❌ Failed to create recurring loan from #${loan.id}`)
-        }
-      }
-    } catch (error) {
-      console.error('[AUTO-CREATE] Error in autoCreateRecurringLoans:', error)
-    }
-  }
-
   const handleConfirmRecurringDeposit = async (alert: Alert) => {
     if (!alert.depositId || !alert.amount) return
     
@@ -657,37 +616,9 @@ export async function getUnreadAlertCount(): Promise<number> {
   let count = 0
 
   try {
-    // First, activate any planned loans that have reached their date
-    await activatePlannedLoans()
-    
-    // Auto-create recurring loans
-    console.log('[ALERT COUNT] Auto-creating recurring loans...')
-    const autoCreateRecurringLoans = async () => {
-      const allLoansForCreate = await loansService.getAll() as any[]
-      
-      for (const loan of allLoansForCreate) {
-        if (!loan.is_recurring || loan.recurring_months <= 0 || loan.status !== 'active') continue
-        
-        const recurringDay = loan.recurring_day || 1
-        const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
-        
-        if (effectiveRecurringDay !== day) continue
-        
-        const existingLoanToday = allLoansForCreate.find((l: any) => 
-          l.borrower_id === loan.borrower_id && 
-          l.amount === loan.amount && 
-          l.loan_date === todayStr &&
-          l.id !== loan.id
-        )
-        
-        if (!existingLoanToday) {
-          console.log(`[ALERT COUNT] Creating recurring loan from loan #${loan.id}`)
-          await createRecurringLoan(loan.id)
-        }
-      }
-    }
-    await autoCreateRecurringLoans()
-    console.log('[ALERT COUNT] Recurring loans auto-creation completed')
+    // NOTE: We do NOT call activatePlannedLoans() or autoCreateRecurringLoans() here!
+    // Those are called by scheduler.runStartupChecks() on app startup.
+    // This function is ONLY responsible for counting alerts, not executing business logic.
     
     const overdueLoans = await loansService.getOverdue()
     console.log('[ALERT COUNT] Overdue loans:', overdueLoans.length)

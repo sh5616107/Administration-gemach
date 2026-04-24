@@ -160,6 +160,8 @@ describe('checkRecurringLoans', () => {
       is_recurring: 1,
       recurring_months: 3,
       recurring_day: 15, // היום!
+      recurring_loan_number: 1, // ← הוספה
+      status: 'active', // ← הוספה
     }
 
     vi.mocked(db.query).mockImplementation(async (sql: string) => {
@@ -215,6 +217,8 @@ describe('checkRecurringLoans', () => {
       is_recurring: 1,
       recurring_months: 3,
       recurring_day: 31, // יום 31 - לא קיים בפברואר
+      recurring_loan_number: 1, // ← הוספה
+      status: 'active', // ← הוספה
     }
 
     vi.mocked(db.query).mockImplementation(async (sql: string) => {

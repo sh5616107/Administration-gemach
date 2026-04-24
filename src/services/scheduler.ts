@@ -14,6 +14,29 @@ interface Alert {
   depositor_name?: string
 }
 
+// Lock mechanism to prevent race conditions
+let isAutoCreateRunning = false
+const AUTO_CREATE_LOCK_TIMEOUT = 30000 // 30 seconds timeout
+
+// Store missed loans alerts to show to user
+interface MissedLoanAlert {
+  loanId: number
+  borrowerName: string
+  monthsMissed: number
+  lastLoanDate: string
+  currentRecurringNumber: number
+  totalCount: number
+}
+
+let missedLoansAlerts: MissedLoanAlert[] = []
+
+// Function to get and clear missed loans alerts
+export function getMissedLoansAlerts(): MissedLoanAlert[] {
+  const alerts = [...missedLoansAlerts]
+  missedLoansAlerts = [] // Clear after reading
+  return alerts
+}
+
 // Check for recurring loans that should be created today
 export async function checkRecurringLoans(): Promise<Alert[]> {
   const alerts: Alert[] = []
@@ -23,37 +46,55 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
   
   // Get last day of current month
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  
+  // Get the first day of current month
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
 
   try {
-    // Get all loans with recurring enabled
+    // Get all loans with recurring enabled and active status
     const recurringLoans = await db.query(`
       SELECT l.*, b.first_name || ' ' || b.last_name as borrower_name
       FROM loans l
       JOIN borrowers b ON l.borrower_id = b.id
       WHERE l.is_recurring = 1 
       AND l.recurring_months > 0
+      AND l.status = 'active'
     `) as any[]
 
     for (const loan of recurringLoans) {
       // If recurring day is greater than last day of month, use last day
       const effectiveDay = Math.min(loan.recurring_day || 1, lastDayOfMonth)
       
-      if (effectiveDay !== todayDay) continue
+      // Check if today is the recurring day OR if we're past it
+      const shouldAlertToday = effectiveDay === todayDay
+      const isPastRecurringDay = todayDay > effectiveDay
       
-      // Check if we already created a loan this month
+      if (!shouldAlertToday && !isPastRecurringDay) continue
+      
+      // Check if we already created a loan this month - check by recurring number
+      const currentRecurringNumber = loan.recurring_loan_number || 1
+      const nextRecurringNumber = currentRecurringNumber + 1
+      
       const existingLoan = await db.query(`
         SELECT id FROM loans 
         WHERE borrower_id = ? 
         AND amount = ? 
-        AND loan_date = ?
-      `, [loan.borrower_id, loan.amount, todayStr])
+        AND loan_date >= ?
+        AND loan_date <= ?
+        AND is_recurring = 1
+        AND recurring_loan_number = ?
+      `, [loan.borrower_id, loan.amount, firstDayOfMonth, todayStr, nextRecurringNumber])
 
       if (existingLoan.length === 0) {
+        const alertMessage = isPastRecurringDay
+          ? `הלוואה מחזורית באיחור (היתה אמורה להיווצר ב-${effectiveDay} לחודש) - ${loan.borrower_name}`
+          : `הגיע מועד הלוואה מחזורית עבור ${loan.borrower_name}`
+        
         alerts.push({
           id: `recurring_${loan.id}_${todayStr}`,
           type: 'recurring_loan',
-          title: 'הלוואה מחזורית',
-          message: `הגיע מועד הלוואה מחזורית עבור ${loan.borrower_name}`,
+          title: isPastRecurringDay ? 'הלוואה מחזורית באיחור' : 'הלוואה מחזורית',
+          message: alertMessage,
           loan_id: loan.id,
           borrower_name: loan.borrower_name,
           amount: loan.amount,
@@ -204,6 +245,14 @@ export async function processAutoRepayment(loanId: number, amount: number): Prom
     
     // Get existing repayments for this loan to calculate the number
     const existingRepayments = await repaymentsService.getByLoan(loanId)
+    
+    // IMPORTANT: Check if repayment already exists today to prevent duplicates
+    const repaymentToday = existingRepayments.find(r => r.payment_date === today)
+    if (repaymentToday) {
+      console.log(`[AUTO-REPAYMENT] Repayment already exists today for loan #${loanId}`)
+      return false
+    }
+    
     const autoRepayments = existingRepayments.filter(r => r.notes?.includes('פירעון מחזורי'))
     const repaymentNumber = autoRepayments.length + 1
     
@@ -243,7 +292,6 @@ export async function runStartupChecks(): Promise<Alert[]> {
   
   // Auto-create recurring loans that are due today
   await autoCreateRecurringLoans()
-  console.log('[SCHEDULER] Auto-created recurring loans')
   
   // Auto-create recurring deposits that are due today
   await autoCreateRecurringDeposits()
@@ -265,11 +313,31 @@ export async function runStartupChecks(): Promise<Alert[]> {
 }
 
 // Auto-create recurring loans that are due today
-async function autoCreateRecurringLoans(): Promise<void> {
+export async function autoCreateRecurringLoans(): Promise<void> {
+  // Prevent race conditions - only one execution at a time
+  if (isAutoCreateRunning) {
+    console.log('[AUTO-CREATE] Already running, skipping...')
+    return
+  }
+  
+  isAutoCreateRunning = true
+  const lockStartTime = Date.now()
+  
+  // Set timeout to release lock in case of error
+  const timeoutId = setTimeout(() => {
+    if (isAutoCreateRunning) {
+      console.warn('[AUTO-CREATE] Lock timeout reached, forcing release')
+      isAutoCreateRunning = false
+    }
+  }, AUTO_CREATE_LOCK_TIMEOUT)
+  
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
   const day = today.getDate()
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  
+  // Clear previous missed loans alerts
+  missedLoansAlerts = []
   
   try {
     const allLoans = await loansService.getAll() as any[]
@@ -287,17 +355,13 @@ async function autoCreateRecurringLoans(): Promise<void> {
       const shouldCreateToday = effectiveRecurringDay === day
       const isPastRecurringDay = day > effectiveRecurringDay
       
+      if (!shouldCreateToday && !isPastRecurringDay) continue
+      
       // Get the first day of current month
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
       
-      // IMPORTANT: Skip if this loan was created this month!
-      // This prevents newly created loans from immediately creating another loan
-      if (loan.loan_date >= firstDayOfMonth && loan.loan_date <= todayStr) {
-        console.log(`[AUTO-CREATE] Loan #${loan.id} was created this month, skipping`)
-        continue
-      }
-      
       // Check if loan already created this month - check by recurring number
+      // This is the CORRECT way to prevent duplicates
       const currentRecurringNumber = loan.recurring_loan_number || 1
       const nextRecurringNumber = currentRecurringNumber + 1
       
@@ -316,6 +380,33 @@ async function autoCreateRecurringLoans(): Promise<void> {
         continue
       }
       
+      // IMPORTANT: Check if this loan's last occurrence was in a previous month
+      // If so, we might have missed creating loans for previous months
+      const loanDate = new Date(loan.loan_date)
+      const loanMonth = loanDate.getMonth()
+      const loanYear = loanDate.getFullYear()
+      const currentMonth = today.getMonth()
+      const currentYear = today.getFullYear()
+      
+      // Calculate how many months have passed since the last loan
+      const monthsDiff = (currentYear - loanYear) * 12 + (currentMonth - loanMonth)
+      
+      if (monthsDiff > 1 && !existingLoanThisMonth) {
+        console.warn(`[AUTO-CREATE] ⚠️ Warning: Loan #${loan.id} is ${monthsDiff} months old. This might indicate missed recurring loans.`)
+        console.warn(`[AUTO-CREATE] Last loan date: ${loan.loan_date}, Current date: ${todayStr}`)
+        console.warn(`[AUTO-CREATE] Consider creating missed loans manually or running a catch-up process.`)
+        
+        // Add this to the alerts that will be shown to the user
+        missedLoansAlerts.push({
+          loanId: loan.id,
+          borrowerName: loan.borrower_name || `Loan #${loan.id}`,
+          monthsMissed: monthsDiff - 1, // -1 because we're creating current month
+          lastLoanDate: loan.loan_date,
+          currentRecurringNumber: currentRecurringNumber,
+          totalCount: loan.recurring_loan_count || 0
+        })
+      }
+      
       // Create loan if today is the day OR if we're past the day and no loan exists
       if (shouldCreateToday || isPastRecurringDay) {
         console.log(`[AUTO-CREATE] Creating recurring loan from loan #${loan.id} (day: ${effectiveRecurringDay}, today: ${day})`)
@@ -330,6 +421,12 @@ async function autoCreateRecurringLoans(): Promise<void> {
     }
   } catch (error) {
     console.error('[AUTO-CREATE] Error in autoCreateRecurringLoans:', error)
+  } finally {
+    // Always release the lock
+    clearTimeout(timeoutId)
+    isAutoCreateRunning = false
+    const duration = Date.now() - lockStartTime
+    console.log(`[AUTO-CREATE] Completed in ${duration}ms`)
   }
 }
 
