@@ -1,4 +1,4 @@
-import { loansService, repaymentsService, db } from './database'
+import { loansService, repaymentsService, db, getAllItems } from './database'
 
 interface Alert {
   id: string
@@ -29,6 +29,30 @@ interface MissedLoanAlert {
 }
 
 let missedLoansAlerts: MissedLoanAlert[] = []
+
+// Repair Log - Track repair attempts to prevent duplicate creation
+const MISSED_LOANS_REPAIR_KEY = 'gemach_missed_loans_repair_log'
+
+// Get last repair attempt date for a loan
+function getLastMissedLoanRepairDate(loanId: number): string | null {
+  try {
+    const log = JSON.parse(localStorage.getItem(MISSED_LOANS_REPAIR_KEY) || '{}')
+    return log[loanId] || null
+  } catch {
+    return null
+  }
+}
+
+// Mark that we attempted to repair a loan today
+function markMissedLoanRepairAttempt(loanId: number): void {
+  try {
+    const log = JSON.parse(localStorage.getItem(MISSED_LOANS_REPAIR_KEY) || '{}')
+    log[loanId] = new Date().toISOString().split('T')[0]
+    localStorage.setItem(MISSED_LOANS_REPAIR_KEY, JSON.stringify(log))
+  } catch (e) {
+    console.error('[REPAIR-LOG] Error marking repair attempt:', e)
+  }
+}
 
 // Function to get and clear missed loans alerts
 export function getMissedLoansAlerts(): MissedLoanAlert[] {
@@ -341,10 +365,18 @@ export async function autoCreateRecurringLoans(): Promise<void> {
   
   try {
     const allLoans = await loansService.getAll() as any[]
+    // Also get deleted loans to check if a loan was deleted
+    const allLoansIncludingDeleted = getAllItems<any>('loans')
     
     for (const loan of allLoans) {
       // Skip if not recurring or no more loans to create
       if (!loan.is_recurring || loan.recurring_months <= 0 || loan.status !== 'active') continue
+      
+      // ✅ SOFT-DELETE CHECK: Skip if loan is marked as deleted
+      if (loan.is_deleted) {
+        console.log(`[AUTO-CREATE] Loan #${loan.id} is marked as deleted, skipping`)
+        continue
+      }
       
       const recurringDay = loan.recurring_day || 1
       const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
@@ -365,7 +397,8 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       const currentRecurringNumber = loan.recurring_loan_number || 1
       const nextRecurringNumber = currentRecurringNumber + 1
       
-      const existingLoanThisMonth = allLoans.find((l: any) => 
+      // Check in ALL loans (including deleted) to see if loan was created and then deleted
+      const existingLoanThisMonth = allLoansIncludingDeleted.find((l: any) => 
         l.borrower_id === loan.borrower_id && 
         l.amount === loan.amount && 
         l.loan_date >= firstDayOfMonth &&
@@ -376,6 +409,11 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       )
       
       if (existingLoanThisMonth) {
+        // Check if it was deleted
+        if (existingLoanThisMonth.is_deleted) {
+          console.log(`[AUTO-CREATE] Loan #${nextRecurringNumber} was created and then deleted, not recreating`)
+          continue
+        }
         console.log(`[AUTO-CREATE] Loan #${nextRecurringNumber} already exists for this month: loan #${loan.id}`)
         continue
       }
@@ -392,6 +430,13 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       const monthsDiff = (currentYear - loanYear) * 12 + (currentMonth - loanMonth)
       
       if (monthsDiff > 1 && !existingLoanThisMonth) {
+        // ✅ REPAIR LOG CHECK: Check if we already attempted to repair this loan today
+        const lastRepairDate = getLastMissedLoanRepairDate(loan.id)
+        if (lastRepairDate === todayStr) {
+          console.log(`[AUTO-CREATE] Already attempted to repair loan #${loan.id} today (${lastRepairDate}), skipping`)
+          continue
+        }
+        
         console.warn(`[AUTO-CREATE] ⚠️ Warning: Loan #${loan.id} is ${monthsDiff} months old. This might indicate missed recurring loans.`)
         console.warn(`[AUTO-CREATE] Last loan date: ${loan.loan_date}, Current date: ${todayStr}`)
         console.warn(`[AUTO-CREATE] Consider creating missed loans manually or running a catch-up process.`)
@@ -405,6 +450,9 @@ export async function autoCreateRecurringLoans(): Promise<void> {
           currentRecurringNumber: currentRecurringNumber,
           totalCount: loan.recurring_loan_count || 0
         })
+        
+        // ✅ REPAIR LOG: Mark that we attempted to repair this loan today
+        markMissedLoanRepairAttempt(loan.id)
       }
       
       // Create loan if today is the day OR if we're past the day and no loan exists

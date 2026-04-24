@@ -81,7 +81,7 @@ export function resetDatabase(): void {
 }
 
 // Helper functions
-function getAllItems<T>(storeName: keyof DataStore): T[] {
+export function getAllItems<T>(storeName: keyof DataStore): T[] {
   return Object.values(data[storeName] as Record<string, T>)
 }
 
@@ -403,11 +403,11 @@ export const guarantorsService = {
 
 
 // Loans Service
-export interface Loan { id: number; borrower_id: number; amount: number; loan_date: string; loan_date_hebrew?: string; loan_type: string; due_date?: string; due_date_hebrew?: string; is_recurring: number; recurring_months?: number; recurring_day?: number; recurring_loan_number?: number; recurring_loan_count?: number; auto_repayment: number; repayment_amount?: number; repayment_day?: number; repayment_frequency?: string; repayment_start_date?: string; guarantor1_id?: number; guarantor2_id?: number; notes?: string; status: string; created_at: string; total_repaid?: number; remaining?: number; borrower_name?: string; payment_method?: string; payment_details?: string }
+export interface Loan { id: number; borrower_id: number; amount: number; loan_date: string; loan_date_hebrew?: string; loan_type: string; due_date?: string; due_date_hebrew?: string; is_recurring: number; recurring_months?: number; recurring_day?: number; recurring_loan_number?: number; recurring_loan_count?: number; auto_repayment: number; repayment_amount?: number; repayment_day?: number; repayment_frequency?: string; repayment_start_date?: string; guarantor1_id?: number; guarantor2_id?: number; notes?: string; status: string; created_at: string; total_repaid?: number; remaining?: number; borrower_name?: string; payment_method?: string; payment_details?: string; is_deleted?: boolean; deleted_at?: string }
 
 export const loansService = {
   async getAll(): Promise<Loan[]> {
-    const loans = getAllItems<Loan>('loans')
+    const loans = getAllItems<Loan>('loans').filter(l => !l.is_deleted)
     const borrowers = await borrowersService.getAll()
     for (const loan of loans) {
       const repayments = await repaymentsService.getByLoan(loan.id)
@@ -419,10 +419,10 @@ export const loansService = {
     return loans.sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
   },
   async getByBorrower(id: number): Promise<Loan[]> { return (await this.getAll()).filter(l => l.borrower_id === id) },
-  async getById(id: number): Promise<Loan | null> { const l = getItem<Loan>('loans', String(id)); if (l) { const r = await repaymentsService.getByLoan(id); l.total_repaid = r.reduce((s, x) => s + x.amount, 0); l.remaining = l.amount - l.total_repaid } return l },
-  async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: number }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', String(id), { ...l, id, status, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async getById(id: number): Promise<Loan | null> { const l = getItem<Loan>('loans', String(id)); if (l && l.is_deleted) return null; if (l) { const r = await repaymentsService.getByLoan(id); l.total_repaid = r.reduce((s, x) => s + x.amount, 0); l.remaining = l.amount - l.total_repaid } return l },
+  async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: number }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', String(id), { ...l, id, status, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: number, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, ...d }) },
-  async delete(id: number): Promise<void> { const r = await repaymentsService.getByLoan(id); for (const x of r) await repaymentsService.delete(x.id); removeItem('loans', String(id)) },
+  async delete(id: number): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
   async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
 }
 
