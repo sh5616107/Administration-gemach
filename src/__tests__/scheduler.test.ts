@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock the database module
 vi.mock('../services/database', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = await importOriginal() as any
   return {
     ...actual,
     loansService: {
