@@ -148,7 +148,7 @@ export const db = {
       return items
     }
     if (sql.includes('FROM deposits')) {
-      const deposits = getAllItems<any>('deposits')
+      const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted)
       const depositors = getAllItems<any>('depositors')
       
       let filtered = deposits
@@ -297,6 +297,7 @@ export const db = {
         status: params[11], 
         payment_method: params[12] || '', 
         payment_details: params[13] || '', 
+        is_deleted: false,
         created_at: new Date().toISOString() 
       }); 
       return { lastInsertRowid: id, changes: 1 } 
@@ -351,7 +352,11 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (sql.includes('DELETE FROM deposits WHERE id') && params) { removeItem('deposits', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM deposits WHERE id') && params) { 
+      const d = getItem<any>('deposits', String(params[0])); 
+      if (d) setItem('deposits', String(params[0]), { ...d, is_deleted: true, deleted_at: new Date().toISOString() }); 
+      return { lastInsertRowid: 0, changes: 1 } 
+    }
     if (sql.includes('DELETE FROM donations WHERE id') && params) { removeItem('donations', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     return { lastInsertRowid: 1, changes: 1 }
@@ -427,13 +432,13 @@ export const loansService = {
 }
 
 // Repayments Service
-export interface Repayment { id: number; loan_id: number; amount: number; payment_date: string; payment_date_hebrew?: string; notes?: string; created_at: string; payment_method?: string; payment_details?: string; is_recurring?: number; recurring_repayment_number?: number; recurring_repayment_count?: number }
+export interface Repayment { id: number; loan_id: number; amount: number; payment_date: string; payment_date_hebrew?: string; notes?: string; created_at: string; payment_method?: string; payment_details?: string; is_recurring?: number; recurring_repayment_number?: number; recurring_repayment_count?: number; is_deleted?: boolean; deleted_at?: string }
 
 export const repaymentsService = {
-  async getByLoan(loanId: number): Promise<Repayment[]> { return getAllItems<Repayment>('repayments').filter(r => r.loan_id === loanId).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()) },
-  async create(r: Omit<Repayment, 'id' | 'created_at'>): Promise<{ lastInsertRowid: number }> { const id = generateId('repayments'); setItem('repayments', String(id), { ...r, id, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
-  async update(id: number, data: Partial<Repayment>): Promise<void> { const existing = getItem<Repayment>('repayments', String(id)); if (existing) setItem('repayments', String(id), { ...existing, ...data }) },
-  async delete(id: number): Promise<void> { removeItem('repayments', String(id)) },
+  async getByLoan(loanId: number): Promise<Repayment[]> { return getAllItems<Repayment>('repayments').filter(r => r.loan_id === loanId && !r.is_deleted).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()) },
+  async create(r: Omit<Repayment, 'id' | 'created_at'>): Promise<{ lastInsertRowid: number }> { const id = generateId('repayments'); setItem('repayments', String(id), { ...r, id, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async update(id: number, data: Partial<Repayment>): Promise<void> { const existing = getItem<Repayment>('repayments', String(id)); if (existing && !existing.is_deleted) setItem('repayments', String(id), { ...existing, ...data }) },
+  async delete(id: number): Promise<void> { const e = getItem<Repayment>('repayments', String(id)); if (e) setItem('repayments', String(id), { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
 }
 
 // Stats Service

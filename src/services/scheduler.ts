@@ -271,9 +271,23 @@ export async function processAutoRepayment(loanId: number, amount: number): Prom
     const existingRepayments = await repaymentsService.getByLoan(loanId)
     
     // IMPORTANT: Check if repayment already exists today to prevent duplicates
+    // This check now works correctly because getByLoan filters out deleted repayments
     const repaymentToday = existingRepayments.find(r => r.payment_date === today)
     if (repaymentToday) {
       console.log(`[AUTO-REPAYMENT] Repayment already exists today for loan #${loanId}`)
+      return false
+    }
+    
+    // Also check in ALL repayments (including deleted) to see if repayment was created and then deleted
+    const allRepaymentsIncludingDeleted = getAllItems<any>('repayments').filter(r => r.loan_id === loanId)
+    const deletedRepaymentToday = allRepaymentsIncludingDeleted.find(r => 
+      r.payment_date === today && 
+      r.is_deleted === true &&
+      r.notes?.includes('פירעון מחזורי')
+    )
+    
+    if (deletedRepaymentToday) {
+      console.log(`[AUTO-REPAYMENT] Repayment was created and then deleted today for loan #${loanId}, not recreating`)
       return false
     }
     
@@ -493,7 +507,16 @@ async function autoCreateRecurringDeposits(): Promise<void> {
       AND recurring_months > 0
     `) as any[]
     
+    // Also get deleted deposits to check if a deposit was deleted
+    const allDepositsIncludingDeleted = getAllItems<any>('deposits')
+    
     for (const deposit of deposits) {
+      // ✅ SOFT-DELETE CHECK: Skip if deposit is marked as deleted
+      if (deposit.is_deleted) {
+        console.log(`[AUTO-CREATE] Deposit #${deposit.id} is marked as deleted, skipping`)
+        continue
+      }
+      
       const recurringDay = deposit.recurring_day || new Date(deposit.deposit_date).getDate()
       const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
       
@@ -503,22 +526,33 @@ async function autoCreateRecurringDeposits(): Promise<void> {
       const shouldCreateToday = effectiveRecurringDay === day
       const isPastRecurringDay = day > effectiveRecurringDay
       
+      if (!shouldCreateToday && !isPastRecurringDay) continue
+      
       // Get the first day of current month
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
       
-      // Check if deposit already created this month
-      const existingDepositThisMonth = await db.query(`
-        SELECT id FROM deposits 
-        WHERE depositor_id = ? 
-        AND amount = ? 
-        AND deposit_date >= ?
-        AND deposit_date <= ?
-        AND id != ?
-        AND is_recurring = 1
-      `, [deposit.depositor_id, deposit.amount, firstDayOfMonth, todayStr, deposit.id])
+      // Check if deposit already created this month - check by recurring number
+      const currentRecurringNumber = deposit.recurring_deposit_number || 1
+      const nextRecurringNumber = currentRecurringNumber + 1
       
-      if (existingDepositThisMonth.length > 0) {
-        console.log(`[AUTO-CREATE] Deposit already exists for this month: deposit #${deposit.id}`)
+      // Check in ALL deposits (including deleted) to see if deposit was created and then deleted
+      const existingDepositThisMonth = allDepositsIncludingDeleted.find((d: any) => 
+        d.depositor_id === deposit.depositor_id && 
+        d.amount === deposit.amount && 
+        d.deposit_date >= firstDayOfMonth &&
+        d.deposit_date <= todayStr &&
+        d.id !== deposit.id &&
+        d.is_recurring === 1 &&
+        d.recurring_deposit_number === nextRecurringNumber // Check for the NEXT number
+      )
+      
+      if (existingDepositThisMonth) {
+        // Check if it was deleted
+        if (existingDepositThisMonth.is_deleted) {
+          console.log(`[AUTO-CREATE] Deposit #${nextRecurringNumber} was created and then deleted, not recreating`)
+          continue
+        }
+        console.log(`[AUTO-CREATE] Deposit #${nextRecurringNumber} already exists for this month: deposit #${deposit.id}`)
         continue
       }
       
