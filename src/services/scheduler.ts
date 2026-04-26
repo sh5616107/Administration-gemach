@@ -247,6 +247,8 @@ export async function createRecurringLoan(originalLoanId: number): Promise<boole
     })
 
     // Update original loan to reduce recurring months
+    // ⚠️ CRITICAL: Do NOT update recurring_loan_number of the original loan!
+    // Each loan keeps its own number. Only the NEW loan gets the next number.
     await loansService.update(originalLoanId, {
       recurring_months: loan.recurring_months - 1
     })
@@ -403,14 +405,43 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       
       if (!shouldCreateToday && !isPastRecurringDay) continue
       
-      // Get the first day of current month
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+      // Get loan date info for various checks
+      const loanDate = new Date(loan.loan_date)
+      const loanMonth = loanDate.getMonth()
+      const loanYear = loanDate.getFullYear()
+      const currentMonth = today.getMonth()
+      const currentYear = today.getFullYear()
       
-      // Check if loan already created this month - check by recurring number
-      // This is the CORRECT way to prevent duplicates
+      // ✅ CRITICAL FIX #1: Only the LATEST loan in a series should create new loans
+      // Check if there's a HIGHER numbered loan from this series (in ANY month)
+      // If yes, skip this older loan - only the newest loan should create the next one
       const currentRecurringNumber = loan.recurring_loan_number || 1
       const nextRecurringNumber = currentRecurringNumber + 1
       
+      const newerLoanExists = allLoansIncludingDeleted.find((l: any) => 
+        l.borrower_id === loan.borrower_id && 
+        l.amount === loan.amount && 
+        l.id !== loan.id &&
+        l.is_recurring === 1 &&
+        l.recurring_loan_number > currentRecurringNumber // ← הלוואה עם מספר גבוה יותר (בכל חודש)
+      )
+      
+      if (newerLoanExists) {
+        console.log(`[AUTO-CREATE] Skipping loan #${loan.id} (number ${currentRecurringNumber}) - newer loan #${newerLoanExists.id} (number ${newerLoanExists.recurring_loan_number}) exists`)
+        continue
+      }
+      
+      // ✅ CRITICAL FIX #2: Skip if this loan was already created THIS MONTH
+      // This prevents processing newly created loans in the same month
+      if (loanYear === currentYear && loanMonth === currentMonth) {
+        console.log(`[AUTO-CREATE] Loan #${loan.id} was created this month (${loan.loan_date}), skipping`)
+        continue
+      }
+      
+      // Get the first day of current month
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+      
+      // Now check if the NEXT loan in sequence already exists
       // Check in ALL loans (including deleted) to see if loan was created and then deleted
       const existingLoanThisMonth = allLoansIncludingDeleted.find((l: any) => 
         l.borrower_id === loan.borrower_id && 
@@ -419,28 +450,21 @@ export async function autoCreateRecurringLoans(): Promise<void> {
         l.loan_date <= todayStr &&
         l.id !== loan.id &&
         l.is_recurring === 1 &&
-        l.recurring_loan_number === nextRecurringNumber // Check for the NEXT number
+        l.recurring_loan_number === nextRecurringNumber // ← בדיקה מדויקת למספר הבא
       )
       
       if (existingLoanThisMonth) {
         // Check if it was deleted
         if (existingLoanThisMonth.is_deleted) {
-          console.log(`[AUTO-CREATE] Loan #${nextRecurringNumber} was created and then deleted, not recreating`)
+          console.log(`[AUTO-CREATE] Loan #${existingLoanThisMonth.recurring_loan_number} was created and then deleted, not recreating`)
           continue
         }
-        console.log(`[AUTO-CREATE] Loan #${nextRecurringNumber} already exists for this month: loan #${loan.id}`)
+        console.log(`[AUTO-CREATE] Loan #${existingLoanThisMonth.recurring_loan_number} already exists for this month: loan #${loan.id}`)
         continue
       }
       
       // IMPORTANT: Check if this loan's last occurrence was in a previous month
       // If so, we might have missed creating loans for previous months
-      const loanDate = new Date(loan.loan_date)
-      const loanMonth = loanDate.getMonth()
-      const loanYear = loanDate.getFullYear()
-      const currentMonth = today.getMonth()
-      const currentYear = today.getFullYear()
-      
-      // Calculate how many months have passed since the last loan
       const monthsDiff = (currentYear - loanYear) * 12 + (currentMonth - loanMonth)
       
       if (monthsDiff > 1 && !existingLoanThisMonth) {
