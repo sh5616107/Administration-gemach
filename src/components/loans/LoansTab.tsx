@@ -40,6 +40,8 @@ import {
   Delete as DeleteIcon,
   Email as EmailIcon,
   Autorenew as AutorenewIcon,
+  History as HistoryIcon,
+  EditNote as EditNoteIcon,
 } from '@mui/icons-material'
 import { borrowersService, guarantorsService, loansService, repaymentsService, guarantorLoansService, blacklistService, waitlistService, type WaitlistEntry } from '../../services/database'
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
@@ -49,6 +51,7 @@ import PaymentMethodSelect, { PaymentMethodData, getPaymentMethodLabel } from '.
 import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkGuarantorForLoan, checkBorrowerForLoan, type CrossCheckResult } from '../../services/crossCheck'
+import { EditRecurringDialog } from '../recurring/EditRecurringDialog'
 
 interface Borrower {
   id: number
@@ -153,6 +156,15 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [crossCheckWarnings, setCrossCheckWarnings] = useState<CrossCheckResult[]>([])
   const [crossCheckDialogOpen, setCrossCheckDialogOpen] = useState(false)
   const [pendingGuarantorId, setPendingGuarantorId] = useState<{ field: 'guarantor1_id' | 'guarantor2_id', id: number } | null>(null)
+
+  // Recurring items dialogs
+  const [editRecurringDialogOpen, setEditRecurringDialogOpen] = useState(false)
+  const [selectedRecurringLoanId, setSelectedRecurringLoanId] = useState<number | null>(null)
+  const [editRecurringRepaymentDialogOpen, setEditRecurringRepaymentDialogOpen] = useState(false)
+  const [selectedRecurringRepaymentId, setSelectedRecurringRepaymentId] = useState<number | null>(null)
+  
+  // Map of loan ID to first recurring repayment
+  const [loanRecurringRepayments, setLoanRecurringRepayments] = useState<Map<number, Repayment>>(new Map())
 
   useEffect(() => {
     loadData()
@@ -286,6 +298,33 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     try {
       const loans = await loansService.getByBorrower(borrowerId)
       setBorrowerLoans(loans as Loan[])
+      
+      console.log('[RECURRING REPAYMENTS] Loading recurring repayments for loans:', loans)
+      
+      // Load recurring repayments for each loan
+      const recurringRepaymentsMap = new Map<number, Repayment>()
+      for (const loan of loans) {
+        if (loan.auto_repayment === 1 && loan.id) {
+          console.log(`[RECURRING REPAYMENTS] Loan ${loan.id} has auto_repayment, loading repayments...`)
+          try {
+            const repayments = await repaymentsService.getByLoan(loan.id)
+            console.log(`[RECURRING REPAYMENTS] Loan ${loan.id} repayments:`, repayments)
+            const firstRecurringRepayment = (repayments as Repayment[]).find(
+              r => r.is_recurring === 1 && r.recurring_repayment_number === 1
+            )
+            if (firstRecurringRepayment) {
+              console.log(`[RECURRING REPAYMENTS] Found first recurring repayment for loan ${loan.id}:`, firstRecurringRepayment)
+              recurringRepaymentsMap.set(loan.id, firstRecurringRepayment)
+            } else {
+              console.log(`[RECURRING REPAYMENTS] No first recurring repayment found for loan ${loan.id}`)
+            }
+          } catch (error) {
+            console.error(`Error loading repayments for loan ${loan.id}:`, error)
+          }
+        }
+      }
+      console.log('[RECURRING REPAYMENTS] Final map:', recurringRepaymentsMap)
+      setLoanRecurringRepayments(recurringRepaymentsMap)
     } catch (error) {
       console.error('Error loading loans:', error)
     }
@@ -1281,6 +1320,12 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   {borrowerLoans.map((loan) => {
                     const status = getLoanStatus(loan)
                     const isSelected = selectedLoan?.id === loan.id
+                    
+                    // Debug: check if loan has recurring repayment
+                    if (loan.auto_repayment === 1 && loan.id) {
+                      console.log(`[RENDER] Loan ${loan.id}: auto_repayment=1, has in map=${loanRecurringRepayments.has(loan.id)}, map size=${loanRecurringRepayments.size}`)
+                    }
+                    
                     return (
                       <TableRow 
                         key={loan.id} 
@@ -1300,15 +1345,103 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                           <Chip label={status.label} color={status.color} size="small" />
                         </TableCell>
                         <TableCell align="center">
-                          {loan.is_recurring === 1 && loan.recurring_loan_number && loan.recurring_loan_count && loan.recurring_loan_count > 1 ? (
-                            <Chip 
-                              icon={<AutorenewIcon />}
-                              label={`${loan.recurring_loan_number}/${loan.recurring_loan_count}`} 
-                              color="info" 
-                              size="small" 
-                              title={`הלוואה מחזורית מספר ${loan.recurring_loan_number} מתוך ${loan.recurring_loan_count}`}
-                            />
-                          ) : '-'}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center' }}>
+                            {/* הלוואה מחזורית */}
+                            {loan.is_recurring === 1 && loan.recurring_loan_number && loan.recurring_loan_count && loan.recurring_loan_count > 1 ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Chip 
+                                  icon={<AutorenewIcon />}
+                                  label={`${loan.recurring_loan_number}/${loan.recurring_loan_count}`} 
+                                  color="info" 
+                                  size="small" 
+                                  title={`הלוואה מחזורית מספר ${loan.recurring_loan_number} מתוך ${loan.recurring_loan_count}`}
+                                />
+                                {loan.recurring_loan_number === 1 && (
+                                  <IconButton 
+                                    size="small" 
+                                    color="primary" 
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      setSelectedRecurringLoanId(loan.id!);
+                                      setEditRecurringDialogOpen(true);
+                                    }} 
+                                    title="נהל הלוואה מחזורית"
+                                  >
+                                    <EditNoteIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </Box>
+                            ) : null}
+                            
+                            {/* פירעון מחזורי */}
+                            {loan.auto_repayment === 1 ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                {loan.id && loanRecurringRepayments.has(loan.id) ? (
+                                  <>
+                                    <Chip 
+                                      icon={<AutorenewIcon />}
+                                      label={`${loanRecurringRepayments.get(loan.id)!.recurring_repayment_number}/${loanRecurringRepayments.get(loan.id)!.recurring_repayment_count}`} 
+                                      color="success" 
+                                      size="small" 
+                                      title={`פירעון מחזורי מספר ${loanRecurringRepayments.get(loan.id)!.recurring_repayment_number} מתוך ${loanRecurringRepayments.get(loan.id)!.recurring_repayment_count}`}
+                                    />
+                                    {/* כפתור עריכה רק אם זה הפירעון הראשון והוא עדיין לא עבר */}
+                                    {(() => {
+                                      const firstRepayment = loanRecurringRepayments.get(loan.id)!
+                                      const isFirstRepayment = firstRepayment.recurring_repayment_number === 1
+                                      const repaymentDate = new Date(firstRepayment.payment_date)
+                                      const today = new Date()
+                                      today.setHours(0, 0, 0, 0)
+                                      const isFutureRepayment = repaymentDate >= today
+                                      
+                                      return isFirstRepayment && isFutureRepayment ? (
+                                        <IconButton 
+                                          size="small" 
+                                          color="primary" 
+                                          onClick={(e) => { 
+                                            e.stopPropagation();
+                                            setSelectedRecurringRepaymentId(firstRepayment.id);
+                                            setEditRecurringRepaymentDialogOpen(true);
+                                          }} 
+                                          title="נהל פירעון מחזורי"
+                                        >
+                                          <EditNoteIcon fontSize="small" />
+                                        </IconButton>
+                                      ) : null
+                                    })()}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Chip 
+                                      icon={<AutorenewIcon />}
+                                      label="פירעון אוטומטי" 
+                                      color="warning" 
+                                      size="small" 
+                                      title="פירעון אוטומטי מוגדר - לחץ לעריכה"
+                                    />
+                                    {/* כפתור עריכה כשאין עדיין פירעונות */}
+                                    <IconButton 
+                                      size="small" 
+                                      color="primary" 
+                                      onClick={(e) => { 
+                                        e.stopPropagation();
+                                        if (loan.id) {
+                                          setSelectedRecurringLoanId(loan.id);
+                                          setEditRecurringDialogOpen(true);
+                                        }
+                                      }} 
+                                      title="ערוך הגדרות פירעון אוטומטי"
+                                    >
+                                      <EditNoteIcon fontSize="small" />
+                                    </IconButton>
+                                  </>
+                                )}
+                              </Box>
+                            ) : null}
+                            
+                            {/* אם אין כלום */}
+                            {loan.is_recurring !== 1 && loan.auto_repayment !== 1 ? '-' : null}
+                          </Box>
                         </TableCell>
                         <TableCell align="center">
                           <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleSelectLoan(loan); }} title="עריכה">
@@ -1885,6 +2018,41 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         warnings={crossCheckWarnings}
         title="אזהרה - בחירת ערב"
       />
+
+      {/* Edit Recurring Dialog */}
+      {selectedRecurringLoanId && (
+        <EditRecurringDialog
+          open={editRecurringDialogOpen}
+          onClose={() => setEditRecurringDialogOpen(false)}
+          itemType="auto_repayment"
+          itemId={selectedRecurringLoanId}
+          onSuccess={() => {
+            setSnackbar({ open: true, message: 'הגדרות פירעון אוטומטי עודכנו בהצלחה', severity: 'success' })
+            if (selectedBorrower) {
+              loadBorrowerLoans(selectedBorrower.id)
+            }
+          }}
+        />
+      )}
+
+      {/* Edit Recurring Repayment Dialog */}
+      {selectedRecurringRepaymentId && (
+        <EditRecurringDialog
+          open={editRecurringRepaymentDialogOpen}
+          onClose={() => setEditRecurringRepaymentDialogOpen(false)}
+          itemType="repayment"
+          itemId={selectedRecurringRepaymentId}
+          onSuccess={() => {
+            setSnackbar({ open: true, message: 'פירעון מחזורי עודכן בהצלחה', severity: 'success' })
+            if (selectedBorrower) {
+              loadBorrowerLoans(selectedBorrower.id)
+            }
+            if (selectedLoan) {
+              loadRepayments(selectedLoan.id!)
+            }
+          }}
+        />
+      )}
 
       <Snackbar
         open={snackbar.open}

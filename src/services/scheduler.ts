@@ -28,6 +28,46 @@ interface MissedLoanAlert {
   totalCount: number
 }
 
+/**
+ * Get the latest loan in a series (with highest recurring_loan_number)
+ * This is used to read updated parameters after editing recurring items
+ * 
+ * Requirements: 8.1, 8.2, 8.3, 8.6
+ */
+async function getLatestLoanInSeries(loan: any, allLoans: any[]): Promise<any> {
+  const seriesLoans = allLoans.filter((l: any) =>
+    l.borrower_id === loan.borrower_id &&
+    l.amount === loan.amount &&
+    l.is_recurring === 1 &&
+    !l.is_deleted
+  )
+  
+  // Sort by recurring_loan_number descending and return the first (highest number)
+  seriesLoans.sort((a: any, b: any) => (b.recurring_loan_number || 1) - (a.recurring_loan_number || 1))
+  
+  return seriesLoans[0] || loan
+}
+
+/**
+ * Get the latest deposit in a series (with highest recurring_deposit_number)
+ * This is used to read updated parameters after editing recurring items
+ * 
+ * Requirements: 8.1, 8.2, 8.3, 8.6
+ */
+async function getLatestDepositInSeries(deposit: any, allDeposits: any[]): Promise<any> {
+  const seriesDeposits = allDeposits.filter((d: any) =>
+    d.depositor_id === deposit.depositor_id &&
+    d.amount === deposit.amount &&
+    d.is_recurring === 1 &&
+    !d.is_deleted
+  )
+  
+  // Sort by recurring_deposit_number descending and return the first (highest number)
+  seriesDeposits.sort((a: any, b: any) => (b.recurring_deposit_number || 1) - (a.recurring_deposit_number || 1))
+  
+  return seriesDeposits[0] || deposit
+}
+
 let missedLoansAlerts: MissedLoanAlert[] = []
 
 // Repair Log - Track repair attempts to prevent duplicate creation
@@ -394,7 +434,13 @@ export async function autoCreateRecurringLoans(): Promise<void> {
         continue
       }
       
-      const recurringDay = loan.recurring_day || 1
+      // ✅ INTEGRATION WITH RECURRING ITEMS SERVICE:
+      // Get the LATEST loan in the series to read updated parameters
+      const latestLoan = await getLatestLoanInSeries(loan, allLoansIncludingDeleted)
+      const recurringDay = latestLoan.recurring_day || 1
+      const amount = latestLoan.amount
+      const recurringMonths = latestLoan.recurring_months
+      
       const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
       
       // Check if we should create a loan:
@@ -541,7 +587,13 @@ async function autoCreateRecurringDeposits(): Promise<void> {
         continue
       }
       
-      const recurringDay = deposit.recurring_day || new Date(deposit.deposit_date).getDate()
+      // ✅ INTEGRATION WITH RECURRING ITEMS SERVICE:
+      // Get the LATEST deposit in the series to read updated parameters
+      const latestDeposit = await getLatestDepositInSeries(deposit, allDepositsIncludingDeleted)
+      const recurringDay = latestDeposit.recurring_day || new Date(latestDeposit.deposit_date).getDate()
+      const amount = latestDeposit.amount
+      const recurringMonths = latestDeposit.recurring_months
+      
       const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
       
       // Check if we should create a deposit:
@@ -562,7 +614,7 @@ async function autoCreateRecurringDeposits(): Promise<void> {
       // Check in ALL deposits (including deleted) to see if deposit was created and then deleted
       const existingDepositThisMonth = allDepositsIncludingDeleted.find((d: any) => 
         d.depositor_id === deposit.depositor_id && 
-        d.amount === deposit.amount && 
+        d.amount === amount && // Use updated amount
         d.deposit_date >= firstDayOfMonth &&
         d.deposit_date <= todayStr &&
         d.id !== deposit.id &&

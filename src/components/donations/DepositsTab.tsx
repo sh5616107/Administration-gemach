@@ -37,6 +37,7 @@ import {
   Email as EmailIcon,
   History as HistoryIcon,
   Autorenew as AutorenewIcon,
+  EditNote as EditNoteIcon,
 } from '@mui/icons-material'
 import { db, depositWithdrawalsService, type DepositWithdrawal } from '../../services/database'
 import { generateDepositDocument, openEmailWithDocument, createDepositEmailData, EmailProvider } from '../../services/documents'
@@ -44,6 +45,7 @@ import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
 import PaymentMethodSelect, { PaymentMethodData } from '../PaymentMethodSelect'
 import AmountInput from '../AmountInput'
+import { EditRecurringDialog } from '../recurring/EditRecurringDialog'
 
 interface Depositor {
   id: number
@@ -116,6 +118,10 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
   const [selectedDepositForHistory, setSelectedDepositForHistory] = useState<Deposit | null>(null)
   const [withdrawalHistory, setWithdrawalHistory] = useState<DepositWithdrawal[]>([])
+
+  // Recurring items dialogs
+  const [editRecurringDialogOpen, setEditRecurringDialogOpen] = useState(false)
+  const [selectedRecurringDepositId, setSelectedRecurringDepositId] = useState<number | null>(null)
 
   useEffect(() => {
     loadDepositors()
@@ -869,6 +875,19 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                         >
                           <EditIcon />
                         </IconButton>
+                        {deposit.is_recurring === 1 && deposit.recurring_deposit_number === 1 && (
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => {
+                              setSelectedRecurringDepositId(deposit.id);
+                              setEditRecurringDialogOpen(true);
+                            }}
+                            title="נהל הפקדה מחזורית"
+                          >
+                            <AutorenewIcon />
+                          </IconButton>
+                        )}
                         {remaining > 0 && (
                           <Button
                             size="small"
@@ -1178,6 +1197,20 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
         </DialogActions>
       </Dialog>
         </>
+      )}
+
+      {/* Edit Recurring Dialog */}
+      {selectedRecurringDepositId && (
+        <EditRecurringDialog
+          open={editRecurringDialogOpen}
+          onClose={() => setEditRecurringDialogOpen(false)}
+          itemType="deposit"
+          itemId={selectedRecurringDepositId}
+          onSuccess={() => {
+            setSnackbar({ open: true, message: 'הפקדה מחזורית עודכנה בהצלחה', severity: 'success' })
+            loadDeposits()
+          }}
+        />
       )}
 
       <Snackbar
