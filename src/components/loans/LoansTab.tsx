@@ -1356,20 +1356,35 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                   size="small" 
                                   title={`הלוואה מחזורית מספר ${loan.recurring_loan_number} מתוך ${loan.recurring_loan_count}`}
                                 />
-                                {loan.recurring_loan_number === 1 && (
-                                  <IconButton 
-                                    size="small" 
-                                    color="primary" 
-                                    onClick={(e) => { 
-                                      e.stopPropagation(); 
-                                      setSelectedRecurringLoanId(loan.id!);
-                                      setEditRecurringLoanDialogOpen(true);
-                                    }} 
-                                    title="נהל הלוואה מחזורית"
-                                  >
-                                    <EditNoteIcon fontSize="small" />
-                                  </IconButton>
-                                )}
+                                {/* כפתור עריכה - מופיע על ההלוואה עם המספר הנמוך ביותר שלא נמחקה */}
+                                {(() => {
+                                  // מצא את כל ההלוואות בסדרה (אותו לווה, אותו יום מחזורי)
+                                  const seriesLoans = borrowerLoans.filter(l => 
+                                    l.borrower_id === loan.borrower_id &&
+                                    l.recurring_day === loan.recurring_day &&
+                                    l.is_recurring === 1 &&
+                                    l.recurring_loan_number
+                                  )
+                                  
+                                  // מצא את ההלוואה עם המספר הנמוך ביותר
+                                  const minLoanNumber = Math.min(...seriesLoans.map(l => l.recurring_loan_number || Infinity))
+                                  const isFirstInSeries = loan.recurring_loan_number === minLoanNumber
+                                  
+                                  return isFirstInSeries ? (
+                                    <IconButton 
+                                      size="small" 
+                                      color="primary" 
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        setSelectedRecurringLoanId(loan.id!);
+                                        setEditRecurringLoanDialogOpen(true);
+                                      }} 
+                                      title="נהל הלוואה מחזורית"
+                                    >
+                                      <EditNoteIcon fontSize="small" />
+                                    </IconButton>
+                                  ) : null
+                                })()}
                               </Box>
                             ) : null}
                             

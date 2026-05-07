@@ -875,19 +875,34 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                         >
                           <EditIcon />
                         </IconButton>
-                        {deposit.is_recurring === 1 && deposit.recurring_deposit_number === 1 && (
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => {
-                              setSelectedRecurringDepositId(deposit.id);
-                              setEditRecurringDialogOpen(true);
-                            }}
-                            title="נהל הפקדה מחזורית"
-                          >
-                            <AutorenewIcon />
-                          </IconButton>
-                        )}
+                        {/* כפתור עריכה להפקדה מחזורית - מופיע על ההפקדה עם המספר הנמוך ביותר שלא נמחקה */}
+                        {deposit.is_recurring === 1 && deposit.recurring_deposit_number && (() => {
+                          // מצא את כל ההפקדות בסדרה (אותו מפקיד, אותו יום מחזורי)
+                          const seriesDeposits = deposits.filter(d => 
+                            d.depositor_id === deposit.depositor_id &&
+                            d.recurring_day === deposit.recurring_day &&
+                            d.is_recurring === 1 &&
+                            d.recurring_deposit_number
+                          )
+                          
+                          // מצא את ההפקדה עם המספר הנמוך ביותר
+                          const minDepositNumber = Math.min(...seriesDeposits.map(d => d.recurring_deposit_number || Infinity))
+                          const isFirstInSeries = deposit.recurring_deposit_number === minDepositNumber
+                          
+                          return isFirstInSeries ? (
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => {
+                                setSelectedRecurringDepositId(deposit.id);
+                                setEditRecurringDialogOpen(true);
+                              }}
+                              title="נהל הפקדה מחזורית"
+                            >
+                              <AutorenewIcon />
+                            </IconButton>
+                          ) : null
+                        })()}
                         {remaining > 0 && (
                           <Button
                             size="small"
