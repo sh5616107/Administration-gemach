@@ -258,13 +258,33 @@ export function generateLoanDocument(data: LoanDocumentData) {
 
   // HTML להלוואה מחזורית - רק אם יש יותר מהלוואה אחת בסדרה
   const recurringLoanHtml = data.isRecurring && data.recurringLoanNumber && data.recurringLoanCount && data.recurringLoanCount > 1 ? `
-    <div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 6px; border: 2px solid #2196f3;">
-      <p style="margin: 0; font-size: 16px; font-weight: bold; color: #1976d2;">
-        🔄 הלוואה מחזורית - מספר ${data.recurringLoanNumber} מתוך ${data.recurringLoanCount}
-      </p>
-      <p style="margin: 3px 0 0 0; font-size: 13px; color: #555;">
-        זוהי הלוואה מחזורית מספר ${data.recurringLoanNumber} שניתנה ללווה זה
-      </p>
+    <div style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <div style="color: white;">
+          <div style="font-size: 20px; font-weight: bold; margin-bottom: 5px;">
+            🔄 הלוואה מחזורית
+          </div>
+          <div style="font-size: 14px; opacity: 0.9;">
+            סדרת הלוואות חודשית ללווה זה
+          </div>
+        </div>
+        <div style="background: white; padding: 10px 20px; border-radius: 8px; text-align: center;">
+          <div style="font-size: 28px; font-weight: bold; color: #667eea;">
+            ${data.recurringLoanNumber}
+          </div>
+          <div style="font-size: 12px; color: #666; margin-top: 2px;">
+            מתוך ${data.recurringLoanCount}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Progress Bar -->
+      <div style="background: rgba(255,255,255,0.3); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px;">
+        <div style="background: white; height: 100%; width: ${(data.recurringLoanNumber / data.recurringLoanCount * 100).toFixed(1)}%; transition: width 0.3s;"></div>
+      </div>
+      <div style="color: white; font-size: 11px; margin-top: 5px; text-align: center; opacity: 0.9;">
+        ${(data.recurringLoanNumber / data.recurringLoanCount * 100).toFixed(0)}% מהסדרה הושלמה
+      </div>
     </div>
   ` : ''
 

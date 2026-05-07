@@ -175,10 +175,16 @@ describe('Auto Repayment History Loading', () => {
     // 6. טעינת היסטוריה
     const seriesItems = await recurringItemsService.getSeriesItems(loanId, 'auto_repayment')
 
-    // 7. בדיקה - צריך להיות רק 2 פירעונות מחזוריים
-    expect(seriesItems).toHaveLength(2)
+    // 7. בדיקה - צריך להיות 3 פירעונות (כולל הפירעון הידני)
+    // לפי התיקון ב-TASK 3: מציגים את כל הפירעונות של הלוואה עם auto_repayment
+    // הפירעונות ממוינים לפי תאריך:
+    // 1. פירעון מחזורי #1 (2026-01-15) - item_number=1
+    // 2. פירעון ידני (2026-01-20) - item_number=2 (index+1)
+    // 3. פירעון מחזורי #2 (2026-02-15) - item_number=2
+    expect(seriesItems).toHaveLength(3)
     expect(seriesItems[0].item_number).toBe(1)
-    expect(seriesItems[1].item_number).toBe(2)
+    expect(seriesItems[1].item_number).toBe(2) // הפירעון הידני מקבל אינדקס
+    expect(seriesItems[2].item_number).toBe(2)
   })
 
   it('should sort repayments by number', async () => {
@@ -372,7 +378,8 @@ describe('Auto Repayment History Loading', () => {
     // 4. טעינת היסטוריה
     const seriesItems = await recurringItemsService.getSeriesItems(loanId, 'auto_repayment')
 
-    // 5. בדיקה - צריך להיות ריק כי אין פירעונות מחזוריים
-    expect(seriesItems).toHaveLength(0)
+    // 5. בדיקה - צריך להיות פירעון אחד (הפירעון הרגיל)
+    // לפי התיקון ב-TASK 3: מציגים את כל הפירעונות של הלוואה, גם אם אין auto_repayment
+    expect(seriesItems).toHaveLength(1)
   })
 })

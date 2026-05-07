@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { borrowersService, loansService, depositorsService } from '../services/database'
+import { borrowersService, loansService, db } from '../services/database'
 import { recurringItemsService } from '../services/recurringItemsService'
 
 describe('Recurring Series Identification', () => {
@@ -319,63 +319,41 @@ describe('Recurring Series Identification', () => {
   describe('הפקדות מחזוריות - זיהוי סדרה', () => {
     it('צריך למצוא את כל ההפקדות בסדרה גם אם הסכום שונה', async () => {
       // יצירת מפקיד
-      const depositor = await depositorsService.create({
-        first_name: 'דוד',
-        last_name: 'לוי',
-        phone: '0501111111',
-        id_number: '111111111'
-      })
+      const depositorResult = await db.run(
+        'INSERT INTO depositors (first_name, last_name, phone, id_number, address, email, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        ['דוד', 'לוי', '0501111111', '111111111', '', '', '']
+      )
+      const depositorId = depositorResult.lastInsertRowid
 
       // יצירת 4 הפקדות מחזוריות עם סכומים שונים
-      const deposit1Result = await depositorsService.addDeposit(depositor.lastInsertRowid, {
-        amount: 500,
-        deposit_date: '2026-01-10',
-        period_type: 'indefinite',
-        is_recurring: 1,
-        recurring_day: 10,
-        recurring_deposit_number: 1,
-        recurring_deposit_count: 4,
-        recurring_months: 3
-      })
+      const deposit1Result = await db.run(
+        'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [depositorId, 500, '2026-01-10', 'indefinite', null, 1, 10, 3, 1, 4, '', 'active', '', '']
+      )
+      const deposit1Id = deposit1Result.lastInsertRowid
 
-      await depositorsService.addDeposit(depositor.lastInsertRowid, {
-        amount: 500,
-        deposit_date: '2026-02-10',
-        period_type: 'indefinite',
-        is_recurring: 1,
-        recurring_day: 10,
-        recurring_deposit_number: 2,
-        recurring_deposit_count: 4,
-        recurring_months: 2
-      })
+      await db.run(
+        'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [depositorId, 500, '2026-02-10', 'indefinite', null, 1, 10, 2, 2, 4, '', 'active', '', '']
+      )
 
-      await depositorsService.addDeposit(depositor.lastInsertRowid, {
-        amount: 600, // סכום שונה!
-        deposit_date: '2026-03-10',
-        period_type: 'indefinite',
-        is_recurring: 1,
-        recurring_day: 10,
-        recurring_deposit_number: 3,
-        recurring_deposit_count: 4,
-        recurring_months: 1
-      })
+      await db.run(
+        'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [depositorId, 600, '2026-03-10', 'indefinite', null, 1, 10, 1, 3, 4, '', 'active', '', ''] // סכום שונה!
+      )
 
-      await depositorsService.addDeposit(depositor.lastInsertRowid, {
-        amount: 700, // סכום שונה שוב!
-        deposit_date: '2026-04-10',
-        period_type: 'indefinite',
-        is_recurring: 1,
-        recurring_day: 10,
-        recurring_deposit_number: 4,
-        recurring_deposit_count: 4,
-        recurring_months: 0
-      })
+      await db.run(
+        'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [depositorId, 700, '2026-04-10', 'indefinite', null, 1, 10, 0, 4, 4, '', 'active', '', ''] // סכום שונה שוב!
+      )
 
       // קריאה לפונקציה
+      console.log('[TEST] Calling getSeriesItems with deposit1Id:', deposit1Id)
       const seriesItems = await recurringItemsService.getSeriesItems(
-        deposit1Result.depositId,
+        deposit1Id,
         'deposit'
       )
+      console.log('[TEST] Got seriesItems:', seriesItems.length, seriesItems)
 
       // בדיקה: צריך למצוא את כל 4 ההפקדות
       expect(seriesItems).toHaveLength(4)
