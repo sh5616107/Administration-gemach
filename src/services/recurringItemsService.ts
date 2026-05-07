@@ -203,11 +203,13 @@ async function identifySeriesItems(originalItem: any, itemType: ItemType): Promi
   switch (itemType) {
     case 'loan': {
       const allLoans = await loansService.getAll()
+      // Identify loans in series by: borrower_id, recurring_day, and having recurring_loan_number
+      // We DON'T filter by amount because the amount might have been changed
       items = allLoans.filter(l =>
         l.borrower_id === originalItem.borrower_id &&
-        l.amount === originalItem.amount &&
         l.recurring_day === originalItem.recurring_day &&
         l.is_recurring === 1 &&
+        l.recurring_loan_number && // Must have a loan number
         !l.is_deleted
       )
       break
@@ -223,11 +225,12 @@ async function identifySeriesItems(originalItem: any, itemType: ItemType): Promi
     }
     case 'deposit': {
       const allDeposits = getAllItems<Deposit>('deposits')
+      // Identify deposits in series by: depositor_id, recurring_day, and having recurring_deposit_number
       items = allDeposits.filter(d =>
         d.depositor_id === originalItem.depositor_id &&
-        d.amount === originalItem.amount &&
         d.recurring_day === originalItem.recurring_day &&
         d.is_recurring === 1 &&
+        d.recurring_deposit_number && // Must have a deposit number
         !d.is_deleted
       )
       break
@@ -260,26 +263,31 @@ export async function getSeriesItems(
       throw new Error('הלוואה לא נמצאה')
     }
 
-    // Get all recurring repayments for this loan
+    // Get ALL repayments for this loan
+    // For auto_repayment loans, we show ALL repayments (even manual ones)
+    // because they are all part of the repayment history
     const allRepayments = await repaymentsService.getByLoan(itemId) as Repayment[]
-    const recurringRepayments = allRepayments.filter(r => r.is_recurring === 1)
 
-    console.log(`[AUTO_REPAYMENT] Loan ${itemId}: Found ${recurringRepayments.length} recurring repayments`)
+    console.log(`[AUTO_REPAYMENT] Loan ${itemId}: Found ${allRepayments.length} repayments`)
 
-    // Sort by repayment number
-    recurringRepayments.sort((a, b) => (a.recurring_repayment_number || 1) - (b.recurring_repayment_number || 1))
+    // Sort by payment date (oldest first)
+    allRepayments.sort((a, b) => {
+      const dateA = new Date(a.payment_date).getTime()
+      const dateB = new Date(b.payment_date).getTime()
+      return dateA - dateB
+    })
 
     // Mark Past/Future
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    return recurringRepayments.map(r => {
+    return allRepayments.map((r, index) => {
       const repaymentDate = new Date(r.payment_date)
       repaymentDate.setHours(0, 0, 0, 0)
       
       return {
         id: r.id,
-        item_number: r.recurring_repayment_number || 1,
+        item_number: r.recurring_repayment_number || (index + 1), // Use index if no number
         date: r.payment_date,
         amount: r.amount,
         status: 'paid', // All existing repayments are paid

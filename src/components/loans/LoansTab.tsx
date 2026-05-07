@@ -158,10 +158,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [pendingGuarantorId, setPendingGuarantorId] = useState<{ field: 'guarantor1_id' | 'guarantor2_id', id: number } | null>(null)
 
   // Recurring items dialogs
-  const [editRecurringDialogOpen, setEditRecurringDialogOpen] = useState(false)
+  const [editRecurringLoanDialogOpen, setEditRecurringLoanDialogOpen] = useState(false)
   const [selectedRecurringLoanId, setSelectedRecurringLoanId] = useState<number | null>(null)
-  const [editRecurringRepaymentDialogOpen, setEditRecurringRepaymentDialogOpen] = useState(false)
-  const [selectedRecurringRepaymentId, setSelectedRecurringRepaymentId] = useState<number | null>(null)
+  const [editAutoRepaymentDialogOpen, setEditAutoRepaymentDialogOpen] = useState(false)
+  const [selectedAutoRepaymentLoanId, setSelectedAutoRepaymentLoanId] = useState<number | null>(null)
   
   // Map of loan ID to first recurring repayment
   const [loanRecurringRepayments, setLoanRecurringRepayments] = useState<Map<number, Repayment>>(new Map())
@@ -1363,7 +1363,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                     onClick={(e) => { 
                                       e.stopPropagation(); 
                                       setSelectedRecurringLoanId(loan.id!);
-                                      setEditRecurringDialogOpen(true);
+                                      setEditRecurringLoanDialogOpen(true);
                                     }} 
                                     title="נהל הלוואה מחזורית"
                                   >
@@ -1400,10 +1400,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                           color="primary" 
                                           onClick={(e) => { 
                                             e.stopPropagation();
-                                            setSelectedRecurringRepaymentId(firstRepayment.id);
-                                            setEditRecurringRepaymentDialogOpen(true);
+                                            setSelectedAutoRepaymentLoanId(loan.id!);
+                                            setEditAutoRepaymentDialogOpen(true);
                                           }} 
-                                          title="נהל פירעון מחזורי"
+                                          title="נהל פירעון אוטומטי"
                                         >
                                           <EditNoteIcon fontSize="small" />
                                         </IconButton>
@@ -1426,8 +1426,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                       onClick={(e) => { 
                                         e.stopPropagation();
                                         if (loan.id) {
-                                          setSelectedRecurringLoanId(loan.id);
-                                          setEditRecurringDialogOpen(true);
+                                          setSelectedAutoRepaymentLoanId(loan.id);
+                                          setEditAutoRepaymentDialogOpen(true);
                                         }
                                       }} 
                                       title="ערוך הגדרות פירעון אוטומטי"
@@ -2019,15 +2019,15 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         title="אזהרה - בחירת ערב"
       />
 
-      {/* Edit Recurring Dialog */}
+      {/* Edit Recurring Loan Dialog */}
       {selectedRecurringLoanId && (
         <EditRecurringDialog
-          open={editRecurringDialogOpen}
-          onClose={() => setEditRecurringDialogOpen(false)}
-          itemType="auto_repayment"
+          open={editRecurringLoanDialogOpen}
+          onClose={() => setEditRecurringLoanDialogOpen(false)}
+          itemType="loan"
           itemId={selectedRecurringLoanId}
           onSuccess={() => {
-            setSnackbar({ open: true, message: 'הגדרות פירעון אוטומטי עודכנו בהצלחה', severity: 'success' })
+            setSnackbar({ open: true, message: 'הלוואה מחזורית עודכנה בהצלחה', severity: 'success' })
             if (selectedBorrower) {
               loadBorrowerLoans(selectedBorrower.id)
             }
@@ -2035,20 +2035,17 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         />
       )}
 
-      {/* Edit Recurring Repayment Dialog */}
-      {selectedRecurringRepaymentId && (
+      {/* Edit Auto Repayment Dialog */}
+      {selectedAutoRepaymentLoanId && (
         <EditRecurringDialog
-          open={editRecurringRepaymentDialogOpen}
-          onClose={() => setEditRecurringRepaymentDialogOpen(false)}
-          itemType="repayment"
-          itemId={selectedRecurringRepaymentId}
+          open={editAutoRepaymentDialogOpen}
+          onClose={() => setEditAutoRepaymentDialogOpen(false)}
+          itemType="auto_repayment"
+          itemId={selectedAutoRepaymentLoanId}
           onSuccess={() => {
-            setSnackbar({ open: true, message: 'פירעון מחזורי עודכן בהצלחה', severity: 'success' })
+            setSnackbar({ open: true, message: 'הגדרות פירעון אוטומטי עודכנו בהצלחה', severity: 'success' })
             if (selectedBorrower) {
               loadBorrowerLoans(selectedBorrower.id)
-            }
-            if (selectedLoan) {
-              loadRepayments(selectedLoan.id!)
             }
           }}
         />
