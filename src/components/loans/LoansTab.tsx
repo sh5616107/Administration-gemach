@@ -1547,6 +1547,9 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                         const baseDate = formData.loan_date ? new Date(formData.loan_date) : new Date()
                         baseDate.setMonth(baseDate.getMonth() + defaultMonths)
                         setFormData({ ...formData, loan_type: newType, due_date: baseDate.toISOString().split('T')[0] })
+                      } else if (newType === 'flexible') {
+                        // ניקוי תאריך פירעון כשמשנים לגמישה
+                        setFormData({ ...formData, loan_type: newType, due_date: undefined })
                       } else {
                         setFormData({ ...formData, loan_type: newType })
                       }

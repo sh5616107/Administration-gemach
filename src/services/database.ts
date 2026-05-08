@@ -428,7 +428,7 @@ export const loansService = {
   async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: number }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', String(id), { ...l, id, status, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: number, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, ...d }) },
   async delete(id: number): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
-  async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
+  async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
 }
 
 // Repayments Service

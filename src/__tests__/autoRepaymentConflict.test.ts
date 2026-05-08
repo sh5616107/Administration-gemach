@@ -231,6 +231,35 @@ describe('פירעון מחזורי מול תאריך פירעון קבוע', ()
       // הלוואה שנפרעה לא צריכה להופיע
       expect(overdueLoans.length).toBe(0)
     })
+
+    it('הלוואה גמישה לא צריכה להופיע ב-overdue גם אם יש לה due_date שעבר', async () => {
+      const borrowerResult = await borrowersService.create({
+        first_name: 'דוד',
+        last_name: 'שלמה',
+        phone: '0501234573',
+        id_number: '',
+        address: '',
+        email: '',
+        notes: ''
+      })
+      const borrowerId = borrowerResult.lastInsertRowid
+
+      // יצירת הלוואה גמישה עם due_date שעבר (למשל, נשאר מעריכה קודמת)
+      await loansService.create({
+        borrower_id: borrowerId,
+        amount: 1000,
+        loan_date: '2025-01-01',
+        loan_type: 'flexible', // גמישה!
+        due_date: '2025-06-01', // תאריך שעבר - אבל לא רלוונטי כי זו הלוואה גמישה
+        auto_repayment: 0,
+        is_recurring: 0
+      })
+
+      const overdueLoans = await loansService.getOverdue()
+      
+      // הלוואה גמישה לא צריכה להופיע ברשימת באיחור גם אם יש לה due_date
+      expect(overdueLoans.length).toBe(0)
+    })
   })
 
   describe('חישוב מספר פירעונים מחזוריים', () => {
