@@ -158,6 +158,119 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
     }
   }
 
+  // 2.5. טעינת פירעונות מחזוריים עתידיים
+  // הלוואות עם פירעון אוטומטי שאמורות להתבצע בחודש הנוכחי
+  const autoRepaymentLoans = loans.filter(l => 
+    l.auto_repayment === 1 && 
+    l.repayment_amount > 0 && 
+    l.status === 'active' &&
+    (l.remaining || 0) > 0
+  )
+  
+  for (const loan of autoRepaymentLoans) {
+    // בדיקה אם יש תאריך התחלה ואם הוא עבר
+    const startDateStr = loan.repayment_start_date?.split('T')[0]
+    if (startDateStr) {
+      const repaymentStartDate = parseLocalDate(startDateStr)
+      if (repaymentStartDate > endDate) {
+        // תאריך ההתחלה עדיין לא הגיע
+        continue
+      }
+    }
+    
+    // חישוב היום בחודש שבו אמור להתבצע הפירעון
+    const repaymentDay = loan.repayment_day || 1
+    const lastDayOfMonth = endDate.getDate()
+    const effectiveDay = Math.min(repaymentDay, lastDayOfMonth)
+    const eventDate = new Date(year, month, effectiveDay)
+    
+    // בדיקה אם התאריך בטווח
+    if (isInRange(eventDate, startDate, endDate)) {
+      // בדיקה אם כבר בוצע פירעון בחודש הזה
+      const firstDayOfMonth = new Date(year, month, 1)
+      const existingRepaymentThisMonth = allRepayments.find(r => 
+        r.loan_id === loan.id &&
+        r.payment_date &&
+        parseLocalDate(r.payment_date.split('T')[0]) >= firstDayOfMonth &&
+        parseLocalDate(r.payment_date.split('T')[0]) <= endDate
+      )
+      
+      // אם לא בוצע פירעון בחודש הזה, מציגים את הפירעון העתידי
+      if (!existingRepaymentThisMonth) {
+        const remaining = loan.remaining || loan.amount
+        const repaymentAmount = Math.min(loan.repayment_amount, remaining)
+        
+        events.push({
+          id: `future_repayment_${loan.id}_${year}_${month}`,
+          type: 'repayment',
+          date: formatLocalDate(eventDate),
+          title: 'פירעון מחזורי מתוכנן',
+          description: `פירעון מתוכנן של ${loan.borrower_name || ''}`,
+          amount: repaymentAmount,
+          relatedId: loan.id,
+          relatedName: loan.borrower_name || '',
+          metadata: {
+            remaining: remaining,
+            loanType: loan.loan_type
+          }
+        })
+      }
+    }
+  }
+
+  // 2.6. טעינת הלוואות מחזוריות עתידיות
+  // הלוואות מחזוריות שאמורות להיווצר בחודש הנוכחי
+  const recurringLoans = loans.filter(l => 
+    l.is_recurring === 1 && 
+    l.recurring_months > 0 && 
+    l.status === 'active'
+  )
+  
+  console.log('📅 Calendar: Found recurring loans:', recurringLoans.length)
+  
+  for (const loan of recurringLoans) {
+    // חישוב היום בחודש שבו אמורה להיווצר ההלוואה
+    const recurringDay = loan.recurring_day || 1
+    const lastDayOfMonth = endDate.getDate()
+    const effectiveDay = Math.min(recurringDay, lastDayOfMonth)
+    const eventDate = new Date(year, month, effectiveDay)
+    
+    // בדיקה אם התאריך בטווח
+    if (isInRange(eventDate, startDate, endDate)) {
+      // בדיקה אם כבר נוצרה הלוואה בחודש הזה
+      const firstDayOfMonth = new Date(year, month, 1)
+      const currentRecurringNumber = loan.recurring_loan_number || 1
+      const nextRecurringNumber = currentRecurringNumber + 1
+      
+      const existingLoanThisMonth = loans.find(l => 
+        l.borrower_id === loan.borrower_id &&
+        l.amount === loan.amount &&
+        l.is_recurring === 1 &&
+        l.recurring_loan_number === nextRecurringNumber &&
+        l.loan_date &&
+        parseLocalDate(l.loan_date.split('T')[0]) >= firstDayOfMonth &&
+        parseLocalDate(l.loan_date.split('T')[0]) <= endDate
+      )
+      
+      // אם לא נוצרה הלוואה בחודש הזה, מציגים את ההלוואה העתידית
+      if (!existingLoanThisMonth) {
+        events.push({
+          id: `future_recurring_loan_${loan.id}_${year}_${month}`,
+          type: 'planned_loan',
+          date: formatLocalDate(eventDate),
+          title: 'הלוואה מחזורית מתוכננת',
+          description: `הלוואה מחזורית מתוכננת ל${loan.borrower_name || ''} (${nextRecurringNumber}/${loan.recurring_loan_count || ''})`,
+          amount: loan.amount,
+          relatedId: loan.id,
+          relatedName: loan.borrower_name || '',
+          metadata: {
+            loanType: loan.loan_type
+          }
+        })
+      }
+    }
+  }
+
   // 3. טעינת הפקדות
   const deposits = await db.query('SELECT * FROM deposits') as any[]
   
