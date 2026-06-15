@@ -85,12 +85,42 @@ export function getAllItems<T>(storeName: keyof DataStore): T[] {
   return Object.values(data[storeName] as Record<string, T>)
 }
 
-function generateId(storeName: keyof DataStore): number {
-  // שומרים counter נפרד לכל store כדי שלא יהיה שימוש חוזר ב-ID
+/**
+ * Generate a unique ID for new records
+ * Uses UUID v4 for guaranteed uniqueness
+ * 
+ * Browser Support:
+ * - Chrome 92+ (July 2021)
+ * - Firefox 95+ (December 2021)
+ * - Safari 15.4+ (March 2022)
+ * - Edge 92+ (September 2021)
+ */
+function generateId(storeName: keyof DataStore): string {
+  // Use native crypto.randomUUID() if available (modern browsers)
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  
+  // Fallback for older browsers (RFC4122 v4 UUID)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
+/**
+ * Legacy function for backward compatibility during migration
+ * @deprecated Use generateId() which returns UUID
+ */
+function generateNumericId(storeName: keyof DataStore): number {
   const counterKey = `_counter_${storeName}`
   const currentCounter = parseInt(data.settings[counterKey] || '0', 10)
-  const items = getAllItems<{ id: number }>(storeName)
-  const maxExistingId = items.reduce((max, item) => Math.max(max, item.id || 0), 0)
+  const items = getAllItems<{ id: any }>(storeName)
+  const maxExistingId = items.reduce((max, item) => {
+    const numId = typeof item.id === 'number' ? item.id : 0
+    return Math.max(max, numId)
+  }, 0)
   const newId = Math.max(currentCounter, maxExistingId) + 1
   data.settings[counterKey] = String(newId)
   saveData()
@@ -200,7 +230,7 @@ export const db = {
     return []
   },
 
-  async run(sql: string, params?: unknown[]): Promise<{ lastInsertRowid: number; changes: number }> {
+  async run(sql: string, params?: unknown[]): Promise<{ lastInsertRowid: string | number; changes: number }> {
     if (sql.includes('DELETE FROM repayments') && !sql.includes('WHERE')) { clearStore('repayments'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM loans') && !sql.includes('WHERE')) { clearStore('loans'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM borrowers') && !sql.includes('WHERE')) { clearStore('borrowers'); return { lastInsertRowid: 0, changes: 1 } }
@@ -370,45 +400,99 @@ export const db = {
 }
 
 // Borrowers Service
-export interface Borrower { id: number; first_name: string; last_name: string; id_number?: string; city?: string; phone: string; phone2?: string; address?: string; email?: string; notes?: string; created_at: string }
+export interface Borrower { 
+  id: string;  // UUID
+  first_name: string; 
+  last_name: string; 
+  id_number?: string; 
+  city?: string; 
+  phone: string; 
+  phone2?: string; 
+  address?: string; 
+  email?: string; 
+  notes?: string; 
+  created_at: string 
+}
 
 export const borrowersService = {
   async getAll(): Promise<Borrower[]> { return getAllItems<Borrower>('borrowers').sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)) },
-  async getById(id: number): Promise<Borrower | null> { return getItem<Borrower>('borrowers', String(id)) },
+  async getById(id: string): Promise<Borrower | null> { return getItem<Borrower>('borrowers', id) },
   async search(term: string): Promise<Borrower[]> { const t = term.toLowerCase(); return (await this.getAll()).filter(b => b.first_name?.toLowerCase().includes(t) || b.last_name?.toLowerCase().includes(t) || b.phone?.includes(term) || b.id_number?.includes(term) || b.city?.toLowerCase().includes(t)) },
-  async create(b: Omit<Borrower, 'id' | 'created_at'>): Promise<{ lastInsertRowid: number }> { const id = generateId('borrowers'); setItem('borrowers', String(id), { ...b, id, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
-  async update(id: number, d: Partial<Borrower>): Promise<void> { const e = await this.getById(id); if (e) setItem('borrowers', String(id), { ...e, ...d }) },
-  async delete(id: number): Promise<void> { 
+  async create(b: Omit<Borrower, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('borrowers'); setItem('borrowers', id, { ...b, id, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async update(id: string, d: Partial<Borrower>): Promise<void> { const e = await this.getById(id); if (e) setItem('borrowers', id, { ...e, ...d }) },
+  async delete(id: string): Promise<void> { 
     // מחיקה מהרשימה השחורה אם קיים
-    const blacklistItems = getAllItems<{ id: number; entity_type: string; entity_id: number }>('blacklist')
+    const blacklistItems = getAllItems<{ id: string; entity_type: string; entity_id: string }>('blacklist')
     const blacklistEntry = blacklistItems.find(b => b.entity_type === 'borrower' && b.entity_id === id)
-    if (blacklistEntry) removeItem('blacklist', String(blacklistEntry.id))
-    removeItem('borrowers', String(id)) 
+    if (blacklistEntry) removeItem('blacklist', blacklistEntry.id)
+    removeItem('borrowers', id) 
   },
 }
 
 // Guarantors Service
-export interface Guarantor { id: number; first_name: string; last_name: string; phone: string; id_number?: string; address?: string; email?: string; notes?: string; is_blacklisted: number; created_at: string }
+export interface Guarantor { 
+  id: string;  // UUID
+  first_name: string; 
+  last_name: string; 
+  phone: string; 
+  id_number?: string; 
+  address?: string; 
+  email?: string; 
+  notes?: string; 
+  is_blacklisted: number; 
+  created_at: string 
+}
 
 export const guarantorsService = {
   async getAll(): Promise<Guarantor[]> { return getAllItems<Guarantor>('guarantors').sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)) },
-  async getById(id: number): Promise<Guarantor | null> { return getItem<Guarantor>('guarantors', String(id)) },
+  async getById(id: string): Promise<Guarantor | null> { return getItem<Guarantor>('guarantors', id) },
   async search(term: string): Promise<Guarantor[]> { const t = term.toLowerCase(); return (await this.getAll()).filter(g => g.first_name?.toLowerCase().includes(t) || g.last_name?.toLowerCase().includes(t) || g.phone?.includes(term) || g.id_number?.includes(term)) },
-  async create(g: Omit<Guarantor, 'id' | 'created_at' | 'is_blacklisted'>): Promise<{ lastInsertRowid: number }> { const id = generateId('guarantors'); setItem('guarantors', String(id), { ...g, id, is_blacklisted: 0, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
-  async update(id: number, d: Partial<Guarantor>): Promise<void> { const e = await this.getById(id); if (e) setItem('guarantors', String(id), { ...e, ...d }) },
-  async delete(id: number): Promise<void> { 
+  async create(g: Omit<Guarantor, 'id' | 'created_at' | 'is_blacklisted'>): Promise<{ lastInsertRowid: string }> { const id = generateId('guarantors'); setItem('guarantors', id, { ...g, id, is_blacklisted: 0, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async update(id: string, d: Partial<Guarantor>): Promise<void> { const e = await this.getById(id); if (e) setItem('guarantors', id, { ...e, ...d }) },
+  async delete(id: string): Promise<void> { 
     // מחיקה מהרשימה השחורה אם קיים
-    const blacklistItems = getAllItems<{ id: number; entity_type: string; entity_id: number }>('blacklist')
+    const blacklistItems = getAllItems<{ id: string; entity_type: string; entity_id: string }>('blacklist')
     const blacklistEntry = blacklistItems.find(b => b.entity_type === 'guarantor' && b.entity_id === id)
-    if (blacklistEntry) removeItem('blacklist', String(blacklistEntry.id))
-    removeItem('guarantors', String(id)) 
+    if (blacklistEntry) removeItem('blacklist', blacklistEntry.id)
+    removeItem('guarantors', id) 
   },
-  async getTotalGuarantees(id: number): Promise<number> { return (await loansService.getAll()).filter(l => (l.guarantor1_id === id || l.guarantor2_id === id) && l.status === 'active').reduce((s, l) => s + l.amount - (l.total_repaid || 0), 0) },
+  async getTotalGuarantees(id: string): Promise<number> { return (await loansService.getAll()).filter(l => (l.guarantor1_id === id || l.guarantor2_id === id) && l.status === 'active').reduce((s, l) => s + l.amount - (l.total_repaid || 0), 0) },
 }
 
 
 // Loans Service
-export interface Loan { id: number; borrower_id: number; amount: number; loan_date: string; loan_date_hebrew?: string; loan_type: string; due_date?: string; due_date_hebrew?: string; is_recurring: number; recurring_months?: number; recurring_day?: number; recurring_loan_number?: number; recurring_loan_count?: number; auto_repayment: number; repayment_amount?: number; repayment_day?: number; repayment_frequency?: string; repayment_start_date?: string; guarantor1_id?: number; guarantor2_id?: number; notes?: string; status: string; created_at: string; total_repaid?: number; remaining?: number; borrower_name?: string; payment_method?: string; payment_details?: string; is_deleted?: boolean; deleted_at?: string }
+export interface Loan { 
+  id: string;  // UUID
+  borrower_id: string;  // UUID foreign key
+  amount: number; 
+  loan_date: string; 
+  loan_date_hebrew?: string; 
+  loan_type: string; 
+  due_date?: string; 
+  due_date_hebrew?: string; 
+  is_recurring: number; 
+  recurring_months?: number; 
+  recurring_day?: number; 
+  recurring_loan_number?: number; 
+  recurring_loan_count?: number; 
+  auto_repayment: number; 
+  repayment_amount?: number; 
+  repayment_day?: number; 
+  repayment_frequency?: string; 
+  repayment_start_date?: string; 
+  guarantor1_id?: string;  // UUID foreign key
+  guarantor2_id?: string;  // UUID foreign key
+  notes?: string; 
+  status: string; 
+  created_at: string; 
+  total_repaid?: number; 
+  remaining?: number; 
+  borrower_name?: string; 
+  payment_method?: string; 
+  payment_details?: string; 
+  is_deleted?: boolean; 
+  deleted_at?: string 
+}
 
 export const loansService = {
   async getAll(): Promise<Loan[]> {
@@ -423,22 +507,37 @@ export const loansService = {
     }
     return loans.sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
   },
-  async getByBorrower(id: number): Promise<Loan[]> { return (await this.getAll()).filter(l => l.borrower_id === id) },
-  async getById(id: number): Promise<Loan | null> { const l = getItem<Loan>('loans', String(id)); if (l && l.is_deleted) return null; if (l) { const r = await repaymentsService.getByLoan(id); l.total_repaid = r.reduce((s, x) => s + x.amount, 0); l.remaining = l.amount - l.total_repaid } return l },
-  async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: number }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', String(id), { ...l, id, status, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
-  async update(id: number, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, ...d }) },
-  async delete(id: number): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', String(id), { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
+  async getByBorrower(id: string): Promise<Loan[]> { return (await this.getAll()).filter(l => l.borrower_id === id) },
+  async getById(id: string): Promise<Loan | null> { const l = getItem<Loan>('loans', id); if (l && l.is_deleted) return null; if (l) { const r = await repaymentsService.getByLoan(id); l.total_repaid = r.reduce((s, x) => s + x.amount, 0); l.remaining = l.amount - l.total_repaid } return l },
+  async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: string }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', id, { ...l, id, status, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, ...d }) },
+  async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
   async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
 }
 
 // Repayments Service
-export interface Repayment { id: number; loan_id: number; amount: number; payment_date: string; payment_date_hebrew?: string; notes?: string; created_at: string; payment_method?: string; payment_details?: string; is_recurring?: number; recurring_repayment_number?: number; recurring_repayment_count?: number; is_deleted?: boolean; deleted_at?: string }
+export interface Repayment { 
+  id: string;  // UUID
+  loan_id: string;  // UUID foreign key
+  amount: number; 
+  payment_date: string; 
+  payment_date_hebrew?: string; 
+  notes?: string; 
+  created_at: string; 
+  payment_method?: string; 
+  payment_details?: string; 
+  is_recurring?: number; 
+  recurring_repayment_number?: number; 
+  recurring_repayment_count?: number; 
+  is_deleted?: boolean; 
+  deleted_at?: string 
+}
 
 export const repaymentsService = {
-  async getByLoan(loanId: number): Promise<Repayment[]> { return getAllItems<Repayment>('repayments').filter(r => r.loan_id === loanId && !r.is_deleted).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()) },
-  async create(r: Omit<Repayment, 'id' | 'created_at'>): Promise<{ lastInsertRowid: number }> { const id = generateId('repayments'); setItem('repayments', String(id), { ...r, id, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
-  async update(id: number, data: Partial<Repayment>): Promise<void> { const existing = getItem<Repayment>('repayments', String(id)); if (existing && !existing.is_deleted) setItem('repayments', String(id), { ...existing, ...data }) },
-  async delete(id: number): Promise<void> { const e = getItem<Repayment>('repayments', String(id)); if (e) setItem('repayments', String(id), { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
+  async getByLoan(loanId: string): Promise<Repayment[]> { return getAllItems<Repayment>('repayments').filter(r => r.loan_id === loanId && !r.is_deleted).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()) },
+  async create(r: Omit<Repayment, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('repayments'); setItem('repayments', id, { ...r, id, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async update(id: string, data: Partial<Repayment>): Promise<void> { const existing = getItem<Repayment>('repayments', id); if (existing && !existing.is_deleted) setItem('repayments', id, { ...existing, ...data }) },
+  async delete(id: string): Promise<void> { const e = getItem<Repayment>('repayments', id); if (e) setItem('repayments', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
 }
 
 // Stats Service
@@ -483,7 +582,7 @@ export const statsService = {
     const loans = await loansService.getAll()
     const borrowers = await borrowersService.getAll()
     const today = new Date().toISOString().split('T')[0]
-    const stats = new Map<number, { loan_count: number; total_debt: number }>()
+    const stats = new Map<string, { loan_count: number; total_debt: number }>()
     for (const l of loans) { if (l.status === 'active' && l.loan_date <= today && (l.remaining || 0) > 0) { const s = stats.get(l.borrower_id) || { loan_count: 0, total_debt: 0 }; s.loan_count++; s.total_debt += l.remaining || 0; stats.set(l.borrower_id, s) } }
     return borrowers.filter(b => stats.has(b.id)).map(b => ({ ...b, ...stats.get(b.id) })).sort((a, b) => (b.total_debt || 0) - (a.total_debt || 0))
   },
@@ -561,23 +660,23 @@ export const statsService = {
       borrower_name: e.borrower_id ? borrowers.find(b => b.id === e.borrower_id)?.first_name + ' ' + borrowers.find(b => b.id === e.borrower_id)?.last_name : undefined
     })).sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime())
   },
-  async getExpensesByBorrower(borrowerId: number) {
+  async getExpensesByBorrower(borrowerId: string) {
     const expenses = getAllItems<any>('expenses')
     return expenses.filter(e => e.paid_by === 'borrower' && e.borrower_id === borrowerId)
       .sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime())
   },
-  async addExpense(expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: number; payment_method?: string; payment_details?: string; notes?: string }) {
+  async addExpense(expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: string; payment_method?: string; payment_details?: string; notes?: string }) {
     const id = generateId('expenses')
-    setItem('expenses', String(id), { ...expense, id, created_at: new Date().toISOString() })
+    setItem('expenses', id, { ...expense, id, created_at: new Date().toISOString() })
     return { id }
   },
-  async updateExpense(id: number, expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: number; payment_method?: string; payment_details?: string; notes?: string }) {
-    const existing = getItem<any>('expenses', String(id))
+  async updateExpense(id: string, expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: string; payment_method?: string; payment_details?: string; notes?: string }) {
+    const existing = getItem<any>('expenses', id)
     if (existing) {
       setItem('expenses', String(id), { ...existing, ...expense })
     }
   },
-  async deleteExpense(id: number) {
+  async deleteExpense(id: string) {
     removeItem('expenses', String(id))
   },
   async getTotalGemachExpenses() {
@@ -588,9 +687,9 @@ export const statsService = {
 
 // Guarantor Loans Service - הלוואות שהועברו לערבים
 export interface GuarantorLoan {
-  id: number
-  guarantor_id: number
-  original_loan_id: number
+  id: string  // UUID
+  guarantor_id: string  // UUID foreign key
+  original_loan_id: string  // UUID foreign key
   amount: number
   total_repaid: number
   total_refunded: number // סה"כ הוחזר מהלווה לערב
@@ -603,8 +702,8 @@ export interface GuarantorLoan {
 }
 
 export interface GuarantorLoanRepayment {
-  id: number
-  guarantor_loan_id: number
+  id: string  // UUID
+  guarantor_loan_id: string  // UUID foreign key
   amount: number
   payment_date: string
   payment_method?: string
@@ -617,28 +716,28 @@ export const guarantorLoansService = {
   async getAll(): Promise<GuarantorLoan[]> {
     return getAllItems<GuarantorLoan>('guarantorLoans').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   },
-  async getById(id: number): Promise<GuarantorLoan | null> {
-    return getItem<GuarantorLoan>('guarantorLoans', String(id))
+  async getById(id: string): Promise<GuarantorLoan | null> {
+    return getItem<GuarantorLoan>('guarantorLoans', id)
   },
-  async getByOriginalLoan(loanId: number): Promise<GuarantorLoan[]> {
+  async getByOriginalLoan(loanId: string): Promise<GuarantorLoan[]> {
     return (await this.getAll()).filter(gl => gl.original_loan_id === loanId)
   },
-  async getByGuarantor(guarantorId: number): Promise<GuarantorLoan[]> {
+  async getByGuarantor(guarantorId: string): Promise<GuarantorLoan[]> {
     return (await this.getAll()).filter(gl => gl.guarantor_id === guarantorId)
   },
-  async create(gl: Omit<GuarantorLoan, 'id' | 'created_at' | 'total_repaid' | 'total_refunded'>): Promise<{ id: number }> {
+  async create(gl: Omit<GuarantorLoan, 'id' | 'created_at' | 'total_repaid' | 'total_refunded'>): Promise<{ id: string }> {
     const id = generateId('guarantorLoans')
-    setItem('guarantorLoans', String(id), { ...gl, id, total_repaid: 0, total_refunded: 0, created_at: new Date().toISOString() })
+    setItem('guarantorLoans', id, { ...gl, id, total_repaid: 0, total_refunded: 0, created_at: new Date().toISOString() })
     return { id }
   },
-  async update(id: number, data: Partial<GuarantorLoan>): Promise<void> {
+  async update(id: string, data: Partial<GuarantorLoan>): Promise<void> {
     const existing = await this.getById(id)
-    if (existing) setItem('guarantorLoans', String(id), { ...existing, ...data })
+    if (existing) setItem('guarantorLoans', id, { ...existing, ...data })
   },
-  async delete(id: number): Promise<void> {
-    removeItem('guarantorLoans', String(id))
+  async delete(id: string): Promise<void> {
+    removeItem('guarantorLoans', id)
   },
-  async addRepayment(guarantorLoanId: number, amount: number, paymentDate: string, paymentMethod?: string, paymentDetails?: string, notes?: string): Promise<void> {
+  async addRepayment(guarantorLoanId: string, amount: number, paymentDate: string, paymentMethod?: string, paymentDetails?: string, notes?: string): Promise<void> {
     // שימוש ב-guarantorLoanRepaymentsService במקום עדכון ישיר
     await guarantorLoanRepaymentsService.create({
       guarantor_loan_id: guarantorLoanId,
@@ -649,10 +748,10 @@ export const guarantorLoansService = {
       notes: notes
     })
   },
-  async deleteByOriginalLoan(loanId: number): Promise<void> {
+  async deleteByOriginalLoan(loanId: string): Promise<void> {
     const loans = await this.getByOriginalLoan(loanId)
     for (const loan of loans) {
-      removeItem('guarantorLoans', String(loan.id))
+      removeItem('guarantorLoans', loan.id)
     }
   },
   async getActiveCount(): Promise<number> {
@@ -685,19 +784,19 @@ export const guarantorLoanRepaymentsService = {
       new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
     )
   },
-  async getById(id: number): Promise<GuarantorLoanRepayment | null> {
-    return getItem<GuarantorLoanRepayment>('guarantorLoanRepayments', String(id))
+  async getById(id: string): Promise<GuarantorLoanRepayment | null> {
+    return getItem<GuarantorLoanRepayment>('guarantorLoanRepayments', id)
   },
-  async getByGuarantorLoan(guarantorLoanId: number): Promise<GuarantorLoanRepayment[]> {
+  async getByGuarantorLoan(guarantorLoanId: string): Promise<GuarantorLoanRepayment[]> {
     return (await this.getAll()).filter(r => r.guarantor_loan_id === guarantorLoanId)
   },
-  async getTotalRepaid(guarantorLoanId: number): Promise<number> {
+  async getTotalRepaid(guarantorLoanId: string): Promise<number> {
     const repayments = await this.getByGuarantorLoan(guarantorLoanId)
     return repayments.reduce((sum, r) => sum + r.amount, 0)
   },
-  async create(repayment: Omit<GuarantorLoanRepayment, 'id' | 'created_at'>): Promise<{ id: number; lastInsertRowid: number }> {
+  async create(repayment: Omit<GuarantorLoanRepayment, 'id' | 'created_at'>): Promise<{ id: string; lastInsertRowid: string }> {
     const id = generateId('guarantorLoanRepayments')
-    setItem('guarantorLoanRepayments', String(id), { 
+    setItem('guarantorLoanRepayments', id, { 
       ...repayment, 
       id, 
       created_at: new Date().toISOString() 
@@ -715,10 +814,10 @@ export const guarantorLoanRepaymentsService = {
     
     return { id, lastInsertRowid: id }
   },
-  async update(id: number, data: Partial<GuarantorLoanRepayment>): Promise<void> {
+  async update(id: string, data: Partial<GuarantorLoanRepayment>): Promise<void> {
     const existing = await this.getById(id)
     if (existing) {
-      setItem('guarantorLoanRepayments', String(id), { ...existing, ...data })
+      setItem('guarantorLoanRepayments', id, { ...existing, ...data })
       
       // עדכון total_repaid בהלוואת הערב
       const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
@@ -731,10 +830,10 @@ export const guarantorLoanRepaymentsService = {
       }
     }
   },
-  async delete(id: number): Promise<void> {
+  async delete(id: string): Promise<void> {
     const existing = await this.getById(id)
     if (existing) {
-      removeItem('guarantorLoanRepayments', String(id))
+      removeItem('guarantorLoanRepayments', id)
       
       // עדכון total_repaid בהלוואת הערב
       const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
@@ -747,18 +846,18 @@ export const guarantorLoanRepaymentsService = {
       }
     }
   },
-  async deleteByGuarantorLoan(guarantorLoanId: number): Promise<void> {
+  async deleteByGuarantorLoan(guarantorLoanId: string): Promise<void> {
     const repayments = await this.getByGuarantorLoan(guarantorLoanId)
     for (const repayment of repayments) {
-      removeItem('guarantorLoanRepayments', String(repayment.id))
+      removeItem('guarantorLoanRepayments', repayment.id)
     }
   }
 }
 
 // Guarantor Refunds Service - החזרים מהלווה לערב
 export interface GuarantorRefund {
-  id: number
-  guarantor_loan_id: number
+  id: string  // UUID
+  guarantor_loan_id: string  // UUID foreign key
   amount: number
   refund_date: string
   payment_method?: string
@@ -774,22 +873,22 @@ export const guarantorRefundsService = {
     )
   },
   
-  async getById(id: number): Promise<GuarantorRefund | null> {
-    return getItem<GuarantorRefund>('guarantorRefunds', String(id))
+  async getById(id: string): Promise<GuarantorRefund | null> {
+    return getItem<GuarantorRefund>('guarantorRefunds', id)
   },
   
-  async getByGuarantorLoan(guarantorLoanId: number): Promise<GuarantorRefund[]> {
+  async getByGuarantorLoan(guarantorLoanId: string): Promise<GuarantorRefund[]> {
     return (await this.getAll()).filter(r => r.guarantor_loan_id === guarantorLoanId)
   },
   
-  async getTotalRefunded(guarantorLoanId: number): Promise<number> {
+  async getTotalRefunded(guarantorLoanId: string): Promise<number> {
     const refunds = await this.getByGuarantorLoan(guarantorLoanId)
     return refunds.reduce((sum, r) => sum + r.amount, 0)
   },
   
-  async create(refund: Omit<GuarantorRefund, 'id' | 'created_at'>): Promise<{ id: number }> {
+  async create(refund: Omit<GuarantorRefund, 'id' | 'created_at'>): Promise<{ id: string }> {
     const id = generateId('guarantorRefunds')
-    setItem('guarantorRefunds', String(id), { 
+    setItem('guarantorRefunds', id, { 
       ...refund, 
       id, 
       created_at: new Date().toISOString() 
@@ -819,10 +918,10 @@ export const guarantorRefundsService = {
     return { id }
   },
   
-  async update(id: number, data: Partial<GuarantorRefund>): Promise<void> {
+  async update(id: string, data: Partial<GuarantorRefund>): Promise<void> {
     const existing = await this.getById(id)
     if (existing) {
-      setItem('guarantorRefunds', String(id), { ...existing, ...data })
+      setItem('guarantorRefunds', id, { ...existing, ...data })
       
       // עדכון total_refunded בהלוואת הערב
       const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
@@ -847,10 +946,10 @@ export const guarantorRefundsService = {
     }
   },
   
-  async delete(id: number): Promise<void> {
+  async delete(id: string): Promise<void> {
     const existing = await this.getById(id)
     if (existing) {
-      removeItem('guarantorRefunds', String(id))
+      removeItem('guarantorRefunds', id)
       
       // עדכון total_refunded בהלוואת הערב
       const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
@@ -876,10 +975,10 @@ export const guarantorRefundsService = {
     }
   },
   
-  async deleteByGuarantorLoan(guarantorLoanId: number): Promise<void> {
+  async deleteByGuarantorLoan(guarantorLoanId: string): Promise<void> {
     const refunds = await this.getByGuarantorLoan(guarantorLoanId)
     for (const refund of refunds) {
-      removeItem('guarantorRefunds', String(refund.id))
+      removeItem('guarantorRefunds', refund.id)
     }
   }
 }
@@ -915,18 +1014,25 @@ export const depositorsService = {
 }
 
 // Blacklist Service
-export interface BlacklistItem { id: number; entity_type: 'borrower' | 'guarantor'; entity_id: number; reason: string; added_at: string }
+export interface BlacklistItem { 
+  id: string;  // UUID
+  entity_type: 'borrower' | 'guarantor'; 
+  entity_id: string;  // UUID foreign key
+  reason: string; 
+  added_at: string 
+}
+
 export const blacklistService = {
   async getAll(): Promise<BlacklistItem[]> { return getAllItems<BlacklistItem>('blacklist') },
-  async isBlacklisted(entityType: 'borrower' | 'guarantor', entityId: number): Promise<BlacklistItem | null> {
+  async isBlacklisted(entityType: 'borrower' | 'guarantor', entityId: string): Promise<BlacklistItem | null> {
     const items = await this.getAll()
     return items.find(item => item.entity_type === entityType && item.entity_id === entityId) || null
   },
-  async getBlacklistedBorrowerIds(): Promise<number[]> {
+  async getBlacklistedBorrowerIds(): Promise<string[]> {
     const items = await this.getAll()
     return items.filter(item => item.entity_type === 'borrower').map(item => item.entity_id)
   },
-  async getBlacklistedGuarantorIds(): Promise<number[]> {
+  async getBlacklistedGuarantorIds(): Promise<string[]> {
     const items = await this.getAll()
     return items.filter(item => item.entity_type === 'guarantor').map(item => item.entity_id)
   }
@@ -934,8 +1040,8 @@ export const blacklistService = {
 
 // Waitlist Service
 export interface WaitlistEntry {
-  id: number
-  borrower_id: number
+  id: string  // UUID
+  borrower_id: string  // UUID foreign key
   requested_amount: number
   request_date: string
   loan_type: 'fixed' | 'flexible'
@@ -953,11 +1059,11 @@ export const waitlistService = {
     return getAllItems<WaitlistEntry>('waitlist').sort((a, b) => a.position - b.position)
   },
   
-  async getById(id: number): Promise<WaitlistEntry | null> {
-    return getItem<WaitlistEntry>('waitlist', String(id))
+  async getById(id: string): Promise<WaitlistEntry | null> {
+    return getItem<WaitlistEntry>('waitlist', id)
   },
   
-  async getByBorrower(borrowerId: number): Promise<WaitlistEntry[]> {
+  async getByBorrower(borrowerId: string): Promise<WaitlistEntry[]> {
     return (await this.getAll()).filter(w => w.borrower_id === borrowerId)
   },
   
@@ -965,7 +1071,7 @@ export const waitlistService = {
     return (await this.getAll()).filter(w => w.status === 'waiting')
   },
   
-  async create(entry: Omit<WaitlistEntry, 'id' | 'created_at' | 'updated_at' | 'position'>): Promise<{ id: number }> {
+  async create(entry: Omit<WaitlistEntry, 'id' | 'created_at' | 'updated_at' | 'position'>): Promise<{ id: string }> {
     const id = generateId('waitlist')
     const allEntries = await this.getAll()
     const maxPosition = allEntries.reduce((max, e) => Math.max(max, e.position), 0)
@@ -989,7 +1095,7 @@ export const waitlistService = {
     return { id }
   },
   
-  async update(id: number, data: Partial<WaitlistEntry>): Promise<void> {
+  async update(id: string, data: Partial<WaitlistEntry>): Promise<void> {
     const existing = await this.getById(id)
     if (!existing) return
     
@@ -1014,17 +1120,17 @@ export const waitlistService = {
     }
   },
   
-  async delete(id: number): Promise<void> {
+  async delete(id: string): Promise<void> {
     const entry = await this.getById(id)
     if (!entry) return
     
-    removeItem('waitlist', String(id))
+    removeItem('waitlist', id)
     
     // Reorder positions
     const allEntries = await this.getAll()
     for (const e of allEntries) {
       if (e.position > entry.position) {
-        setItem('waitlist', String(e.id), { ...e, position: e.position - 1, updated_at: new Date().toISOString() })
+        setItem('waitlist', e.id, { ...e, position: e.position - 1, updated_at: new Date().toISOString() })
       }
     }
   },
@@ -1103,7 +1209,7 @@ export const waitlistService = {
     return waiting.length > 0 ? waiting[0] : null
   },
   
-  async approveEntry(id: number, loanId: number): Promise<void> {
+  async approveEntry(id: string, loanId: string): Promise<void> {
     const entry = await this.getById(id)
     if (!entry) return
     
@@ -1141,9 +1247,9 @@ export const depositWithdrawalsService = {
     return (await this.getAll()).filter(w => w.deposit_id === depositId)
   },
   
-  async create(withdrawal: Omit<DepositWithdrawal, 'id' | 'created_at'>): Promise<{ id: number }> {
+  async create(withdrawal: Omit<DepositWithdrawal, 'id' | 'created_at'>): Promise<{ id: string }> {
     const id = generateId('depositWithdrawals')
-    setItem('depositWithdrawals', String(id), {
+    setItem('depositWithdrawals', id, {
       ...withdrawal,
       id,
       created_at: new Date().toISOString()
@@ -1151,11 +1257,11 @@ export const depositWithdrawalsService = {
     return { id }
   },
   
-  async delete(id: number): Promise<void> {
-    removeItem('depositWithdrawals', String(id))
+  async delete(id: string): Promise<void> {
+    removeItem('depositWithdrawals', id)
   },
   
-  async getTotalWithdrawn(depositId: number): Promise<number> {
+  async getTotalWithdrawn(depositId: string): Promise<number> {
     const withdrawals = await this.getByDeposit(depositId)
     return withdrawals.reduce((sum, w) => sum + w.amount, 0)
   }

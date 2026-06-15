@@ -28,21 +28,9 @@ import { useSettings } from '../../hooks/useSettings'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkNewBorrower, type CrossCheckResult } from '../../services/crossCheck'
 import { generateBorrowerReport } from '../../services/documents'
+import { Borrower } from '../../services/database'
 
-interface Borrower {
-  id?: number
-  first_name: string
-  last_name: string
-  id_number: string
-  city: string
-  phone: string
-  phone2: string
-  address: string
-  email: string
-  notes: string
-}
-
-const emptyBorrower: Borrower = {
+const emptyBorrower: Omit<Borrower, 'id' | 'created_at'> = {
   first_name: '',
   last_name: '',
   id_number: '',
@@ -55,14 +43,14 @@ const emptyBorrower: Borrower = {
 }
 
 interface BorrowersTabProps {
-  onBorrowerSelect?: (borrowerId: number) => void
+  onBorrowerSelect?: (borrowerId: string) => void
 }
 
 export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
   const { settings } = useSettings()
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
-  const [formData, setFormData] = useState<Borrower>(emptyBorrower)
+  const [formData, setFormData] = useState<Omit<Borrower, 'id' | 'created_at'>>(emptyBorrower)
   const [searchTerm, setSearchTerm] = useState('')
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const [duplicateNameDialog, setDuplicateNameDialog] = useState<{ open: boolean; existingBorrower: Borrower | null }>({ open: false, existingBorrower: null })

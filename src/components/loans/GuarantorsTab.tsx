@@ -40,7 +40,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
 } from '@mui/icons-material'
-import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, guarantorRefundsService, loansService, repaymentsService, borrowersService, type GuarantorLoan } from '../../services/database'
+import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, guarantorRefundsService, loansService, repaymentsService, borrowersService, type Guarantor, type GuarantorLoan } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate } from '../../utils/dateUtils'
 import { openEmailWithDocument, createGuarantorDebtEmailData, generateGuarantorStatement, type EmailProvider, type GuarantorStatementData } from '../../services/documents'
@@ -49,20 +49,7 @@ import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkNewGuarantor, type CrossCheckResult } from '../../services/crossCheck'
 import { GuarantorRefundDialog } from '../GuarantorRefundDialog'
 
-interface Guarantor {
-  id?: number
-  first_name: string
-  last_name: string
-  phone: string
-  id_number: string
-  address: string
-  email: string
-  notes: string
-  is_blacklisted: number
-  total_guarantees?: number
-}
-
-const emptyGuarantor: Guarantor = {
+const emptyGuarantor: Omit<Guarantor, 'id' | 'created_at'> = {
   first_name: '',
   last_name: '',
   phone: '',
@@ -82,8 +69,8 @@ interface GuarantorLoanWithDetails extends GuarantorLoan {
 export default function GuarantorsTab() {
   const { settings } = useSettings()
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
-  const [formData, setFormData] = useState<Guarantor>(emptyGuarantor)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [formData, setFormData] = useState<Omit<Guarantor, 'id' | 'created_at'>>(emptyGuarantor)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   
@@ -229,7 +216,7 @@ export default function GuarantorsTab() {
     setCrossCheckWarnings([])
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     // בדיקה אם יש לערב הלוואת ערב פעילה
     const activeGuarantorLoans = guarantorLoans.filter(
       gl => gl.guarantor_id === id && gl.status === 'active'
@@ -323,7 +310,7 @@ export default function GuarantorsTab() {
     }
   }
 
-  const handleDeleteGuarantorLoan = async (id: number) => {
+  const handleDeleteGuarantorLoan = async (id: string) => {
     if (!confirm('האם למחוק את הלוואת הערב?')) return
 
     try {
@@ -411,7 +398,7 @@ export default function GuarantorsTab() {
     })
   }
 
-  const handleGenerateGuarantorReport = async (guarantorId: number) => {
+  const handleGenerateGuarantorReport = async (guarantorId: string) => {
     try {
       // Get guarantor details
       const guarantor = await guarantorsService.getById(guarantorId)
@@ -426,7 +413,8 @@ export default function GuarantorsTab() {
       // Get all regular loans where this person is a guarantor
       const allLoans = await loansService.getAll()
       const regularLoansAsGuarantor = allLoans.filter(
-        loan => (loan.guarantor1_id === guarantorId || loan.guarantor2_id === guarantorId) && 
+        loan => ((loan.guarantor1_id && loan.guarantor1_id === guarantorId) || 
+                 (loan.guarantor2_id && loan.guarantor2_id === guarantorId)) && 
                 loan.status === 'active'
       )
       
@@ -499,7 +487,7 @@ export default function GuarantorsTab() {
   }
 
   // Check if original loan was repaid and delete guarantor loans
-  const checkOriginalLoanRepaid = async (originalLoanId: number) => {
+  const checkOriginalLoanRepaid = async (originalLoanId: string) => {
     const loan = await loansService.getById(originalLoanId)
     if (loan && loan.remaining === 0) {
       await guarantorLoansService.deleteByOriginalLoan(originalLoanId)
@@ -509,7 +497,7 @@ export default function GuarantorsTab() {
     return false
   }
 
-  const getStatus = (guarantor: Guarantor) => {
+  const getStatus = (guarantor: Guarantor & { total_guarantees?: number }) => {
     if (guarantor.is_blacklisted) {
       return { label: 'חסום', color: 'error' as const, icon: <BlockIcon sx={{ fontSize: 16 }} /> }
     }
@@ -530,9 +518,9 @@ export default function GuarantorsTab() {
 
   const stats = {
     total: guarantors.length,
-    active: guarantors.filter(g => !g.is_blacklisted && (g.total_guarantees || 0) <= riskThreshold).length,
-    highRisk: guarantors.filter(g => !g.is_blacklisted && (g.total_guarantees || 0) > riskThreshold).length,
-    totalGuarantees: guarantors.reduce((sum, g) => sum + (g.total_guarantees || 0), 0),
+    active: guarantors.filter(g => !g.is_blacklisted && ((g as any).total_guarantees || 0) <= riskThreshold).length,
+    highRisk: guarantors.filter(g => !g.is_blacklisted && ((g as any).total_guarantees || 0) > riskThreshold).length,
+    totalGuarantees: guarantors.reduce((sum, g) => sum + ((g as any).total_guarantees || 0), 0),
   }
 
   return (
@@ -718,7 +706,7 @@ export default function GuarantorsTab() {
                         </TableCell>
                         <TableCell>{guarantor.phone}</TableCell>
                         <TableCell align="center">
-                          {formatCurrency(guarantor.total_guarantees || 0)}
+                          {formatCurrency((guarantor as any).total_guarantees || 0)}
                         </TableCell>
                         <TableCell align="center">
                           <Chip label={status.label} color={status.color} size="small" />
@@ -727,7 +715,7 @@ export default function GuarantorsTab() {
                           <IconButton 
                             size="small" 
                             color="info"
-                            onClick={() => guarantor.id && handleGenerateGuarantorReport(guarantor.id)}
+                            onClick={() => handleGenerateGuarantorReport(guarantor.id)}
                             title="הפק דוח ערב"
                           >
                             <DescriptionIcon />

@@ -121,7 +121,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
 
   // Recurring items dialogs
   const [editRecurringDialogOpen, setEditRecurringDialogOpen] = useState(false)
-  const [selectedRecurringDepositId, setSelectedRecurringDepositId] = useState<number | null>(null)
+  const [selectedRecurringDepositId, setSelectedRecurringDepositId] = useState<string | null>(null)
 
   useEffect(() => {
     loadDepositors()
@@ -894,7 +894,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                               size="small"
                               color="primary"
                               onClick={() => {
-                                setSelectedRecurringDepositId(deposit.id);
+                                setSelectedRecurringDepositId(String(deposit.id));
                                 setEditRecurringDialogOpen(true);
                               }}
                               title="נהל הפקדה מחזורית"

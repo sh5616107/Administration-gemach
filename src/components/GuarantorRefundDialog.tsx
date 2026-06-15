@@ -42,7 +42,7 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
   const [refunds, setRefunds] = useState<GuarantorRefund[]>([])
   const [guarantorLoan, setGuarantorLoan] = useState(initialGuarantorLoan)
   const [isAdding, setIsAdding] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     amount: '',
     refund_date: new Date().toISOString().split('T')[0],
@@ -157,7 +157,7 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
     setIsAdding(true)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm(t('confirmDelete') || 'האם למחוק?')) return
 
     try {

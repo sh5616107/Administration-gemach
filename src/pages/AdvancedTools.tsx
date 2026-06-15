@@ -66,27 +66,27 @@ import ExcelImportDialog from '../components/ExcelImportDialog'
 import { exportToExcel } from '../services/excelImport'
 
 interface OverdueLoan {
-  id: number
-  borrower_id: number
+  id: string  // UUID
+  borrower_id: string  // UUID
   borrower_name: string
   amount: number
   remaining: number
   due_date: string
-  guarantor1_id?: number
-  guarantor2_id?: number
+  guarantor1_id?: string  // UUID
+  guarantor2_id?: string  // UUID
 }
 
 interface BlacklistItem {
-  id: number
+  id: string  // UUID
   entity_type: string
-  entity_id: number
+  entity_id: string  // UUID
   reason: string
   added_at: string
   name?: string
 }
 
 interface EntityOption {
-  id: number
+  id: string  // UUID
   name: string
   type: 'borrower' | 'guarantor'
 }
@@ -103,13 +103,13 @@ interface PaymentMethodStats {
 }
 
 interface Expense {
-  id: number
+  id: string  // UUID
   description: string
   amount: number
   expense_date: string
   category: string
   paid_by: 'gemach' | 'borrower'
-  borrower_id?: number
+  borrower_id?: string  // UUID
   borrower_name?: string
   payment_method?: string
   payment_details?: string
@@ -196,13 +196,13 @@ export default function AdvancedTools() {
     expense_date: new Date().toISOString().split('T')[0],
     category: 'fee',
     paid_by: 'gemach' as 'gemach' | 'borrower',
-    borrower_id: null as number | null,
+    borrower_id: null as string | null,
     payment_method: '' as string,
     payment_details: '' as string,
     notes: ''
   })
   const [expensePaymentData, setExpensePaymentData] = useState<{ payment_method: string; [key: string]: string }>({ payment_method: '' })
-  const [borrowerOptions, setBorrowerOptions] = useState<{ id: number; name: string }[]>([])
+  const [borrowerOptions, setBorrowerOptions] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     loadData()
@@ -490,7 +490,7 @@ export default function AdvancedTools() {
       const loan = transferData.loan
 
       // Create guarantor loan record
-      const createGuarantorLoan = async (guarantorId: number, amount: number) => {
+      const createGuarantorLoan = async (guarantorId: string, amount: number) => {
         await guarantorLoansService.create({
           guarantor_id: guarantorId,
           original_loan_id: loan.id,
@@ -1035,7 +1035,7 @@ export default function AdvancedTools() {
     setExpensePaymentData({ payment_method: '' })
   }
 
-  const handleDeleteExpense = async (id: number) => {
+  const handleDeleteExpense = async (id: string) => {
     if (!confirm('האם למחוק את ההוצאה?')) return
     
     try {

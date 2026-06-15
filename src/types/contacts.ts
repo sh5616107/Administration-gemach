@@ -18,8 +18,8 @@ export type ContactRoleType = 'borrower' | 'guarantor' | 'donor' | 'depositor';
 export interface ContactRole {
   /** Type of role (borrower, guarantor, donor, or depositor) */
   type: ContactRoleType;
-  /** ID of the entity in the corresponding table */
-  entity_id: number;
+  /** ID of the entity in the corresponding table (UUID) */
+  entity_id: string;
   /** Whether this role is currently active */
   active: boolean;
 }
@@ -98,7 +98,7 @@ export interface ContactActivity {
   /** Description of the activity */
   description: string;
   /** ID of the related entity (loan, donation, etc.) */
-  related_entity_id: number;
+  related_entity_id: string;  // UUID
 }
 
 /**
@@ -133,14 +133,14 @@ export interface UnifiedContact {
   roles: ContactRole[];
   
   // Entity IDs in original tables
-  /** ID in borrowers table (if applicable) */
-  borrower_id?: number;
-  /** ID in guarantors table (if applicable) */
-  guarantor_id?: number;
-  /** ID in donors table (if applicable) */
-  donor_id?: number;
-  /** ID in depositors table (if applicable) */
-  depositor_id?: number;
+  /** ID in borrowers table (if applicable, UUID) */
+  borrower_id?: string;
+  /** ID in guarantors table (if applicable, UUID) */
+  guarantor_id?: string;
+  /** ID in donors table (if applicable, UUID) */
+  donor_id?: string;
+  /** ID in depositors table (if applicable, UUID) */
+  depositor_id?: string;
   
   // Statistics
   /** Aggregated statistics across all roles */

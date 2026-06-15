@@ -261,8 +261,9 @@ export default function Settings() {
                     type="file"
                     accept="image/*"
                     ref={fileInputRef}
-                    style={{ display: 'none' }}
+                    hidden
                     onChange={handleLogoUpload}
+                    aria-label="Upload logo image"
                   />
                   <Button
                     variant="outlined"

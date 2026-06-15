@@ -63,7 +63,7 @@ import AmountInput from '../AmountInput'
 import ExpectedFundsDialog from './ExpectedFundsDialog'
 
 interface Borrower {
-  id: number
+  id: string  // UUID
   first_name: string
   last_name: string
 }
@@ -72,9 +72,9 @@ interface SortableRowProps {
   entry: WaitlistEntry & { borrower_name: string }
   index: number
   onEdit: (entry: WaitlistEntry) => void
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
   onApprove: (entry: WaitlistEntry & { borrower_name: string }) => void
-  onReject: (id: number) => void
+  onReject: (id: string) => void
   formatCurrency: (amount: number) => string
   formatDisplayDate: (date: string, format: string) => string
   dateFormat: string
@@ -847,7 +847,7 @@ export default function WaitlistTab() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('האם למחוק את הבקשה מהתור?')) return
 
     try {
@@ -865,7 +865,7 @@ export default function WaitlistTab() {
     window.location.href = `/loans?tab=2&borrower=${entry.borrower_id}&waitlist=${entry.id}`
   }
 
-  const handleReject = async (id: number) => {
+  const handleReject = async (id: string) => {
     if (!confirm('האם לסמן את הבקשה כנדחתה?')) return
 
     try {

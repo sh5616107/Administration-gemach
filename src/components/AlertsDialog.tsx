@@ -37,9 +37,9 @@ interface Alert {
   type: 'overdue' | 'recurring' | 'auto_repayment' | 'recurring_deposit' | 'info'
   title: string
   message: string
-  loanId?: number
-  borrowerId?: number
-  depositId?: number
+  loanId?: string  // UUID
+  borrowerId?: string  // UUID
+  depositId?: string  // UUID
   amount?: number
   key: string // unique key for tracking read status
 }
@@ -230,10 +230,11 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
       }
       
       // Auto repayment check - handle short months
+      // CRITICAL: Only show alerts for ACTIVE loans, not planned ones
       const repaymentDay = loan.repayment_day || 1
       const effectiveRepaymentDay = Math.min(repaymentDay, lastDayOfMonth)
       
-      if (loan.auto_repayment && effectiveRepaymentDay === day && (loan.remaining || 0) > 0) {
+      if (loan.auto_repayment && loan.status === 'active' && effectiveRepaymentDay === day && (loan.remaining || 0) > 0) {
         const repaymentAmount = Math.min(loan.repayment_amount || 0, loan.remaining || 0)
         if (repaymentAmount > 0) {
           newAlerts.push({
@@ -661,7 +662,8 @@ export async function getUnreadAlertCount(): Promise<number> {
       const repaymentDay = loan.repayment_day || 1
       const effectiveRepaymentDay = Math.min(repaymentDay, lastDayOfMonth)
       
-      if (loan.auto_repayment && effectiveRepaymentDay === day && (loan.remaining || 0) > 0) {
+      // CRITICAL: Only count alerts for ACTIVE loans, not planned ones
+      if (loan.auto_repayment && loan.status === 'active' && effectiveRepaymentDay === day && (loan.remaining || 0) > 0) {
         const key = `repayment-${loan.id}-${todayStr}`
         // לא סופרים פירעונים מאושרים כלא נקראו
         if (!readAlerts.has(key) && !confirmedRepayments.has(key)) {

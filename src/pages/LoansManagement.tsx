@@ -31,9 +31,9 @@ export default function LoansManagement() {
   const { settings } = useSettings()
   const [searchParams, setSearchParams] = useSearchParams()
   const [tabValue, setTabValue] = useState(0)
-  const [selectedBorrowerId, setSelectedBorrowerId] = useState<number | null>(null)
-  const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null)
-  const [selectedWaitlistId, setSelectedWaitlistId] = useState<number | null>(null)
+  const [selectedBorrowerId, setSelectedBorrowerId] = useState<string | null>(null)
+  const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null)
+  const [selectedWaitlistId, setSelectedWaitlistId] = useState<string | null>(null)
   
   const showWaitlistTab = settings.show_waitlist_tab !== 'no'
 
@@ -49,19 +49,19 @@ export default function LoansManagement() {
     }
     
     if (borrowerId) {
-      setSelectedBorrowerId(parseInt(borrowerId))
+      setSelectedBorrowerId(borrowerId)
       // Switch to loans tab (index 2) when borrower is specified
       setTabValue(2)
     }
     
     if (loanId) {
-      setSelectedLoanId(parseInt(loanId))
+      setSelectedLoanId(loanId)
       // Switch to loans tab (index 2) when loanId is specified
       setTabValue(2)
     }
     
     if (waitlistId) {
-      setSelectedWaitlistId(parseInt(waitlistId))
+      setSelectedWaitlistId(waitlistId)
       // Switch to loans tab (index 2) when waitlist is specified
       setTabValue(2)
     }
@@ -81,7 +81,7 @@ export default function LoansManagement() {
   }
 
   // פונקציה שתיקרא מטאב לווים כשבוחרים לווה
-  const handleBorrowerSelect = (borrowerId: number) => {
+  const handleBorrowerSelect = (borrowerId: string) => {
     setSelectedBorrowerId(borrowerId)
   }
 

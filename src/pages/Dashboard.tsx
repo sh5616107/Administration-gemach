@@ -61,7 +61,7 @@ interface WaitlistStats {
 }
 
 interface ActiveBorrower {
-  id: number
+  id: string  // UUID
   first_name: string
   last_name: string
   email?: string

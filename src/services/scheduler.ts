@@ -5,7 +5,7 @@ interface Alert {
   type: 'recurring_loan' | 'auto_repayment' | 'overdue' | 'recurring_deposit'
   title: string
   message: string
-  loan_id: number
+  loan_id: string  // UUID
   borrower_name: string
   amount: number
   created_at: string
@@ -20,7 +20,7 @@ const AUTO_CREATE_LOCK_TIMEOUT = 30000 // 30 seconds timeout
 
 // Store missed loans alerts to show to user
 interface MissedLoanAlert {
-  loanId: number
+  loanId: string  // UUID
   borrowerName: string
   monthsMissed: number
   lastLoanDate: string
@@ -74,7 +74,7 @@ let missedLoansAlerts: MissedLoanAlert[] = []
 const MISSED_LOANS_REPAIR_KEY = 'gemach_missed_loans_repair_log'
 
 // Get last repair attempt date for a loan
-function getLastMissedLoanRepairDate(loanId: number): string | null {
+function getLastMissedLoanRepairDate(loanId: string): string | null {
   try {
     const log = JSON.parse(localStorage.getItem(MISSED_LOANS_REPAIR_KEY) || '{}')
     return log[loanId] || null
@@ -84,7 +84,7 @@ function getLastMissedLoanRepairDate(loanId: number): string | null {
 }
 
 // Mark that we attempted to repair a loan today
-function markMissedLoanRepairAttempt(loanId: number): void {
+function markMissedLoanRepairAttempt(loanId: string): void {
   try {
     const log = JSON.parse(localStorage.getItem(MISSED_LOANS_REPAIR_KEY) || '{}')
     log[loanId] = new Date().toISOString().split('T')[0]
@@ -189,6 +189,7 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
 
   try {
     // Get all loans with auto repayment enabled
+    // CRITICAL: Only process active loans, not planned ones
     const autoRepaymentLoans = await db.query(`
       SELECT l.*, b.first_name || ' ' || b.last_name as borrower_name
       FROM loans l
@@ -196,6 +197,7 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
       WHERE l.auto_repayment = 1 
       AND l.repayment_amount > 0
       AND l.repayment_start_date <= ?
+      AND l.status = 'active'
       AND (l.remaining > 0 OR l.remaining IS NULL)
     `, [todayStr]) as any[]
 
@@ -246,7 +248,7 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
 }
 
 // Create a recurring loan
-export async function createRecurringLoan(originalLoanId: number): Promise<boolean> {
+export async function createRecurringLoan(originalLoanId: string): Promise<boolean> {
   try {
     const loan = await loansService.getById(originalLoanId) as any
     if (!loan) return false
@@ -301,7 +303,7 @@ export async function createRecurringLoan(originalLoanId: number): Promise<boole
 }
 
 // Process an auto repayment
-export async function processAutoRepayment(loanId: number, amount: number): Promise<boolean> {
+export async function processAutoRepayment(loanId: string, amount: number): Promise<boolean> {
   try {
     const today = new Date().toISOString().split('T')[0]
     
@@ -812,7 +814,7 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
             type: 'recurring_deposit',
             title: isPastRecurringDay ? 'הפקדה מחזורית באיחור' : 'הפקדה מחזורית',
             message: alertMessage,
-            loan_id: 0,
+            loan_id: '', // No loan for deposits
             borrower_name: '',
             deposit_id: deposit.id,
             depositor_name: deposit.depositor_name,
@@ -831,7 +833,7 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
 }
 
 // Create a recurring deposit
-export async function createRecurringDeposit(originalDepositId: number): Promise<boolean> {
+export async function createRecurringDeposit(originalDepositId: string): Promise<boolean> {
   try {
     const deposits = await db.query('SELECT * FROM deposits WHERE id = ?', [originalDepositId]) as any[]
     if (deposits.length === 0) return false

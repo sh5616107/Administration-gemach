@@ -280,8 +280,8 @@ export async function addRoleToContact(contact: UnifiedContact, roleType: Contac
         'INSERT INTO donors (first_name, last_name, phone, id_number, address, email, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [entityData.first_name, entityData.last_name, entityData.phone, entityData.id_number, entityData.address, entityData.email, entityData.notes]
       )
-      contact.donor_id = donorResult.lastInsertRowid
-      contact.roles.push({ type: 'donor', entity_id: donorResult.lastInsertRowid, active: true })
+      contact.donor_id = donorResult.lastInsertRowid as string
+      contact.roles.push({ type: 'donor', entity_id: donorResult.lastInsertRowid as string, active: true })
       break
 
     case 'depositor':
@@ -289,8 +289,8 @@ export async function addRoleToContact(contact: UnifiedContact, roleType: Contac
         'INSERT INTO depositors (first_name, last_name, phone, id_number, address, email, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [entityData.first_name, entityData.last_name, entityData.phone, entityData.id_number, entityData.address, entityData.email, entityData.notes]
       )
-      contact.depositor_id = depositorResult.lastInsertRowid
-      contact.roles.push({ type: 'depositor', entity_id: depositorResult.lastInsertRowid, active: true })
+      contact.depositor_id = depositorResult.lastInsertRowid as string
+      contact.roles.push({ type: 'depositor', entity_id: depositorResult.lastInsertRowid as string, active: true })
       break
   }
 
@@ -890,7 +890,7 @@ export async function convertDepositToDonation(depositId: number, contactPhone: 
       'INSERT INTO donors (first_name, last_name, phone, id_number, address, email, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [contact.first_name, contact.last_name, contact.phone, contact.id_number, contact.address, contact.email, contact.notes]
     )
-    donorId = donorResult.lastInsertRowid
+    donorId = donorResult.lastInsertRowid as string
     
     // עדכון contact עם donor_id
     await dbContactsService.update(contactPhone, { donor_id: donorId } as any)

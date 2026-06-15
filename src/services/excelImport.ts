@@ -541,12 +541,12 @@ async function importGuarantors(rows: ValidationResult[]): Promise<number> {
  */
 async function importLoans(
   rows: ValidationResult[], 
-  newBorrowers?: Map<number, number>, // מיפוי שורה -> ID של לווה חדש
-  newGuarantors?: Map<number, number> // מיפוי שורה -> ID של ערב חדש
-): Promise<{ count: number; loanIds: Map<number, number> }> {
+  newBorrowers?: Map<number, string>, // מיפוי שורה -> UUID של לווה חדש
+  newGuarantors?: Map<number, string> // מיפוי שורה -> UUID של ערב חדש
+): Promise<{ count: number; loanIds: Map<number, string> }> {
   console.log('[EXCEL IMPORT] Starting importLoans, rows:', rows.length)
   let count = 0
-  const loanIds = new Map<number, number>() // מיפוי שורה -> ID של הלוואה חדשה
+  const loanIds = new Map<number, string>() // מיפוי שורה -> UUID של הלוואה חדשה
   const borrowers = await borrowersService.getAll()
   const guarantors = await guarantorsService.getAll()
   
@@ -555,7 +555,7 @@ async function importLoans(
     
     const data = row.data
     console.log('[EXCEL IMPORT] Processing loan row:', row.row, 'data:', data)
-    let borrowerId: number | undefined
+    let borrowerId: string | undefined
     
     // מציאת הלווה - קודם לפי שורה, אחר כך לפי ת.ז.
     if (data.borrower_row && newBorrowers) {
@@ -571,8 +571,8 @@ async function importLoans(
     if (!borrowerId) continue
     
     // מציאת ערבים - לפי שורה או ת.ז.
-    let guarantor1Id: number | undefined
-    let guarantor2Id: number | undefined
+    let guarantor1Id: string | undefined
+    let guarantor2Id: string | undefined
     
     // ערב 1 - לפי שורה
     if (data.guarantor1_row && newGuarantors) {
@@ -692,7 +692,7 @@ async function importLoans(
  */
 async function importRepayments(
   rows: ValidationResult[],
-  loanIds: Map<number, number> // מיפוי שורה -> ID של הלוואה
+  loanIds: Map<number, string> // מיפוי שורה -> UUID של הלוואה
 ): Promise<number> {
   let count = 0
   
@@ -732,7 +732,7 @@ async function importDonations(rows: ValidationResult[]): Promise<number> {
     const lastName = nameParts.slice(1).join(' ') || ''
     
     // יצירת תורם חדש או מציאת קיים
-    let donorId: number
+    let donorId: string | number
     const existingDonors = await donorsService.getAll()
     const existingDonor = existingDonors.find((d: any) => 
       d.first_name === firstName && 
@@ -780,7 +780,7 @@ async function importDeposits(rows: ValidationResult[]): Promise<number> {
     const lastName = nameParts.slice(1).join(' ') || ''
     
     // יצירת מפקיד חדש או מציאת קיים
-    let depositorId: number
+    let depositorId: string | number
     const existingDepositors = await depositorsService.getAll()
     const existingDepositor = existingDepositors.find((d: any) => 
       d.first_name === firstName && 
@@ -852,7 +852,7 @@ async function importDeposits(rows: ValidationResult[]): Promise<number> {
  */
 async function importWaitlist(
   rows: ValidationResult[],
-  borrowerIds?: Map<number, number> // מיפוי שורה -> ID של לווה (אופציונלי - רק בייבוא מלא)
+  borrowerIds?: Map<number, string> // מיפוי שורה -> UUID של לווה (אופציונלי - רק בייבוא מלא)
 ): Promise<number> {
   let count = 0
   const { waitlistService } = await import('./database')
@@ -865,7 +865,7 @@ async function importWaitlist(
     if (row.status === 'error') continue
     
     const data = row.data
-    let borrowerId: number | undefined
+    let borrowerId: string | undefined
     
     // מציאת הלווה - קודם לפי שורה (אם יש מיפוי), אחר כך לפי ת.ז.
     if (data.borrower_row && borrowerIds) {
@@ -946,8 +946,8 @@ export async function executeImport(
   validationResults: ValidationResult[],
   importType: ImportType,
   skipErrors: boolean = true,
-  loanIds?: Map<number, number>, // למיפוי פירעונות להלוואות
-  borrowerIds?: Map<number, number> // למיפוי תור הלוואות ללווים
+  loanIds?: Map<number, string>, // למיפוי פירעונות להלוואות
+  borrowerIds?: Map<number, string> // למיפוי תור הלוואות ללווים
 ): Promise<ImportResult> {
   const rowsToImport = skipErrors 
     ? validationResults.filter(r => r.status !== 'error')
@@ -1166,9 +1166,9 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
   }
   
   // מיפויים לקישור בין גליונות
-  const borrowerIds = new Map<number, number>() // שורה -> ID
-  const guarantorIds = new Map<number, number>()
-  const loanIds = new Map<number, number>()
+  const borrowerIds = new Map<number, string>() // שורה -> UUID
+  const guarantorIds = new Map<number, string>()
+  const loanIds = new Map<number, string>()
   
   // 1. ייבוא לווים
   try {
@@ -1249,7 +1249,7 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
           continue
         }
         const data = row.data
-        let borrowerId: number | undefined
+        let borrowerId: string | undefined
         
         // מציאת לווה לפי שורה או ת.ז.
         if (data.borrower_row) {
@@ -1268,7 +1268,7 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
         }
         
         // מציאת ערבים
-        let g1Id: number | undefined, g2Id: number | undefined
+        let g1Id: string | undefined, g2Id: string | undefined
         if (data.guarantor1_row) g1Id = guarantorIds.get(parseInt(data.guarantor1_row))
         if (!g1Id && data.guarantor1_id) {
           const g = guarantors.find((g: any) => g.id_number === data.guarantor1_id?.toString())
@@ -1449,8 +1449,8 @@ export async function exportToExcel(): Promise<Blob> {
     XLSX.utils.book_append_sheet(wb, wsBorrowers, 'לווים')
   }
   
-  // מיפוי ID לווה -> שורה
-  const borrowerIdToRow = new Map<number, number>()
+  // מיפוי UUID לווה -> שורה
+  const borrowerIdToRow = new Map<string, number>()
   borrowers.forEach((b: any, index: number) => {
     borrowerIdToRow.set(b.id, index + 2)
   })
@@ -1472,8 +1472,8 @@ export async function exportToExcel(): Promise<Blob> {
     XLSX.utils.book_append_sheet(wb, wsGuarantors, 'ערבים')
   }
   
-  // מיפוי ID ערב -> שורה
-  const guarantorIdToRow = new Map<number, number>()
+  // מיפוי UUID ערב -> שורה
+  const guarantorIdToRow = new Map<string, number>()
   guarantors.forEach((g: any, index: number) => {
     guarantorIdToRow.set(g.id, index + 2)
   })
@@ -1500,8 +1500,8 @@ export async function exportToExcel(): Promise<Blob> {
     XLSX.utils.book_append_sheet(wb, wsLoans, 'הלוואות')
   }
   
-  // מיפוי ID הלוואה -> שורה
-  const loanIdToRow = new Map<number, number>()
+  // מיפוי UUID הלוואה -> שורה
+  const loanIdToRow = new Map<string, number>()
   loans.forEach((l: any, index: number) => {
     loanIdToRow.set(l.id, index + 2)
   })

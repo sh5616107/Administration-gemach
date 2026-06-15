@@ -27,7 +27,7 @@ export type ItemType = 'loan' | 'repayment' | 'deposit' | 'auto_repayment'
  * Series item - represents a single item in a recurring series
  */
 export interface SeriesItem {
-  id: number
+  id: string  // UUID
   item_number: number // מספר בסדרה
   date: string // תאריך (loan_date/payment_date/deposit_date)
   amount: number
@@ -81,8 +81,8 @@ export interface EditRecurringFormData {
  * Deposit interface (matching database structure)
  */
 interface Deposit {
-  id: number
-  depositor_id: number
+  id: string  // UUID
+  depositor_id: string  // UUID
   amount: number
   deposit_date: string
   period_type: string
@@ -165,7 +165,7 @@ function getDateField(itemType: ItemType): string {
 /**
  * Get original item (the first item in the series)
  */
-async function getOriginalItem(itemId: number, itemType: ItemType): Promise<any> {
+async function getOriginalItem(itemId: string, itemType: ItemType): Promise<any> {
   switch (itemType) {
     case 'loan':
       return await loansService.getById(itemId)
@@ -252,7 +252,7 @@ async function identifySeriesItems(originalItem: any, itemType: ItemType): Promi
  * Requirements: 2.2, 4.2, 6.2, 7.4
  */
 export async function getSeriesItems(
-  itemId: number,
+  itemId: string,
   itemType: ItemType
 ): Promise<SeriesItem[]> {
   // Special case: auto_repayment - get all repayments for this loan
@@ -383,7 +383,7 @@ export function validateRecurringUpdate(updates: Partial<EditRecurringFormData>)
  * 
  * Requirements: 9.4
  */
-export async function canEditRecurringItem(itemId: number, itemType: ItemType): Promise<boolean> {
+export async function canEditRecurringItem(itemId: string, itemType: ItemType): Promise<boolean> {
   const item = await getOriginalItem(itemId, itemType)
   if (!item) {
     throw new Error('הפריט לא נמצא')
@@ -409,7 +409,7 @@ export async function canEditRecurringItem(itemId: number, itemType: ItemType): 
  * Requirements: 11.1, 11.6, 12.1, 12.2
  */
 async function updateSingleItem(
-  itemId: number,
+  itemId: string,
   itemType: ItemType,
   updates: Partial<EditRecurringFormData>
 ): Promise<void> {
@@ -478,7 +478,7 @@ async function updateSingleItem(
  * Requirements: 1.3, 1.4, 1.5, 1.6, 1.7, 3.3, 3.4, 3.6, 3.7, 5.3, 5.4, 5.5, 5.6, 5.7, 11.1, 11.6, 12.1, 12.2, 12.4, 12.5
  */
 export async function updateSeriesItems(
-  itemId: number,
+  itemId: string,
   itemType: ItemType,
   updates: Partial<EditRecurringFormData>
 ): Promise<UpdateResult> {
@@ -554,7 +554,7 @@ export async function updateSeriesItems(
     
     // 4. Update all items in the series
     let updatedCount = 0
-    const updatedIds: number[] = []
+    const updatedIds: string[] = []
     
     for (const item of seriesItems) {
       try {
@@ -594,7 +594,7 @@ export async function updateSeriesItems(
  * Requirements: 13.2, 13.3
  */
 export async function getUpdateSummary(
-  itemId: number,
+  itemId: string,
   itemType: ItemType,
   updates: Partial<EditRecurringFormData>
 ): Promise<UpdateSummary> {
@@ -681,9 +681,9 @@ interface AuditLogEntry {
   timestamp: string
   action: 'update_series'
   itemType: string
-  itemId: number
+  itemId: string
   changes: any
-  affectedItems: number[]
+  affectedItems: string[]
 }
 
 /**
@@ -692,10 +692,10 @@ interface AuditLogEntry {
  * Requirements: 12.7
  */
 async function logSeriesUpdate(
-  itemId: number,
+  itemId: string,
   itemType: string,
   updates: any,
-  affectedItems: number[]
+  affectedItems: string[]
 ): Promise<void> {
   const logEntry: AuditLogEntry = {
     timestamp: new Date().toISOString(),
@@ -724,7 +724,7 @@ const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
  * 
  * Requirements: Performance Optimization
  */
-function invalidateSeriesCache(itemId: number, itemType: string): void {
+function invalidateSeriesCache(itemId: string, itemType: string): void {
   const cacheKey = `${itemType}_${itemId}`
   seriesCache.delete(cacheKey)
 }

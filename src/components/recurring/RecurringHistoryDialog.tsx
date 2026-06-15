@@ -41,7 +41,7 @@ export interface RecurringHistoryDialogProps {
   open: boolean
   onClose: () => void
   itemType: ItemType
-  itemId: number
+  itemId: string  // UUID
 }
 
 export function RecurringHistoryDialog({

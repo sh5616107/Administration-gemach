@@ -46,7 +46,7 @@ interface Donor {
 }
 
 interface Donation {
-  id: number
+  id: string
   donor_id: number
   amount: number
   donation_date: string
@@ -159,7 +159,7 @@ export default function DonationsTab({ selectedDonor, onSelectDonor }: Donations
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('האם למחוק את התרומה?')) return
 
     try {

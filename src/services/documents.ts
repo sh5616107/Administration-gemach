@@ -454,7 +454,7 @@ export function generateDonationReceipt(data: {
   donorName: string
   amount: number
   donationDate: string
-  receiptNumber: number
+  receiptNumber: string
   dateFormat?: string
 }) {
   const showHebrew = data.dateFormat === 'combined'
@@ -926,14 +926,14 @@ export function generateExpenseReceipt(data: {
   gemachLogo?: string
   borrowerName: string
   expense: {
-    id: number
+    id: string
     description: string
     amount: number
     expense_date: string
     category: string
     payment_method?: string
   }
-  receiptNumber: number
+  receiptNumber: string
   dateFormat?: string
 }) {
   const showHebrew = data.dateFormat === 'combined'
@@ -1534,7 +1534,7 @@ export function createDonationEmailData(params: {
   donorEmail: string
   amount: number
   donationDate: string
-  receiptNumber: number
+  receiptNumber: string
   gemachLogo?: string
   dateFormat?: string
 }): EmailData {

@@ -58,7 +58,7 @@ export interface EditRecurringDialogProps {
   open: boolean
   onClose: () => void
   itemType: ItemType
-  itemId: number
+  itemId: string  // UUID
   onSuccess: () => void
 }
 

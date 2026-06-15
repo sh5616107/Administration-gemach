@@ -43,7 +43,7 @@ import {
   History as HistoryIcon,
   EditNote as EditNoteIcon,
 } from '@mui/icons-material'
-import { borrowersService, guarantorsService, loansService, repaymentsService, guarantorLoansService, blacklistService, waitlistService, type WaitlistEntry } from '../../services/database'
+import { borrowersService, guarantorsService, loansService, repaymentsService, guarantorLoansService, blacklistService, waitlistService, type Borrower, type Guarantor, type Loan, type Repayment, type WaitlistEntry } from '../../services/database'
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
@@ -53,63 +53,8 @@ import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkGuarantorForLoan, checkBorrowerForLoan, type CrossCheckResult } from '../../services/crossCheck'
 import { EditRecurringDialog } from '../recurring/EditRecurringDialog'
 
-interface Borrower {
-  id: number
-  first_name: string
-  last_name: string
-  email?: string
-}
-
-interface Guarantor {
-  id: number
-  first_name: string
-  last_name: string
-  is_blacklisted?: number
-}
-
-interface Loan {
-  id?: number
-  borrower_id: number
-  amount: number
-  loan_date: string
-  loan_date_hebrew?: string
-  loan_type: string
-  due_date?: string
-  due_date_hebrew?: string
-  is_recurring: number
-  recurring_months?: number
-  recurring_day?: number
-  recurring_loan_number?: number
-  recurring_loan_count?: number
-  auto_repayment: number
-  repayment_amount?: number
-  repayment_day?: number
-  repayment_frequency?: string
-  repayment_start_date?: string
-  guarantor1_id?: number
-  guarantor2_id?: number
-  notes?: string
-  status?: string
-  total_repaid?: number
-  remaining?: number
-  borrower_name?: string
-}
-
-interface Repayment {
-  id: number
-  loan_id: number
-  amount: number
-  payment_date: string
-  notes?: string
-  payment_method?: string
-  payment_details?: string
-  is_recurring?: number
-  recurring_repayment_number?: number
-  recurring_repayment_count?: number
-}
-
-const emptyLoan: Loan = {
-  borrower_id: 0,
+const emptyLoan: Omit<Loan, 'id' | 'created_at' | 'status'> = {
+  borrower_id: '',
   amount: 0,
   loan_date: new Date().toISOString().split('T')[0],
   loan_type: 'flexible',
@@ -118,9 +63,9 @@ const emptyLoan: Loan = {
 }
 
 interface LoansTabProps {
-  initialBorrowerId?: number | null
-  initialLoanId?: number | null
-  initialWaitlistId?: number | null
+  initialBorrowerId?: string | null
+  initialLoanId?: string | null
+  initialWaitlistId?: string | null
 }
 
 export default function LoansTab({ initialBorrowerId, initialLoanId, initialWaitlistId }: LoansTabProps) {
@@ -130,7 +75,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
   const [borrowerLoans, setBorrowerLoans] = useState<Loan[]>([])
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
-  const [formData, setFormData] = useState<Loan>(emptyLoan)
+  const [formData, setFormData] = useState<Omit<Loan, 'id' | 'created_at' | 'status'>>(emptyLoan)
   const [repayments, setRepayments] = useState<Repayment[]>([])
   const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false)
   const [repaymentAmount, setRepaymentAmount] = useState(0)
@@ -145,7 +90,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [waitlistEntry, setWaitlistEntry] = useState<WaitlistEntry | null>(null)
   
   // Blacklist state
-  const [blacklistedBorrowerIds, setBlacklistedBorrowerIds] = useState<number[]>([])
+  const [blacklistedBorrowerIds, setBlacklistedBorrowerIds] = useState<string[]>([])
   
   // Payment method states
   const [loanPaymentMethod, setLoanPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' })
@@ -155,16 +100,16 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   // Cross-check warning states
   const [crossCheckWarnings, setCrossCheckWarnings] = useState<CrossCheckResult[]>([])
   const [crossCheckDialogOpen, setCrossCheckDialogOpen] = useState(false)
-  const [pendingGuarantorId, setPendingGuarantorId] = useState<{ field: 'guarantor1_id' | 'guarantor2_id', id: number } | null>(null)
+  const [pendingGuarantorId, setPendingGuarantorId] = useState<{ field: 'guarantor1_id' | 'guarantor2_id', id: string } | null>(null)
 
   // Recurring items dialogs
   const [editRecurringLoanDialogOpen, setEditRecurringLoanDialogOpen] = useState(false)
-  const [selectedRecurringLoanId, setSelectedRecurringLoanId] = useState<number | null>(null)
+  const [selectedRecurringLoanId, setSelectedRecurringLoanId] = useState<string | null>(null)
   const [editAutoRepaymentDialogOpen, setEditAutoRepaymentDialogOpen] = useState(false)
-  const [selectedAutoRepaymentLoanId, setSelectedAutoRepaymentLoanId] = useState<number | null>(null)
+  const [selectedAutoRepaymentLoanId, setSelectedAutoRepaymentLoanId] = useState<string | null>(null)
   
   // Map of loan ID to first recurring repayment
-  const [loanRecurringRepayments, setLoanRecurringRepayments] = useState<Map<number, Repayment>>(new Map())
+  const [loanRecurringRepayments, setLoanRecurringRepayments] = useState<Map<string, Repayment>>(new Map())
 
   useEffect(() => {
     loadData()
@@ -272,7 +217,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       
       setFormData({ 
         ...emptyLoan, 
-        borrower_id: selectedBorrower?.id || 0,
+        borrower_id: selectedBorrower?.id || '',
         loan_type: defaultLoanType,
         due_date: defaultLoanType === 'fixed' ? dueDate.toISOString().split('T')[0] : undefined
       })
@@ -294,15 +239,15 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     }
   }
 
-  const loadBorrowerLoans = async (borrowerId: number) => {
+  const loadBorrowerLoans = async (borrowerId: string) => {
     try {
       const loans = await loansService.getByBorrower(borrowerId)
-      setBorrowerLoans(loans as Loan[])
+      setBorrowerLoans(loans)
       
       console.log('[RECURRING REPAYMENTS] Loading recurring repayments for loans:', loans)
       
       // Load recurring repayments for each loan
-      const recurringRepaymentsMap = new Map<number, Repayment>()
+      const recurringRepaymentsMap = new Map<string, Repayment>()
       for (const loan of loans) {
         if (loan.auto_repayment === 1 && loan.id) {
           console.log(`[RECURRING REPAYMENTS] Loan ${loan.id} has auto_repayment, loading repayments...`)
@@ -330,10 +275,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     }
   }
 
-  const loadRepayments = async (loanId: number) => {
+  const loadRepayments = async (loanId: string) => {
     try {
       const data = await repaymentsService.getByLoan(loanId)
-      setRepayments(data as Repayment[])
+      setRepayments(data)
     } catch (error) {
       console.error('Error loading repayments:', error)
     }
@@ -379,7 +324,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     
     setFormData({ 
       ...emptyLoan, 
-      borrower_id: selectedBorrower?.id || 0,
+      borrower_id: selectedBorrower?.id || '',
       loan_date: today.toISOString().split('T')[0],
       loan_type: defaultLoanType,
       due_date: defaultLoanType === 'fixed' ? dueDate.toISOString().split('T')[0] : undefined
@@ -513,7 +458,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     }
   }
 
-  const handleDeleteLoan = async (loanId: number) => {
+  const handleDeleteLoan = async (loanId: string) => {
     // בדיקה אם יש פירעונות להלוואה
     const loan = borrowerLoans.find(l => l.id === loanId)
     if (loan && (loan.total_repaid || 0) > 0) {
@@ -565,7 +510,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   }
 
   // Helper function to update guarantor loans after borrower repayment
-  const updateGuarantorLoansAfterRepayment = async (loanId: number, repaymentAmount: number): Promise<boolean> => {
+  const updateGuarantorLoansAfterRepayment = async (loanId: string, repaymentAmount: number): Promise<boolean> => {
     const guarantorLoans = await guarantorLoansService.getByOriginalLoan(loanId)
     if (guarantorLoans.length === 0) return false
     
@@ -650,7 +595,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   }
   
   // Helper function to recalculate guarantor loans after repayment edit/delete
-  const recalculateGuarantorLoans = async (loanId: number): Promise<void> => {
+  const recalculateGuarantorLoans = async (loanId: string): Promise<void> => {
     console.log('🔄 recalculateGuarantorLoans called for loan:', loanId)
     
     const guarantorLoans = await guarantorLoansService.getByOriginalLoan(loanId)
@@ -934,7 +879,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     }
   }
 
-  const handleDeleteRepayment = async (repaymentId: number) => {
+  const handleDeleteRepayment = async (repaymentId: string) => {
     if (!confirm('האם למחוק את הפירעון?')) return
 
     console.log('🗑️ handleDeleteRepayment called for repayment:', repaymentId)
@@ -1139,7 +1084,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   }
 
   // Cross-check handler for guarantor selection
-  const handleGuarantorSelect = async (field: 'guarantor1_id' | 'guarantor2_id', guarantorId: number | undefined) => {
+  const handleGuarantorSelect = async (field: 'guarantor1_id' | 'guarantor2_id', guarantorId: string | undefined) => {
     if (!guarantorId) {
       setFormData({ ...formData, [field]: undefined })
       return
@@ -1269,7 +1214,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={handleNewLoan}
-                disabled={!selectedBorrower || blacklistedBorrowerIds.includes(selectedBorrower?.id || 0)}
+                disabled={!selectedBorrower || blacklistedBorrowerIds.includes(selectedBorrower?.id || '')}
               >
                 הלוואה חדשה
               </Button>

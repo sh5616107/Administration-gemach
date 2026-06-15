@@ -13,7 +13,7 @@ export interface CrossCheckResult {
 
 export interface PersonMatch {
   type: 'borrower' | 'guarantor'
-  id: number
+  id: string  // UUID
   name: string
   phone: string
   idNumber?: string
@@ -92,7 +92,7 @@ export async function findMatchingGuarantor(phone: string, idNumber?: string): P
 /**
  * Get total active debt for a borrower
  */
-export async function getBorrowerActiveDebt(borrowerId: number): Promise<number> {
+export async function getBorrowerActiveDebt(borrowerId: string): Promise<number> {
   const loans = await loansService.getAll() as any[]
   return loans
     .filter(l => l.borrower_id === borrowerId && l.status === 'active')
@@ -102,7 +102,7 @@ export async function getBorrowerActiveDebt(borrowerId: number): Promise<number>
 /**
  * Count active guarantor commitments
  */
-export async function getGuarantorActiveCount(guarantorId: number): Promise<number> {
+export async function getGuarantorActiveCount(guarantorId: string): Promise<number> {
   const loans = await loansService.getAll() as any[]
   return loans.filter(l => 
     l.status === 'active' && 
@@ -117,7 +117,7 @@ export async function getGuarantorActiveCount(guarantorId: number): Promise<numb
  * @param guarantorId - The ID of the guarantor to check
  * @param borrowerId - Optional: The ID of the borrower for this loan (to prevent self-guaranteeing)
  */
-export async function checkGuarantorForLoan(guarantorId: number, borrowerId?: number): Promise<CrossCheckResult[]> {
+export async function checkGuarantorForLoan(guarantorId: string, borrowerId?: string): Promise<CrossCheckResult[]> {
   const results: CrossCheckResult[] = []
   const guarantor = await guarantorsService.getById(guarantorId) as any
   
@@ -175,7 +175,7 @@ export async function checkGuarantorForLoan(guarantorId: number, borrowerId?: nu
 /**
  * Check if a borrower has issues when creating a new loan
  */
-export async function checkBorrowerForLoan(borrowerId: number): Promise<CrossCheckResult[]> {
+export async function checkBorrowerForLoan(borrowerId: string): Promise<CrossCheckResult[]> {
   const results: CrossCheckResult[] = []
   const borrower = await borrowersService.getById(borrowerId) as any
   

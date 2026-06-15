@@ -23,7 +23,7 @@ export interface CalendarEvent {
   title: string
   description: string
   amount: number
-  relatedId: number         // loan_id / deposit_id
+  relatedId: string         // loan_id / deposit_id (UUID)
   relatedName: string       // borrower_name / depositor_name
   metadata?: {
     remaining?: number      // יתרה להלוואה
