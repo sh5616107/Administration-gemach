@@ -47,6 +47,7 @@ import { borrowersService, guarantorsService, loansService, repaymentsService, g
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
+import { formatShortId } from '../../utils/formatId'
 import PaymentMethodSelect, { PaymentMethodData, getPaymentMethodLabel } from '../PaymentMethodSelect'
 import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
@@ -1279,7 +1280,18 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                         sx={{ cursor: 'pointer', bgcolor: isSelected ? 'action.selected' : undefined }}
                         onClick={() => handleSelectLoan(loan)}
                       >
-                        <TableCell>{loan.id}</TableCell>
+                        <TableCell>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              fontFamily: 'monospace', 
+                              color: 'text.secondary',
+                              fontSize: '0.75rem'
+                            }}
+                          >
+                            {formatShortId(loan.id)}
+                          </Typography>
+                        </TableCell>
                         <TableCell>{formatDisplayDate(loan.loan_date, settings.date_format)}</TableCell>
                         <TableCell align="center">{formatCurrency(loan.amount)}</TableCell>
                         <TableCell align="center">{formatCurrency(loan.total_repaid || 0)}</TableCell>

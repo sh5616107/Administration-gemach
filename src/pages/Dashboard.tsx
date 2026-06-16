@@ -601,8 +601,36 @@ export default function Dashboard() {
       <Box sx={{ mb: 4, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <Button
           variant="contained"
+          color="primary"
+          startIcon={<LoanIcon />}
+          onClick={() => navigate('/loans?tab=0&action=add')}
+          size="large"
+        >
+          הלוואה חדשה
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          startIcon={<DepositIcon />}
+          onClick={() => navigate('/donations?tab=2&action=add')}
+          size="large"
+        >
+          הפקדה חדשה
+        </Button>
+        <Button
+          variant="contained"
+          color="secondary"
+          startIcon={<DonationIcon />}
+          onClick={() => navigate('/donations?tab=0&action=add')}
+          size="large"
+        >
+          תרומה חדשה
+        </Button>
+        <Button
+          variant="outlined"
           startIcon={<SearchIcon />}
           onClick={() => setSearchOpen(true)}
+          size="large"
         >
           {t('dashboard.searchBorrower')}
         </Button>
@@ -610,6 +638,7 @@ export default function Dashboard() {
           variant="outlined"
           startIcon={<ReportIcon />}
           onClick={() => navigate('/tools')}
+          size="large"
         >
           {t('dashboard.generateReport')}
         </Button>
@@ -618,6 +647,7 @@ export default function Dashboard() {
           color="error"
           startIcon={<ClearIcon />}
           onClick={() => setClearConfirmOpen(true)}
+          size="large"
         >
           {t('dashboard.clearAll')}
         </Button>
@@ -802,6 +832,7 @@ export default function Dashboard() {
         open={snackbar.open}
         autoHideDuration={3000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>

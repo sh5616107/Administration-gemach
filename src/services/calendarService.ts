@@ -271,8 +271,15 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
     }
   }
 
-  // 3. טעינת הפקדות
-  const deposits = await db.query('SELECT * FROM deposits') as any[]
+  // 3. טעינת הפקדות - עם JOIN לשם המפקיד
+  const deposits = await db.query(`
+    SELECT 
+      d.*,
+      dep.first_name || ' ' || dep.last_name as depositor_name
+    FROM deposits d
+    LEFT JOIN depositors dep ON d.depositor_id = dep.id
+  `) as any[]
+  console.log('📅 Calendar: Found deposits:', deposits.length)
   
   for (const deposit of deposits) {
     // הפקדות מחזוריות (recurring_deposit)

@@ -26,7 +26,9 @@ import {
 import { borrowersService, loansService, guarantorLoansService, repaymentsService } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
+import DuplicatePhoneWarningDialog from '../DuplicatePhoneWarningDialog'
 import { checkNewBorrower, type CrossCheckResult } from '../../services/crossCheck'
+import { checkDuplicatePhone, DuplicatePhoneResult } from '../../utils/phoneValidation'
 import { generateBorrowerReport } from '../../services/documents'
 import { Borrower } from '../../services/database'
 
@@ -58,6 +60,10 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
   // Cross-check warning states
   const [crossCheckWarnings, setCrossCheckWarnings] = useState<CrossCheckResult[]>([])
   const [crossCheckDialogOpen, setCrossCheckDialogOpen] = useState(false)
+  
+  // Duplicate phone warning states
+  const [duplicatePhoneResult, setDuplicatePhoneResult] = useState<DuplicatePhoneResult | null>(null)
+  const [duplicatePhoneDialogOpen, setDuplicatePhoneDialogOpen] = useState(false)
 
   // Get field labels from settings
   const fieldLabels = settings.field_labels ? (() => { try { return JSON.parse(settings.field_labels) } catch { return {} } })() : {}
@@ -160,18 +166,17 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
       return
     }
 
-    // בדיקת כפילויות - טלפון
-    const allBorrowers = await borrowersService.getAll() as Borrower[]
-    const duplicatePhone = allBorrowers.find(b => 
-      b.phone === formData.phone && b.id !== selectedBorrower?.id
-    )
-    if (duplicatePhone) {
-      setSnackbar({ open: true, message: `טלפון זה כבר קיים במערכת עבור: ${duplicatePhone.first_name} ${duplicatePhone.last_name}`, severity: 'error' })
+    // בדיקת כפילויות - טלפון (משתמש בפונקציה המשופרת)
+    const phoneCheck = await checkDuplicatePhone(formData.phone, selectedBorrower?.id)
+    if (phoneCheck.isDuplicate) {
+      setDuplicatePhoneResult(phoneCheck)
+      setDuplicatePhoneDialogOpen(true)
       return
     }
 
     // בדיקת כפילויות - מספר זהות (אם הוזן)
     if (formData.id_number) {
+      const allBorrowers = await borrowersService.getAll() as Borrower[]
       const duplicateId = allBorrowers.find(b => 
         b.id_number === formData.id_number && b.id !== selectedBorrower?.id
       )
@@ -183,6 +188,7 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
 
     // בדיקת כפילויות - שם (אזהרה בלבד, לא חוסם)
     if (!selectedBorrower?.id) {
+      const allBorrowers = await borrowersService.getAll() as Borrower[]
       const duplicateName = allBorrowers.find(b => 
         b.first_name.toLowerCase() === formData.first_name.toLowerCase() && 
         b.last_name.toLowerCase() === formData.last_name.toLowerCase()
@@ -553,6 +559,7 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
         open={snackbar.open}
         autoHideDuration={3000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
@@ -605,6 +612,22 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
         onContinue={handleCrossCheckContinue}
         warnings={crossCheckWarnings}
         title="אזהרה - יצירת לווה"
+      />
+
+      {/* Duplicate Phone Warning Dialog */}
+      <DuplicatePhoneWarningDialog
+        open={duplicatePhoneDialogOpen}
+        phone={formData.phone}
+        existingContacts={duplicatePhoneResult?.existingContacts || []}
+        onConfirm={() => {
+          setDuplicatePhoneDialogOpen(false)
+          setDuplicatePhoneResult(null)
+          doSave()
+        }}
+        onCancel={() => {
+          setDuplicatePhoneDialogOpen(false)
+          setDuplicatePhoneResult(null)
+        }}
       />
     </Box>
   )
