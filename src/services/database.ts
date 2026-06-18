@@ -462,7 +462,8 @@ export const guarantorsService = {
 
 // Loans Service
 export interface Loan { 
-  id: string;  // UUID
+  id: string;  // UUID (technical primary key)
+  loan_number: number;  // Sequential user-facing loan number (e.g., 1, 2, 3...)
   borrower_id: string;  // UUID foreign key
   amount: number; 
   loan_date: string; 
@@ -498,7 +499,16 @@ export const loansService = {
   async getAll(): Promise<Loan[]> {
     const loans = getAllItems<Loan>('loans').filter(l => !l.is_deleted)
     const borrowers = await borrowersService.getAll()
+    
+    // Migration: Add loan_number to existing loans that don't have it
+    let needsSave = false
     for (const loan of loans) {
+      if (loan.loan_number === undefined) {
+        loan.loan_number = generateNumericId('loans')
+        setItem('loans', loan.id, loan)
+        needsSave = true
+      }
+      
       const repayments = await repaymentsService.getByLoan(loan.id)
       loan.total_repaid = repayments.reduce((s, r) => s + r.amount, 0)
       loan.remaining = loan.amount - loan.total_repaid
@@ -508,8 +518,29 @@ export const loansService = {
     return loans.sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
   },
   async getByBorrower(id: string): Promise<Loan[]> { return (await this.getAll()).filter(l => l.borrower_id === id) },
-  async getById(id: string): Promise<Loan | null> { const l = getItem<Loan>('loans', id); if (l && l.is_deleted) return null; if (l) { const r = await repaymentsService.getByLoan(id); l.total_repaid = r.reduce((s, x) => s + x.amount, 0); l.remaining = l.amount - l.total_repaid } return l },
-  async create(l: Omit<Loan, 'id' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: string }> { const id = generateId('loans'); const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; setItem('loans', id, { ...l, id, status, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async getById(id: string): Promise<Loan | null> { 
+    const l = getItem<Loan>('loans', id); 
+    if (l && l.is_deleted) return null; 
+    if (l) { 
+      // Migration: Add loan_number if missing
+      if (l.loan_number === undefined) {
+        l.loan_number = generateNumericId('loans')
+        setItem('loans', id, l)
+      }
+      
+      const r = await repaymentsService.getByLoan(id); 
+      l.total_repaid = r.reduce((s, x) => s + x.amount, 0); 
+      l.remaining = l.amount - l.total_repaid 
+    } 
+    return l 
+  },
+  async create(l: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: string }> { 
+    const id = generateId('loans'); 
+    const loan_number = generateNumericId('loans'); 
+    const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; 
+    setItem('loans', id, { ...l, id, loan_number, status, is_deleted: false, created_at: new Date().toISOString() }); 
+    return { lastInsertRowid: id } 
+  },
   async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, ...d }) },
   async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
   async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },

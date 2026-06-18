@@ -7,10 +7,9 @@ import {
   AccountBalance as AccountBalanceIcon,
   ListAlt as ListAltIcon,
 } from '@mui/icons-material'
-import BorrowersTab from '../components/loans/BorrowersTab'
 import GuarantorsTab from '../components/loans/GuarantorsTab'
-import LoansTab from '../components/loans/LoansTab'
 import WaitlistTab from '../components/loans/WaitlistTab'
+import UnifiedLoansPage from './UnifiedLoansPage'
 import { useSettings } from '../hooks/useSettings'
 
 interface TabPanelProps {
@@ -93,24 +92,20 @@ export default function LoansManagement() {
           onChange={handleTabChange}
           variant="fullWidth"
         >
-          <Tab icon={<PersonIcon />} iconPosition="start" label="ניהול לווים" />
+          <Tab icon={<AccountBalanceIcon />} iconPosition="start" label="לווים והלוואות" />
           <Tab icon={<HandshakeIcon />} iconPosition="start" label="ניהול ערבים" />
-          <Tab icon={<AccountBalanceIcon />} iconPosition="start" label="ניהול הלוואות" />
           {showWaitlistTab && <Tab icon={<ListAltIcon />} iconPosition="start" label="תור בקשות" />}
         </Tabs>
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
-        <BorrowersTab onBorrowerSelect={handleBorrowerSelect} />
+        <UnifiedLoansPage />
       </TabPanel>
       <TabPanel value={tabValue} index={1}>
         <GuarantorsTab />
       </TabPanel>
-      <TabPanel value={tabValue} index={2}>
-        <LoansTab initialBorrowerId={selectedBorrowerId} initialLoanId={selectedLoanId} initialWaitlistId={selectedWaitlistId} />
-      </TabPanel>
       {showWaitlistTab && (
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={2}>
           <WaitlistTab />
         </TabPanel>
       )}

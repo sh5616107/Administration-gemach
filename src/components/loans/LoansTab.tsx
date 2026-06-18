@@ -47,14 +47,13 @@ import { borrowersService, guarantorsService, loansService, repaymentsService, g
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
-import { formatShortId } from '../../utils/formatId'
 import PaymentMethodSelect, { PaymentMethodData, getPaymentMethodLabel } from '../PaymentMethodSelect'
 import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkGuarantorForLoan, checkBorrowerForLoan, type CrossCheckResult } from '../../services/crossCheck'
 import { EditRecurringDialog } from '../recurring/EditRecurringDialog'
 
-const emptyLoan: Omit<Loan, 'id' | 'created_at' | 'status'> = {
+const emptyLoan: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status'> = {
   borrower_id: '',
   amount: 0,
   loan_date: new Date().toISOString().split('T')[0],
@@ -67,16 +66,19 @@ interface LoansTabProps {
   initialBorrowerId?: string | null
   initialLoanId?: string | null
   initialWaitlistId?: string | null
+  hideLoansTable?: boolean  // Hide the loans table (for use in drawer)
+  hideHeader?: boolean  // Hide the header when in drawer mode
+  onSaved?: () => void  // Callback after successful save
 }
 
-export default function LoansTab({ initialBorrowerId, initialLoanId, initialWaitlistId }: LoansTabProps) {
+export default function LoansTab({ initialBorrowerId, initialLoanId, initialWaitlistId, hideLoansTable = false, hideHeader = false, onSaved }: LoansTabProps) {
   const { settings } = useSettings()
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
   const [borrowerLoans, setBorrowerLoans] = useState<Loan[]>([])
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
-  const [formData, setFormData] = useState<Omit<Loan, 'id' | 'created_at' | 'status'>>(emptyLoan)
+  const [formData, setFormData] = useState<Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status'>>(emptyLoan)
   const [repayments, setRepayments] = useState<Repayment[]>([])
   const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false)
   const [repaymentAmount, setRepaymentAmount] = useState(0)
@@ -430,6 +432,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           payment_details: JSON.stringify(loanPaymentMethod),
         })
         setSnackbar({ open: true, message: 'ההלוואה עודכנה בהצלחה', severity: 'success' })
+        onSaved?.() // Call callback to refresh parent
       } else {
         const result = await loansService.create({
           ...formData,
@@ -447,6 +450,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         } else {
           setSnackbar({ open: true, message: 'ההלוואה נוספה בהצלחה', severity: 'success' })
         }
+        onSaved?.() // Call callback to refresh parent
       }
       if (selectedBorrower) {
         loadBorrowerLoans(selectedBorrower.id)
@@ -1178,9 +1182,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   return (
     <Box>
       {/* Borrower Selection */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
+      {!hideHeader && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={8}>
               <Autocomplete
                 options={borrowers}
@@ -1228,9 +1233,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Loans Table */}
-      {selectedBorrower && borrowerLoans.length > 0 && (
+      {!hideLoansTable && selectedBorrower && borrowerLoans.length > 0 && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -1289,7 +1295,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                               fontSize: '0.75rem'
                             }}
                           >
-                            {formatShortId(loan.id)}
+                            #{loan.loan_number}
                           </Typography>
                         </TableCell>
                         <TableCell>{formatDisplayDate(loan.loan_date, settings.date_format)}</TableCell>
@@ -1444,7 +1450,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 3 }}>
-              {selectedLoan ? `עריכת הלוואה #${selectedLoan.id}` : 'הלוואה חדשה'}
+              {selectedLoan ? `עריכת הלוואה #${selectedLoan.loan_number}` : 'הלוואה חדשה'}
               {selectedLoan && (
                 <Chip 
                   label={getLoanStatus(selectedLoan).label} 
@@ -1800,7 +1806,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         <Card>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              היסטוריית פירעונות - הלוואה #{selectedLoan.id}
+              היסטוריית פירעונות - הלוואה #{selectedLoan.loan_number}
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -1863,7 +1869,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
 
       {/* Repayment Dialog */}
       <Dialog open={repaymentDialogOpen} onClose={() => setRepaymentDialogOpen(false)}>
-        <DialogTitle>הוספת פירעון - הלוואה #{selectedLoan?.id}</DialogTitle>
+        <DialogTitle>הוספת פירעון - הלוואה #{selectedLoan?.loan_number}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
             <Typography>סכום הלוואה: {formatCurrency(selectedLoan?.amount || 0)}</Typography>
@@ -1908,7 +1914,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
             <Typography variant="subtitle2" sx={{ mb: 1 }}>הלוואות פעילות (לא כולל מתוכננות):</Typography>
             {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date <= new Date().toISOString().split('T')[0]).map(loan => (
               <Typography key={loan.id} variant="body2">
-                הלוואה #{loan.id}: יתרה {formatCurrency(loan.remaining || 0)}
+                הלוואה #{loan.loan_number}: יתרה {formatCurrency(loan.remaining || 0)}
               </Typography>
             ))}
             {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date > new Date().toISOString().split('T')[0]).length > 0 && (

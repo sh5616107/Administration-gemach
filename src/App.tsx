@@ -14,6 +14,7 @@ import LockScreen from './components/LockScreen'
 // Lazy load pages for better performance
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const LoansManagement = lazy(() => import('./pages/LoansManagement'))
+const UnifiedLoansPage = lazy(() => import('./pages/UnifiedLoansPage'))
 const Donations = lazy(() => import('./pages/Donations'))
 const Deposits = lazy(() => import('./pages/Deposits'))
 const Calendar = lazy(() => import('./pages/Calendar'))
@@ -156,6 +157,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/loans/*" element={<LoansManagement />} />
+              <Route path="/borrowers-loans-modern" element={<UnifiedLoansPage />} />
               <Route path="/donations" element={<Donations />} />
               <Route path="/deposits" element={<Deposits />} />
               <Route path="/contacts" element={<Contacts />} />
