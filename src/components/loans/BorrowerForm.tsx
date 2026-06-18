@@ -270,7 +270,7 @@ export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
     try {
       await borrowersService.delete(borrower.id)
       setSnackbar({ open: true, message: 'הלווה נמחק', severity: 'success' })
-      if (onSaved) onSaved()
+      if (onSaved) onSaved('') // empty string = borrower was deleted
       setFormData(emptyBorrower)
     } catch (error) {
       console.error('Error deleting borrower:', error)

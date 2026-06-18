@@ -121,6 +121,12 @@ export default function UnifiedLoansPage() {
       const data = await borrowersService.getAll();
       setBorrowers(data as Borrower[]);
       
+      // Empty string = borrower was deleted, clear selection
+      if (selectBorrowerId === '') {
+        setSelectedBorrower(null);
+        return;
+      }
+
       // If selectBorrowerId provided (new borrower), select it
       if (selectBorrowerId) {
         const newBorrower = data.find(b => b.id === selectBorrowerId);
