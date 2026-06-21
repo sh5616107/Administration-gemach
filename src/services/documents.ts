@@ -2123,7 +2123,7 @@ export function generateDonorReport(data: DonorReportData): void {
       <tbody>
         ${data.donations.map((don, i) => `
           <tr style="border-bottom: 1px solid #f5f5f5; ${i % 2 === 0 ? 'background: #fafafa;' : ''}">
-            <td style="padding: 8px 6px; text-align: right;">${don.id}</td>
+            <td style="padding: 8px 6px; text-align: right;">${i + 1}</td>
             <td style="padding: 8px 6px; text-align: center; color: #757575;">${formatDate(don.donation_date)}</td>
             <td style="padding: 8px 6px; text-align: center; font-weight: 600; color: #2e7d32;">${formatCurrency(don.amount)}</td>
             <td style="padding: 8px 6px; text-align: right; color: #757575;">${don.notes || '-'}</td>

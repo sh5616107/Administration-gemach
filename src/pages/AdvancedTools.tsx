@@ -553,7 +553,7 @@ export default function AdvancedTools() {
       if (!existingBlacklist) {
         await db.run(
           'INSERT INTO blacklist (entity_type, entity_id, reason) VALUES (?, ?, ?)',
-          ['borrower', loan.borrower_id, `הלוואה #${loan.id} הועברה לערב - חוב לא שולם`]
+          ['borrower', loan.borrower_id, `הלוואה #${loan.loan_number} הועברה לערב - חוב לא שולם`]
         )
       }
 

@@ -195,10 +195,10 @@ export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
 
       // טעינת פירעונות לכל הלוואה
       const loansWithRepayments = await Promise.all(
-        loans.map(async (loan) => {
+        loans.map(async (loan, index) => {
           const repayments = await repaymentsService.getByLoan(loan.id)
           return {
-            id: loan.id,
+            id: index + 1, // Use sequential number instead of UUID
             amount: loan.amount,
             loanDate: loan.loan_date,
             remaining: loan.remaining || 0,

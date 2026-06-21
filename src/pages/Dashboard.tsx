@@ -165,10 +165,10 @@ export default function Dashboard() {
       
       // טעינת פירעונות לכל הלוואה
       const loansWithRepayments = await Promise.all(
-        activeLoans.map(async (loan) => {
+        activeLoans.map(async (loan, index) => {
           const repayments = loan.id ? await repaymentsService.getByLoan(loan.id) : []
           return {
-            id: loan.id,
+            id: index + 1, // Use sequential number instead of UUID
             amount: loan.amount,
             loanDate: loan.loan_date,
             remaining: loan.remaining || 0,
@@ -195,8 +195,8 @@ export default function Dashboard() {
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         borrowerName: `${borrower.first_name} ${borrower.last_name}`,
         loans: loansWithRepayments,
-        expenses: borrowerExpenses.map((e: any) => ({
-          id: e.id,
+        expenses: borrowerExpenses.map((e: any, index: number) => ({
+          id: index + 1, // Use sequential number for expenses too
           description: e.description,
           amount: e.amount,
           expense_date: e.expense_date,
@@ -500,7 +500,7 @@ export default function Dashboard() {
                   boxShadow: 4,
                 }
               }}
-              onClick={() => navigate('/loans?tab=3')}
+              onClick={() => navigate('/loans?tab=2')}
             >
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>

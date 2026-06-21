@@ -140,16 +140,25 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   // Handle initial deposit selection
   useEffect(() => {
     const loadDepositById = async () => {
+      console.log('🔍 loadDepositById - initialDepositId:', initialDepositId, 'depositors:', depositors.length)
       if (initialDepositId && depositors.length > 0) {
         try {
           const allDeposits = await db.query('SELECT * FROM deposits') as Deposit[]
           const deposit = allDeposits.find(d => d.id === initialDepositId)
+          console.log('📦 Found deposit:', deposit)
           if (deposit) {
             // Find and select the depositor
             const depositor = depositors.find(d => d.id === deposit.depositor_id)
-            if (depositor && onSelectDepositor) {
-              onSelectDepositor(depositor)
-              // Wait for deposits to load, then scroll to the deposit
+            console.log('👤 Found depositor:', depositor)
+            if (depositor) {
+              // Select depositor if callback exists
+              if (onSelectDepositor) {
+                onSelectDepositor(depositor)
+              }
+              // Open edit dialog immediately for the deposit
+              console.log('✏️ Calling handleEdit for deposit:', deposit.id)
+              handleEdit(deposit)
+              // Wait for deposits to load, then scroll to the deposit (only if table is visible)
               setTimeout(() => {
                 const depositElement = document.getElementById(`deposit-${initialDepositId}`)
                 if (depositElement) {
@@ -163,7 +172,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
             }
           }
         } catch (error) {
-          console.error('Error loading deposit:', error)
+          console.error('❌ Error loading deposit:', error)
         }
       }
     }
@@ -383,6 +392,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   }
 
   const handleEdit = (deposit: Deposit) => {
+    console.log('📝 handleEdit called with deposit:', deposit)
     setEditingDeposit(deposit)
     setEditAmount(deposit.amount)
     setEditDate(deposit.deposit_date)
@@ -405,6 +415,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
     } else {
       setEditWithdrawalPaymentMethod({ payment_method: (deposit.withdrawal_payment_method || '') as PaymentMethodData['payment_method'] })
     }
+    console.log('🔓 Opening edit dialog')
     setEditDialogOpen(true)
   }
 

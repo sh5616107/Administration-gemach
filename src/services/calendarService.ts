@@ -64,8 +64,8 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
     const loanDateStr = loan.loan_date?.split('T')[0]
     const dueDateStr = loan.due_date?.split('T')[0]
     
-    // פירעונות הלוואה (loan_due) - הלוואות פעילות עם תאריך פירעון
-    if (loan.status === 'active' && dueDateStr) {
+    // פירעונות הלוואה (loan_due) - הלוואות פעילות עם תאריך פירעון ויתרה > 0
+    if (loan.status === 'active' && dueDateStr && (loan.remaining ?? loan.amount ?? 0) > 0) {
       const dueDate = parseLocalDate(dueDateStr)
       if (isInRange(dueDate, startDate, endDate)) {
         events.push({

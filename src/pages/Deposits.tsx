@@ -40,6 +40,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   AccountBalanceWallet as DepositIcon,
+  Payment as PaymentIcon,
 } from '@mui/icons-material';
 import { db, depositWithdrawalsService } from '../services/database';
 import { generateDepositorReport, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
@@ -876,18 +877,56 @@ export default function Deposits() {
                   <Button
                     fullWidth
                     variant="outlined"
-                    startIcon={<EditIcon />}
-                    onClick={() => setDepositorPanelOpen(true)}
-                  >
-                    ערוך פרטים
-                  </Button>
-                  <Button
-                    fullWidth
-                    variant="outlined"
                     color="secondary"
                     startIcon={<DocIcon />}
-                    onClick={() => {
-                      // TODO: Generate depositor report
+                    onClick={async () => {
+                      if (!selectedDepositor) return;
+                      
+                      try {
+                        // Prepare deposits data with withdrawals
+                        const depositsWithDetails = await Promise.all(
+                          deposits.map(async (dep, index) => {
+                            const withdrawals = await depositWithdrawalsService.getByDeposit(dep.id);
+                            const withdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+                            const remaining = dep.amount - withdrawn;
+                            
+                            return {
+                              ...dep,
+                              id: index + 1, // Use sequential number instead of UUID
+                              withdrawals: withdrawals.map(w => ({
+                                amount: w.amount,
+                                withdrawal_date: w.withdrawal_date
+                              })),
+                              withdrawn_amount: withdrawn,
+                              remaining: remaining
+                            };
+                          })
+                        );
+                        
+                        const totalActive = depositsWithDetails
+                          .filter(d => d.remaining > 0)
+                          .reduce((sum, d) => sum + d.remaining, 0);
+                        const totalWithdrawn = depositsWithDetails
+                          .reduce((sum, d) => sum + (d.withdrawn_amount || 0), 0);
+                        
+                        // Generate and print report (opens print dialog)
+                        generateDepositorReport({
+                          gemachName: settings.gemach_name || 'גמ"ח',
+                          gemachLogo: settings.gemach_logo,
+                          depositorName: `${selectedDepositor.first_name} ${selectedDepositor.last_name}`,
+                          depositorPhone: selectedDepositor.phone,
+                          depositorIdNumber: selectedDepositor.id_number,
+                          deposits: depositsWithDetails,
+                          totalActive,
+                          totalWithdrawn,
+                          dateFormat: settings.date_format
+                        });
+                        
+                        setSnackbar({ open: true, message: 'הדו"ח הופק בהצלחה', severity: 'success' });
+                      } catch (error) {
+                        console.error('Error generating report:', error);
+                        setSnackbar({ open: true, message: 'שגיאה בהפקת דו"ח', severity: 'error' });
+                      }
                     }}
                   >
                     הפק דו"ח
