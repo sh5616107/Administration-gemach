@@ -576,11 +576,31 @@ export const statsService = {
   async getDashboardStats() {
     const loans = await loansService.getAll()
     const t = new Date().toISOString().split('T')[0]
-    const active = loans.filter(l => l.status === 'active' && l.loan_date <= t)
-    // הלוואות מתוכננות - לא כולל הלוואות מחזוריות שנוצרות אוטומטית
+    
+    console.log('📊 getDashboardStats - Total loans:', loans.length)
+    console.log('📊 Recurring loans:', loans.filter(l => l.is_recurring === 1).length)
+    
+    // דוגמאות של הלוואות מחזוריות
+    const recurringExamples = loans.filter(l => l.is_recurring === 1).slice(0, 5)
+    console.log('📊 Recurring loan examples:', recurringExamples.map(l => ({
+      id: l.id?.substring(0, 8),
+      borrower: l.borrower_name,
+      number: l.recurring_loan_number,
+      isRecurring: l.is_recurring,
+    })))
+    
+    // הלוואות פעילות - כל ההלוואות עם יתרה (כולל מחזוריות)
+    const activeWithBalance = loans.filter(l => 
+      l.status === 'active' && 
+      l.loan_date <= t &&
+      (l.remaining || 0) > 0
+    )
+    
+    console.log('✅ Active loans with balance:', activeWithBalance.length)
+    
+    // הלוואות מתוכננות - כולל מחזוריות
     const planned = loans.filter(l => 
-      (l.status === 'planned' || l.loan_date > t) && 
-      !(l.is_recurring && l.recurring_loan_number && l.recurring_loan_number > 1)
+      (l.status === 'planned' || l.loan_date > t)
     )
     const deps = getAllItems<{ id: number; amount: number; status: string; is_recurring?: number; recurring_deposit_number?: number; is_deleted?: boolean }>('deposits').filter(d => d.status === 'active' && !d.is_deleted)
     
@@ -601,13 +621,20 @@ export const statsService = {
     const dons = getAllItems<{ amount: number }>('donations')
     const expenses = getAllItems<{ amount: number; paid_by: string }>('expenses')
     const gemachExpenses = expenses.filter(e => e.paid_by === 'gemach').reduce((s, e) => s + e.amount, 0)
-    return {
-      activeLoans: { count: active.length, total: active.reduce((s, l) => s + (l.remaining || 0), 0) },
+    
+    const result = {
+      activeLoans: { 
+        count: activeWithBalance.length,  // כל ההלוואות עם יתרה
+        total: activeWithBalance.reduce((s, l) => s + (l.remaining || 0), 0)
+      },
       plannedLoans: { count: planned.length, total: planned.reduce((s, l) => s + l.amount, 0) },
       deposits: { count: deps.length, total: totalDeposits },
       donations: { count: dons.length, total: dons.reduce((s, d) => s + d.amount, 0) },
       gemachExpenses,
     }
+    
+    console.log('🎯 FINAL - Count:', result.activeLoans.count, 'Total:', result.activeLoans.total)
+    return result
   },
   async getActiveBorrowers() {
     const loans = await loansService.getAll()

@@ -34,7 +34,11 @@ interface Depositor {
 
 export default function DonationsDeposits() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [tabValue, setTabValue] = useState(1) // ברירת מחדל: מפקידים
+  const [tabValue, setTabValue] = useState(() => {
+    // קריאת הטאב הראשוני מה-URL
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    return tab !== null ? parseInt(tab) : 1 // ברירת מחדל: מפקידים
+  })
   const [selectedDepositor, setSelectedDepositor] = useState<Depositor | null>(null)
   const [selectedDepositId, setSelectedDepositId] = useState<number | null>(null)
 
@@ -42,6 +46,7 @@ export default function DonationsDeposits() {
     // Read tab and depositId from URL params
     const tab = searchParams.get('tab')
     const depositId = searchParams.get('depositId')
+    const action = searchParams.get('action')
     
     if (tab !== null) {
       setTabValue(parseInt(tab))
@@ -54,7 +59,7 @@ export default function DonationsDeposits() {
     }
     
     // Clear URL params after reading
-    if (tab || depositId) {
+    if (tab || depositId || action) {
       setSearchParams({})
     }
   }, [searchParams, setSearchParams])

@@ -769,8 +769,204 @@ export async function migrateToUUIDs(): Promise<{ migrated: number }> {
     }
     allData.donations = newDonations
     
-    // Step 10: Migrate other tables (guarantorLoans, blacklist, waitlist, expenses, etc.)
-    // For now, we'll handle the critical ones. Add more as needed.
+    // Step 10: Migrate guarantorLoans (with foreign keys: guarantor_id, loan_id)
+    const newGuarantorLoans: any = {}
+    for (const [oldId, gl] of Object.entries(allData.guarantorLoans || {})) {
+      const numericId = typeof gl.id === 'number' ? gl.id : parseInt(oldId, 10)
+      
+      if (typeof gl.id === 'string' && gl.id.length === 36) {
+        newGuarantorLoans[gl.id] = gl
+        continue
+      }
+      
+      const newId = generateUUID()
+      const newGL = { ...gl, id: newId }
+      
+      // Update foreign keys
+      if (gl.guarantor_id && idMaps.guarantors.has(gl.guarantor_id)) {
+        newGL.guarantor_id = idMaps.guarantors.get(gl.guarantor_id)
+      }
+      if (gl.loan_id && idMaps.loans.has(gl.loan_id)) {
+        newGL.loan_id = idMaps.loans.get(gl.loan_id)
+      }
+      
+      newGuarantorLoans[newId] = newGL
+      totalMigrated++
+    }
+    allData.guarantorLoans = newGuarantorLoans
+    
+    // Step 11: Migrate guarantorLoanRepayments (with foreign key: guarantor_loan_id)
+    const newGuarantorLoanRepayments: any = {}
+    for (const [oldId, glr] of Object.entries(allData.guarantorLoanRepayments || {})) {
+      const numericId = typeof glr.id === 'number' ? glr.id : parseInt(oldId, 10)
+      
+      if (typeof glr.id === 'string' && glr.id.length === 36) {
+        newGuarantorLoanRepayments[glr.id] = glr
+        continue
+      }
+      
+      const newId = generateUUID()
+      const newGLR = { ...glr, id: newId }
+      
+      // Update foreign key - need to find the new guarantor loan ID
+      if (glr.guarantor_loan_id) {
+        // Find the old guarantor loan ID from the old guarantorLoans
+        const oldGuarantorLoans = Object.values(allData.guarantorLoans || {})
+        const matchingGL = oldGuarantorLoans.find((gl: any) => String(gl.id) === String(glr.guarantor_loan_id))
+        if (matchingGL) {
+          newGLR.guarantor_loan_id = matchingGL.id // Use the new UUID
+        }
+      }
+      
+      newGuarantorLoanRepayments[newId] = newGLR
+      totalMigrated++
+    }
+    allData.guarantorLoanRepayments = newGuarantorLoanRepayments
+    
+    // Step 12: Migrate guarantorRefunds (with foreign key: guarantor_loan_id)
+    const newGuarantorRefunds: any = {}
+    for (const [oldId, refund] of Object.entries(allData.guarantorRefunds || {})) {
+      const numericId = typeof refund.id === 'number' ? refund.id : parseInt(oldId, 10)
+      
+      if (typeof refund.id === 'string' && refund.id.length === 36) {
+        newGuarantorRefunds[refund.id] = refund
+        continue
+      }
+      
+      const newId = generateUUID()
+      const newRefund = { ...refund, id: newId }
+      
+      // Update foreign key
+      if (refund.guarantor_loan_id) {
+        const oldGuarantorLoans = Object.values(allData.guarantorLoans || {})
+        const matchingGL = oldGuarantorLoans.find((gl: any) => String(gl.id) === String(refund.guarantor_loan_id))
+        if (matchingGL) {
+          newRefund.guarantor_loan_id = matchingGL.id
+        }
+      }
+      
+      newGuarantorRefunds[newId] = newRefund
+      totalMigrated++
+    }
+    allData.guarantorRefunds = newGuarantorRefunds
+    
+    // Step 13: Migrate blacklist (with foreign key: entity_id - could be borrower/guarantor/donor/depositor)
+    const newBlacklist: any = {}
+    for (const [oldId, bl] of Object.entries(allData.blacklist || {})) {
+      const numericId = typeof bl.id === 'number' ? bl.id : parseInt(oldId, 10)
+      
+      if (typeof bl.id === 'string' && bl.id.length === 36) {
+        newBlacklist[bl.id] = bl
+        continue
+      }
+      
+      const newId = generateUUID()
+      const newBL = { ...bl, id: newId }
+      
+      // Update entity_id based on entity_type
+      if (bl.entity_id) {
+        const entityId = typeof bl.entity_id === 'number' ? bl.entity_id : parseInt(bl.entity_id, 10)
+        
+        if (bl.entity_type === 'borrower' && idMaps.borrowers.has(entityId)) {
+          newBL.entity_id = idMaps.borrowers.get(entityId)
+        } else if (bl.entity_type === 'guarantor' && idMaps.guarantors.has(entityId)) {
+          newBL.entity_id = idMaps.guarantors.get(entityId)
+        } else if (bl.entity_type === 'donor' && idMaps.donors.has(entityId)) {
+          newBL.entity_id = idMaps.donors.get(entityId)
+        } else if (bl.entity_type === 'depositor' && idMaps.depositors.has(entityId)) {
+          newBL.entity_id = idMaps.depositors.get(entityId)
+        }
+      }
+      
+      newBlacklist[newId] = newBL
+      totalMigrated++
+    }
+    allData.blacklist = newBlacklist
+    
+    // Step 14: Migrate waitlist (with foreign key: borrower_id)
+    const newWaitlist: any = {}
+    for (const [oldId, wl] of Object.entries(allData.waitlist || {})) {
+      const numericId = typeof wl.id === 'number' ? wl.id : parseInt(oldId, 10)
+      
+      if (typeof wl.id === 'string' && wl.id.length === 36) {
+        newWaitlist[wl.id] = wl
+        continue
+      }
+      
+      const newId = generateUUID()
+      const newWL = { ...wl, id: newId }
+      
+      // Update foreign key
+      if (wl.borrower_id && idMaps.borrowers.has(wl.borrower_id)) {
+        newWL.borrower_id = idMaps.borrowers.get(wl.borrower_id)
+      }
+      
+      newWaitlist[newId] = newWL
+      totalMigrated++
+    }
+    allData.waitlist = newWaitlist
+    
+    // Step 15: Migrate expenses (with foreign key: borrower_id - optional)
+    const newExpenses: any = {}
+    for (const [oldId, exp] of Object.entries(allData.expenses || {})) {
+      const numericId = typeof exp.id === 'number' ? exp.id : parseInt(oldId, 10)
+      
+      if (typeof exp.id === 'string' && exp.id.length === 36) {
+        newExpenses[exp.id] = exp
+        continue
+      }
+      
+      const newId = generateUUID()
+      const newExp = { ...exp, id: newId }
+      
+      // Update foreign key if exists
+      if (exp.borrower_id && idMaps.borrowers.has(exp.borrower_id)) {
+        newExp.borrower_id = idMaps.borrowers.get(exp.borrower_id)
+      }
+      
+      newExpenses[newId] = newExp
+      totalMigrated++
+    }
+    allData.expenses = newExpenses
+    
+    // Step 16: Migrate depositWithdrawals (with foreign key: deposit_id)
+    const newDepositWithdrawals: any = {}
+    for (const [oldId, dw] of Object.entries(allData.depositWithdrawals || {})) {
+      const numericId = typeof dw.id === 'number' ? dw.id : parseInt(oldId, 10)
+      
+      if (typeof dw.id === 'string' && dw.id.length === 36) {
+        newDepositWithdrawals[dw.id] = dw
+        continue
+      }
+      
+      const newId = generateUUID()
+      const newDW = { ...dw, id: newId }
+      
+      // Update foreign key
+      if (dw.deposit_id && idMaps.deposits.has(dw.deposit_id)) {
+        newDW.deposit_id = idMaps.deposits.get(dw.deposit_id)
+      }
+      
+      newDepositWithdrawals[newId] = newDW
+      totalMigrated++
+    }
+    allData.depositWithdrawals = newDepositWithdrawals
+    
+    // Step 17: Migrate contacts (if exists - this is a new table)
+    const newContacts: any = {}
+    for (const [oldId, contact] of Object.entries(allData.contacts || {})) {
+      const numericId = typeof contact.id === 'number' ? contact.id : parseInt(oldId, 10)
+      
+      if (typeof contact.id === 'string' && contact.id.length === 36) {
+        newContacts[contact.id] = contact
+        continue
+      }
+      
+      const newId = generateUUID()
+      newContacts[newId] = { ...contact, id: newId }
+      totalMigrated++
+    }
+    allData.contacts = newContacts
     
     console.log(`✅ UUID Migration: Converting ${totalMigrated} records`)
     

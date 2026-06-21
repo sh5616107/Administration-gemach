@@ -387,9 +387,34 @@ export default function AdvancedTools() {
         if (data.waitlist) importData.waitlist = convertToObject(data.waitlist)
         if (data.depositWithdrawals) importData.depositWithdrawals = convertToObject(data.depositWithdrawals)
 
+        // Check if this is an old backup with numeric IDs
+        const hasNumericIds = Object.values(importData.borrowers || {}).some(
+          (b: any) => typeof b.id === 'number' || (typeof b.id === 'string' && b.id.length < 20)
+        )
+
         await importAllData(importData)
         
-        setSnackbar({ open: true, message: 'הגיבוי יובא בהצלחה!', severity: 'success' })
+        if (hasNumericIds) {
+          console.log('🔄 Detected old backup with numeric IDs - running UUID migration...')
+          setSnackbar({ 
+            open: true, 
+            message: 'מזוהה גיבוי ישן - ממיר מזהים ל-UUID...', 
+            severity: 'info' 
+          })
+          
+          // Import the migration and run it
+          const { migrateToUUIDs } = await import('../services/migrations')
+          const result = await migrateToUUIDs()
+          
+          console.log(`✅ UUID migration complete: ${result.migrated} records migrated`)
+          setSnackbar({ 
+            open: true, 
+            message: `הגיבוי יובא בהצלחה! הומרו ${result.migrated} רשומות ל-UUID`, 
+            severity: 'success' 
+          })
+        } else {
+          setSnackbar({ open: true, message: 'הגיבוי יובא בהצלחה!', severity: 'success' })
+        }
         
         // Reload data
         loadData()

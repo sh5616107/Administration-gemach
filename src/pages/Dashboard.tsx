@@ -217,8 +217,13 @@ export default function Dashboard() {
     try {
       const allLoans = await loansService.getAll() as any[]
       const active = allLoans
-        .filter(l => l.status === 'active' && (l.remaining || 0) > 0)
+        .filter(l => 
+          l.status === 'active' && 
+          (l.remaining || 0) > 0
+        )
         .sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
+      
+      console.log('📋 Active loans dialog:', active.length)
       setActiveLoans(active)
     } catch (error) {
       console.error('Error fetching active loans:', error)
@@ -612,7 +617,7 @@ export default function Dashboard() {
           variant="contained"
           color="success"
           startIcon={<DepositIcon />}
-          onClick={() => navigate('/donations?tab=2&action=add')}
+          onClick={() => navigate('/deposits?tab=1')}
           size="large"
         >
           הפקדה חדשה
@@ -621,7 +626,7 @@ export default function Dashboard() {
           variant="contained"
           color="secondary"
           startIcon={<DonationIcon />}
-          onClick={() => navigate('/donations?tab=0&action=add')}
+          onClick={() => navigate('/donations?tab=1')}
           size="large"
         >
           תרומה חדשה

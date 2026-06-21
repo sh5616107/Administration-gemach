@@ -630,18 +630,21 @@ export default function UnifiedLoansPage() {
                           )}
                           
                           {/* Edit auto repayment - only for loans with auto repayment */}
-                          {loan.auto_repayment === 1 && loan.id && loanRecurringRepayments.has(loan.id) && (
-                            <Tooltip title="נהל פירעון אוטומטי">
+                          {loan.auto_repayment === 1 && loan.id && (
+                            <Tooltip title={loanRecurringRepayments.has(loan.id) ? "נהל פירעון אוטומטי" : "ערוך הגדרות פירעון אוטומטי"}>
                               <IconButton
                                 size="small"
                                 color="success"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Get the first recurring repayment ID
                                   const firstRepayment = loanRecurringRepayments.get(loan.id!);
                                   if (firstRepayment?.id) {
+                                    // Has existing repayments - open recurring repayment manager
                                     setSelectedAutoRepaymentLoanId(firstRepayment.id);
                                     setEditAutoRepaymentDialogOpen(true);
+                                  } else {
+                                    // No repayments yet - open loan edit form to modify settings
+                                    handleOpenLoan(loan);
                                   }
                                 }}
                                 sx={{ '&:hover': { bgcolor: 'grey.200' } }}
@@ -733,10 +736,56 @@ export default function UnifiedLoansPage() {
               </Box>
 
               <Stack spacing={1} sx={{ mb: 2 }}>
+                {selectedBorrower.id_number && (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="body2" color="text.secondary" sx={{ minWidth: 60 }}>ת.ז:</Typography>
+                    <Typography variant="body2">{selectedBorrower.id_number}</Typography>
+                  </Stack>
+                )}
                 <Stack direction="row" spacing={1} alignItems="center">
                   <PhoneIcon fontSize="small" color="action" />
                   <Typography variant="body2">{selectedBorrower.phone}</Typography>
+                  {selectedBorrower.phone2 && (
+                    <Typography variant="caption" color="text.secondary">(ראשי)</Typography>
+                  )}
                 </Stack>
+                {selectedBorrower.phone2 && (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <PhoneIcon fontSize="small" color="action" />
+                    <Typography variant="body2">{selectedBorrower.phone2}</Typography>
+                    <Typography variant="caption" color="text.secondary">(נוסף)</Typography>
+                  </Stack>
+                )}
+                {selectedBorrower.email && (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="body2" color="text.secondary" sx={{ minWidth: 60 }}>אימייל:</Typography>
+                    <Typography 
+                      variant="body2" 
+                      onClick={() => {
+                        openEmailWithDocument(
+                          {
+                            to: selectedBorrower.email || '',
+                            subject: '',
+                            body: '',
+                            documentType: 'borrower_report',
+                          },
+                          settings.email_provider as EmailProvider || 'gmail'
+                        );
+                      }}
+                      sx={{ 
+                        fontSize: '0.8rem',
+                        color: 'primary.main',
+                        cursor: 'pointer',
+                        textDecoration: 'none',
+                        '&:hover': {
+                          textDecoration: 'underline'
+                        }
+                      }}
+                    >
+                      {selectedBorrower.email}
+                    </Typography>
+                  </Stack>
+                )}
                 {selectedBorrower.city && (
                   <Stack direction="row" spacing={1} alignItems="center">
                     <LocationIcon fontSize="small" color="action" />
@@ -745,6 +794,16 @@ export default function UnifiedLoansPage() {
                       {selectedBorrower.address ? `, ${selectedBorrower.address}` : ''}
                     </Typography>
                   </Stack>
+                )}
+                {selectedBorrower.notes && (
+                  <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      הערות:
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                      {selectedBorrower.notes}
+                    </Typography>
+                  </Box>
                 )}
               </Stack>
 

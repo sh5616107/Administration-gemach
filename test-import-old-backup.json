@@ -1,0 +1,211 @@
+{
+  "exportDate": "2024-01-15T10:00:00.000Z",
+  "appVersion": "1.0.0",
+  "borrowers": [
+    {
+      "id": 1,
+      "first_name": "ישראל",
+      "last_name": "כהן",
+      "phone": "0501234567",
+      "id_number": "123456789",
+      "city": "ירושלים",
+      "address": "רחוב הראשון 1",
+      "email": "israel@example.com",
+      "notes": "",
+      "created_at": "2024-01-01T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "first_name": "משה",
+      "last_name": "לוי",
+      "phone": "0",
+      "id_number": "234567890",
+      "city": "תל אביב",
+      "address": "",
+      "notes": "אין מספר טלפון זמין",
+      "created_at": "2024-01-02T10:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "first_name": "דוד",
+      "last_name": "ישראלי",
+      "phone": "0",
+      "id_number": "345678901",
+      "city": "חיפה",
+      "notes": "טלפון לא פעיל",
+      "created_at": "2024-01-03T10:00:00.000Z"
+    }
+  ],
+  "guarantors": [
+    {
+      "id": 1,
+      "first_name": "אברהם",
+      "last_name": "כהן",
+      "phone": "0501111111",
+      "id_number": "111111111",
+      "address": "רחוב הערבים 10",
+      "is_blacklisted": 0,
+      "created_at": "2024-01-01T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "first_name": "שרה",
+      "last_name": "לוי",
+      "phone": "0502222222",
+      "id_number": "222222222",
+      "address": "רחוב השני 20",
+      "is_blacklisted": 0,
+      "created_at": "2024-01-02T10:00:00.000Z"
+    }
+  ],
+  "loans": [
+    {
+      "id": 1,
+      "borrower_id": 1,
+      "amount": 10000,
+      "loan_date": "2024-01-05",
+      "return_date": "2024-07-05",
+      "total_repaid": 5000,
+      "guarantor1_id": 1,
+      "guarantor2_id": 2,
+      "notes": "הלוואה ראשונה",
+      "is_recurring": 0,
+      "auto_repayment": 0,
+      "created_at": "2024-01-05T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "borrower_id": 2,
+      "amount": 5000,
+      "loan_date": "2024-01-10",
+      "return_date": "2024-06-10",
+      "total_repaid": 1000,
+      "guarantor1_id": 1,
+      "notes": "לווה עם טלפון 0",
+      "is_recurring": 0,
+      "auto_repayment": 0,
+      "created_at": "2024-01-10T10:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "borrower_id": 3,
+      "amount": 8000,
+      "loan_date": "2024-01-15",
+      "return_date": "2024-08-15",
+      "total_repaid": 0,
+      "guarantor1_id": 2,
+      "notes": "לווה אחר עם טלפון 0",
+      "is_recurring": 0,
+      "auto_repayment": 0,
+      "created_at": "2024-01-15T10:00:00.000Z"
+    }
+  ],
+  "repayments": [
+    {
+      "id": 1,
+      "loan_id": 1,
+      "amount": 2500,
+      "payment_date": "2024-02-05",
+      "notes": "פירעון ראשון",
+      "created_at": "2024-02-05T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "loan_id": 1,
+      "amount": 2500,
+      "payment_date": "2024-03-05",
+      "notes": "פירעון שני",
+      "created_at": "2024-03-05T10:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "loan_id": 2,
+      "amount": 1000,
+      "payment_date": "2024-02-10",
+      "notes": "פירעון חלקי",
+      "created_at": "2024-02-10T10:00:00.000Z"
+    }
+  ],
+  "donors": [
+    {
+      "id": 1,
+      "first_name": "יעקב",
+      "last_name": "תורם",
+      "phone": "0503333333",
+      "email": "donor@example.com",
+      "created_at": "2024-01-01T10:00:00.000Z"
+    }
+  ],
+  "donations": [
+    {
+      "id": 1,
+      "donor_id": 1,
+      "amount": 50000,
+      "donation_date": "2024-01-01",
+      "notes": "תרומה ראשונית",
+      "created_at": "2024-01-01T10:00:00.000Z"
+    }
+  ],
+  "depositors": [
+    {
+      "id": 1,
+      "first_name": "רחל",
+      "last_name": "מפקידה",
+      "phone": "0504444444",
+      "email": "depositor@example.com",
+      "created_at": "2024-01-01T10:00:00.000Z"
+    }
+  ],
+  "deposits": [
+    {
+      "id": 1,
+      "depositor_id": 1,
+      "amount": 30000,
+      "deposit_date": "2024-01-01",
+      "status": "active",
+      "notes": "פיקדון ראשוני",
+      "is_recurring": 0,
+      "created_at": "2024-01-01T10:00:00.000Z"
+    }
+  ],
+  "blacklist": [
+    {
+      "id": 1,
+      "entity_type": "borrower",
+      "entity_id": 2,
+      "reason": "חוב ישן שלא שולם",
+      "added_at": "2024-01-20T10:00:00.000Z"
+    }
+  ],
+  "waitlist": [
+    {
+      "id": 1,
+      "borrower_id": 3,
+      "requested_amount": 10000,
+      "status": "pending",
+      "notes": "ממתין להלוואה",
+      "created_at": "2024-01-15T10:00:00.000Z"
+    }
+  ],
+  "expenses": [
+    {
+      "id": 1,
+      "description": "הוצאות משרד",
+      "amount": 500,
+      "expense_date": "2024-01-10",
+      "category": "משרד",
+      "notes": "ציוד משרדי",
+      "created_at": "2024-01-10T10:00:00.000Z"
+    }
+  ],
+  "guarantorLoans": [],
+  "guarantorLoanRepayments": [],
+  "guarantorRefunds": [],
+  "depositWithdrawals": [],
+  "contacts": [],
+  "settings": {
+    "gemach_name": "גמ\"ח הטסט",
+    "risk_threshold": "50000",
+    "currency": "ILS"
+  }
+}

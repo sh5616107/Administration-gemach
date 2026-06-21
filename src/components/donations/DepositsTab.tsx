@@ -80,9 +80,11 @@ interface DepositsTabProps {
   selectedDepositor: Depositor | null
   onSelectDepositor?: (depositor: Depositor | null) => void
   initialDepositId?: number | null
+  hideDepositorSelection?: boolean  // הסתרת בחירת המפקיד
+  hideDepositsTable?: boolean       // הסתרת טבלת ההפקדות
 }
 
-export default function DepositsTab({ selectedDepositor, onSelectDepositor, initialDepositId }: DepositsTabProps) {
+export default function DepositsTab({ selectedDepositor, onSelectDepositor, initialDepositId, hideDepositorSelection = false, hideDepositsTable = false }: DepositsTabProps) {
   const { settings } = useSettings()
   const [deposits, setDeposits] = useState<Deposit[]>([])
   const [depositors, setDepositors] = useState<Depositor[]>([])
@@ -551,30 +553,32 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   return (
     <Box>
       {/* Depositor Selection */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            בחירת מפקיד
-          </Typography>
-          <Autocomplete
-            options={depositors}
-            getOptionLabel={(option) => `${option.first_name} ${option.last_name} - ${option.phone}`}
-            value={selectedDepositor}
-            onChange={(_, newValue) => onSelectDepositor?.(newValue)}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="חפש ובחר מפקיד"
-                placeholder="הקלד שם או טלפון..."
-              />
-            )}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
-            noOptionsText="לא נמצאו מפקידים - הוסף מפקיד בטאב מפקידים"
-          />
-        </CardContent>
-      </Card>
+      {!hideDepositorSelection && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              בחירת מפקיד
+            </Typography>
+            <Autocomplete
+              options={depositors}
+              getOptionLabel={(option) => `${option.first_name} ${option.last_name} - ${option.phone}`}
+              value={selectedDepositor}
+              onChange={(_, newValue) => onSelectDepositor?.(newValue)}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="חפש ובחר מפקיד"
+                  placeholder="הקלד שם או טלפון..."
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              noOptionsText="לא נמצאו מפקידים - הוסף מפקיד בטאב מפקידים"
+            />
+          </CardContent>
+        </Card>
+      )}
 
-      {!selectedDepositor ? (
+      {!selectedDepositor && !hideDepositorSelection ? (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 8 }}>
             <Typography variant="h6" color="text.secondary">
@@ -585,19 +589,21 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
       ) : (
         <>
           {/* Selected Depositor Info */}
-          <Card sx={{ mb: 3, bgcolor: 'primary.light', color: 'white' }}>
-            <CardContent>
-              <Typography variant="h6">
-                מפקיד נבחר: {selectedDepositor.first_name} {selectedDepositor.last_name}
-              </Typography>
-              <Typography variant="body2">
-                טלפון: {selectedDepositor.phone} | מ.ז.: {selectedDepositor.id_number || '-'}
-              </Typography>
-              <Typography variant="h5" sx={{ mt: 1 }}>
-                סה"כ הפקדות פעילות: {formatCurrency(totalActive)} ({activeDeposits.length} הפקדות)
-              </Typography>
-            </CardContent>
-          </Card>
+          {!hideDepositorSelection && (
+            <Card sx={{ mb: 3, bgcolor: 'primary.light', color: 'white' }}>
+              <CardContent>
+                <Typography variant="h6">
+                  מפקיד נבחר: {selectedDepositor.first_name} {selectedDepositor.last_name}
+                </Typography>
+                <Typography variant="body2">
+                  טלפון: {selectedDepositor.phone} | מ.ז.: {selectedDepositor.id_number || '-'}
+                </Typography>
+                <Typography variant="h5" sx={{ mt: 1 }}>
+                  סה"כ הפקדות פעילות: {formatCurrency(totalActive)} ({activeDeposits.length} הפקדות)
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
 
       {/* Add Form */}
       <Card sx={{ mb: 3 }}>
@@ -739,6 +745,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
       </Card>
 
       {/* Table */}
+      {!hideDepositsTable && (
       <Card>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2 }}>
@@ -930,6 +937,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
           </TableContainer>
         </CardContent>
       </Card>
+      )}
 
       <Snackbar
         open={snackbar.open}
