@@ -61,7 +61,7 @@ import { EditRecurringDialog } from '../components/recurring/EditRecurringDialog
  * - Borrower card here shows the full profile (stats, blacklist warning) instead
  *   of three plain fields.
  */
-export default function UnifiedLoansPage() {
+export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowerId?: string } = {}) {
   const { settings } = useSettings();
   const [borrowers, setBorrowers] = useState<Borrower[]>([]);
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
@@ -107,6 +107,16 @@ export default function UnifiedLoansPage() {
   useEffect(() => {
     loadBorrowers();
   }, []);
+
+  // Handle initial borrower selection from props
+  useEffect(() => {
+    if (initialBorrowerId && borrowers.length > 0) {
+      const borrower = borrowers.find(b => b.id === initialBorrowerId);
+      if (borrower) {
+        setSelectedBorrower(borrower);
+      }
+    }
+  }, [initialBorrowerId, borrowers]);
 
   useEffect(() => {
     if (selectedBorrower) {

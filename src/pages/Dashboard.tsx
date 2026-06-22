@@ -328,13 +328,13 @@ export default function Dashboard() {
 
   // Navigation handlers from dialogs
   const handleLoanItemClick = (loan: any) => {
-    navigate(`/loans?tab=2&loanId=${loan.id}`)
+    navigate(`/loans?tab=0&borrower=${loan.borrower_id}`)
     setActiveLoansDialogOpen(false)
     setScheduledLoansDialogOpen(false)
   }
 
   const handleDepositItemClick = (deposit: any) => {
-    navigate(`/donations?tab=2&depositId=${deposit.id}`)
+    navigate(`/deposits?depositor=${deposit.depositor_id}&deposit=${deposit.id}`)
     setDepositsDialogOpen(false)
   }
 

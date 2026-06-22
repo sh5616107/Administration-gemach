@@ -49,19 +49,19 @@ export default function LoansManagement() {
     
     if (borrowerId) {
       setSelectedBorrowerId(borrowerId)
-      // Switch to loans tab (index 2) when borrower is specified
-      setTabValue(2)
+      // Switch to loans tab (index 0) when borrower is specified
+      setTabValue(0)
     }
     
     if (loanId) {
       setSelectedLoanId(loanId)
-      // Switch to loans tab (index 2) when loanId is specified
-      setTabValue(2)
+      // Switch to loans tab (index 0) when loanId is specified
+      setTabValue(0)
     }
     
     if (waitlistId) {
       setSelectedWaitlistId(waitlistId)
-      // Switch to loans tab (index 2) when waitlist is specified
+      // Switch to waitlist tab (index 2) when waitlist is specified
       setTabValue(2)
     }
     
@@ -99,7 +99,7 @@ export default function LoansManagement() {
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
-        <UnifiedLoansPage />
+        <UnifiedLoansPage initialBorrowerId={selectedBorrowerId} />
       </TabPanel>
       <TabPanel value={tabValue} index={1}>
         <GuarantorsTab />

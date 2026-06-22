@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -88,6 +89,7 @@ interface Deposit {
  */
 export default function Deposits() {
   const { settings } = useSettings();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [depositors, setDepositors] = useState<Depositor[]>([]);
   const [selectedDepositor, setSelectedDepositor] = useState<Depositor | null>(null);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
@@ -121,6 +123,34 @@ export default function Deposits() {
   useEffect(() => {
     loadDepositors();
   }, []);
+
+  // Handle URL params for depositor/deposit selection
+  useEffect(() => {
+    const depositorId = searchParams.get('depositor');
+    const depositId = searchParams.get('deposit');
+    
+    if (depositorId && depositors.length > 0) {
+      const depositor = depositors.find(d => d.id.toString() === depositorId);
+      if (depositor) {
+        setSelectedDepositor(depositor);
+        
+        // If also depositId, open that deposit after loading
+        if (depositId) {
+          setTimeout(() => {
+            loadDepositsForDepositor(depositor.id).then(() => {
+              // Find and open the specific deposit
+              const deposit = deposits.find(d => d.id.toString() === depositId);
+              if (deposit) {
+                handleOpenDeposit(deposit);
+              }
+            });
+          }, 100);
+        }
+      }
+      // Clear params after handling
+      setSearchParams({});
+    }
+  }, [searchParams, depositors]);
 
   useEffect(() => {
     if (selectedDepositor) {
