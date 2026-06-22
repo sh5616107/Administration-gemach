@@ -243,6 +243,7 @@ export const db = {
     if (sql.includes('DELETE FROM guarantors') && !sql.includes('WHERE')) { clearStore('guarantors'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM donations') && !sql.includes('WHERE')) { clearStore('donations'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM donors') && !sql.includes('WHERE')) { clearStore('donors'); return { lastInsertRowid: 0, changes: 1 } }
+    if (sql.includes('DELETE FROM donors WHERE id') && params) { removeItem('donors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM deposits') && !sql.includes('WHERE')) { clearStore('deposits'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM depositors') && !sql.includes('WHERE')) { clearStore('depositors'); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM depositors WHERE id') && params) { removeItem('depositors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
@@ -259,6 +260,20 @@ export const db = {
         d.email = params[5]
         d.notes = params[6]
         setItem('depositors', String(params[7]), d)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
+    if (sql.includes('UPDATE donors SET') && params) {
+      const d = getItem<any>('donors', String(params[7]));
+      if (d) {
+        d.first_name = params[0]
+        d.last_name = params[1]
+        d.phone = params[2]
+        d.id_number = params[3]
+        d.address = params[4]
+        d.email = params[5]
+        d.notes = params[6]
+        setItem('donors', String(params[7]), d)
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
@@ -430,6 +445,18 @@ export const db = {
       const d = getItem<any>('deposits', String(params[0])); 
       if (d) setItem('deposits', String(params[0]), { ...d, is_deleted: true, deleted_at: new Date().toISOString() }); 
       return { lastInsertRowid: 0, changes: 1 } 
+    }
+    if (sql.includes('UPDATE donations SET') && params) {
+      const d = getItem<any>('donations', String(params[params.length - 1]));
+      if (d) {
+        d.amount = params[0]
+        d.donation_date = params[1]
+        d.notes = params[2]
+        d.payment_method = params[3]
+        d.payment_details = params[4]
+        setItem('donations', String(params[params.length - 1]), d)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
     }
     if (sql.includes('DELETE FROM donations WHERE id') && params) { removeItem('donations', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }

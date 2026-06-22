@@ -495,6 +495,7 @@ export default function Donations() {
               options={donors}
               value={selectedDonor}
               getOptionLabel={(d) => `${d.first_name} ${d.last_name}`}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
               onChange={(_, value) => setSelectedDonor(value)}
               renderOption={(props, d) => (
                 <li {...props} key={d.id}>
