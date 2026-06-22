@@ -53,6 +53,7 @@ interface Donation {
   notes: string
   donor_name?: string
   donor_email?: string
+  receipt_number?: string
 }
 
 interface DonationsTabProps {
@@ -205,7 +206,7 @@ export default function DonationsTab({ selectedDonor, onSelectDonor }: Donations
       donorName: donation.donor_name || '',
       amount: donation.amount,
       donationDate: donation.donation_date,
-      receiptNumber: donation.id,
+      receiptNumber: donation.receipt_number || donation.id,
       dateFormat: settings.date_format,
     })
   }
@@ -222,7 +223,7 @@ export default function DonationsTab({ selectedDonor, onSelectDonor }: Donations
       donorEmail: donation.donor_email,
       amount: donation.amount,
       donationDate: donation.donation_date,
-      receiptNumber: donation.id,
+      receiptNumber: donation.receipt_number || donation.id,
       gemachLogo: settings.gemach_logo,
       dateFormat: settings.date_format,
     })

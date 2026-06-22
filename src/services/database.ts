@@ -210,11 +210,17 @@ export const db = {
       
       // פילטר לפי donor_id
       if (sql.includes('WHERE d.donor_id') || sql.includes('WHERE donor_id')) {
-        // חילוץ ה-donor_id מה-SQL (תמיכה בשני פורמטים)
-        const match = sql.match(/donor_id\s*=\s*(\d+)/)
-        if (match) {
-          const donorId = parseInt(match[1], 10)
+        // If params provided, use them (supports UUIDs)
+        if (params && params.length > 0) {
+          const donorId = params[0]
           filtered = filtered.filter(d => d.donor_id === donorId)
+        } else {
+          // Fallback: חילוץ ה-donor_id מה-SQL (תמיכה במספרים בלבד)
+          const match = sql.match(/donor_id\s*=\s*(\d+)/)
+          if (match) {
+            const donorId = parseInt(match[1], 10)
+            filtered = filtered.filter(d => d.donor_id === donorId)
+          }
         }
       }
       
@@ -307,7 +313,45 @@ export const db = {
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (sql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
-    if (sql.includes('INSERT INTO donations') && params) { const id = generateId('donations'); setItem('donations', String(id), { id, donor_id: params[0], amount: params[1], donation_date: params[2], notes: params[3], payment_method: params[4] || '', payment_details: params[5] || '', created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (sql.includes('INSERT INTO donations') && params) { 
+      const id = generateId('donations'); 
+      // Generate sequential receipt number
+      const allDonations = getAllItems('donations');
+      
+      // Calculate max receipt number - only count valid numeric receipt numbers (6 digits or less)
+      const maxReceiptNum = allDonations.reduce((max: number, d: any) => {
+        // Check if receipt_number is a valid numeric string (not UUID, not empty)
+        const receiptStr = d.receipt_number;
+        if (!receiptStr) return max;
+        
+        // Parse as number - if it's a valid number string (like "000001"), parseInt will work
+        // If it's a UUID, parseInt will return NaN
+        const num = parseInt(receiptStr);
+        
+        // Only consider valid numbers that are reasonable (not NaN, positive, less than 1 million)
+        if (!isNaN(num) && num > 0 && num < 1000000 && num > max) {
+          return num;
+        }
+        return max;
+      }, 0);
+      
+      const receiptNumber = String(maxReceiptNum + 1).padStart(6, '0'); // Format: 000001, 000002, etc.
+      
+      console.log(`[DONATIONS] Creating donation with receipt #${receiptNumber} (max existing: ${maxReceiptNum})`);
+      
+      setItem('donations', String(id), { 
+        id, 
+        donor_id: params[0], 
+        amount: params[1], 
+        donation_date: params[2], 
+        notes: params[3], 
+        payment_method: params[4] || '', 
+        payment_details: params[5] || '', 
+        receipt_number: receiptNumber,
+        created_at: new Date().toISOString() 
+      }); 
+      return { lastInsertRowid: id, changes: 1 } 
+    }
     if (sql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (sql.includes('INSERT INTO deposits') && params) { 
       const id = generateId('deposits'); 

@@ -4,7 +4,7 @@ import { guarantorLoansService, guarantorLoanRepaymentsService, loansService, ex
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 11 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 12 // Increment this when adding new migrations
 
 /**
  * Get the current migration version from storage
@@ -987,6 +987,68 @@ export async function migrateToUUIDs(): Promise<{ migrated: number }> {
 }
 
 /**
+ * Migration v12: Add receipt numbers to existing donations
+ * 
+ * Existing donations use their ID as receipt number which can be a long UUID.
+ * This migration adds sequential receipt numbers in format 000001, 000002, etc.
+ * 
+ * IMPORTANT: This migration re-numbers ALL donations to ensure no duplicates.
+ * Donations that already have numbers will be renumbered based on their creation order.
+ */
+export async function migrateDonationReceiptNumbers(): Promise<{ migrated: number }> {
+  console.log('🔄 Starting donation receipt numbers migration...')
+  
+  let migrated = 0
+  
+  try {
+    const allData = await exportAllData()
+    const donations = Object.values(allData.donations || {})
+    
+    if (donations.length === 0) {
+      console.log('✅ Migration v12: No donations found')
+      return { migrated: 0 }
+    }
+    
+    // Sort donations by creation date (oldest first)
+    const sortedDonations = donations.sort((a: any, b: any) => {
+      const dateA = new Date(a.created_at || a.donation_date).getTime()
+      const dateB = new Date(b.created_at || b.donation_date).getTime()
+      return dateA - dateB
+    })
+    
+    console.log(`[MIGRATION v12] Found ${sortedDonations.length} donations to process`)
+    
+    // Re-assign sequential receipt numbers to ALL donations (even those with existing numbers)
+    // This ensures no duplicates
+    for (let i = 0; i < sortedDonations.length; i++) {
+      const donation: any = sortedDonations[i]
+      const newReceiptNumber = String(i + 1).padStart(6, '0') // Format: 000001, 000002, etc.
+      
+      // Check if the receipt number needs updating
+      if (!donation.receipt_number || donation.receipt_number !== newReceiptNumber) {
+        const oldReceipt = donation.receipt_number || 'none'
+        donation.receipt_number = newReceiptNumber
+        allData.donations[donation.id] = donation
+        migrated++
+        console.log(`  ✓ Donation ${donation.id.toString().substring(0, 8)}: ${oldReceipt} → #${newReceiptNumber}`)
+      }
+    }
+    
+    if (migrated > 0) {
+      await importAllData(allData)
+      console.log(`✅ Migration v12: Updated receipt numbers for ${migrated} donations`)
+    } else {
+      console.log('✅ Migration v12: All donations already have correct sequential receipt numbers')
+    }
+    
+  } catch (error) {
+    console.error('Error in donation receipt numbers migration:', error)
+  }
+  
+  return { migrated }
+}
+
+/**
  * Run all pending migrations
  */
 export async function runPendingMigrations(): Promise<void> {
@@ -1086,6 +1148,13 @@ export async function runPendingMigrations(): Promise<void> {
     console.log('📋 Running migration v11: Add UUIDs to all existing records')
     const result = await migrateToUUIDs()
     console.log(`✅ Migration v11 complete: ${result.migrated} records migrated`)
+  }
+  
+  // Migration v12: Add receipt numbers to existing donations
+  if (currentVersion < 12) {
+    console.log('📋 Running migration v12: Add receipt numbers to donations')
+    const result = await migrateDonationReceiptNumbers()
+    console.log(`✅ Migration v12 complete: ${result.migrated} donations updated`)
   }
   
   // Update migration version
