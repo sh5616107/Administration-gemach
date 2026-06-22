@@ -485,6 +485,22 @@ export default function Donations() {
     }).format(amount);
   };
 
+  const handleOpenEmail = (email: string) => {
+    const provider = (settings.email_provider || 'gmail') as 'gmail' | 'outlook' | 'default';
+    
+    let mailtoUrl = `mailto:${email}`;
+    
+    // Open based on provider preference
+    if (provider === 'gmail') {
+      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${email}`, '_blank');
+    } else if (provider === 'outlook') {
+      window.open(`https://outlook.office.com/mail/deeplink/compose?to=${email}`, '_blank');
+    } else {
+      // Default - use system default mail client
+      window.location.href = mailtoUrl;
+    }
+  };
+
   return (
     <Box>
       {/* Top bar — donor search + add donor */}
@@ -807,11 +823,28 @@ export default function Donations() {
                 {selectedDonor.email && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <EmailIcon fontSize="small" color="action" />
-                    <Box>
+                    <Box sx={{ flex: 1 }}>
                       <Typography variant="subtitle2" color="text.secondary">
                         אימייל
                       </Typography>
-                      <Typography variant="body2">{selectedDonor.email}</Typography>
+                      <Typography 
+                        variant="body2"
+                        component="a"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleOpenEmail(selectedDonor.email);
+                        }}
+                        sx={{ 
+                          color: 'primary.main',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          '&:hover': {
+                            color: 'primary.dark',
+                          }
+                        }}
+                      >
+                        {selectedDonor.email}
+                      </Typography>
                     </Box>
                   </Box>
                 )}
