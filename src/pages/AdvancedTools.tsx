@@ -67,6 +67,7 @@ import { exportToExcel } from '../services/excelImport'
 
 interface OverdueLoan {
   id: string  // UUID
+  loan_number: number
   borrower_id: string  // UUID
   borrower_name: string
   amount: number
@@ -138,7 +139,7 @@ export default function AdvancedTools() {
   const [blacklistDialogOpen, setBlacklistDialogOpen] = useState(false)
   const [blacklistForm, setBlacklistForm] = useState({ type: 'borrower' as 'borrower' | 'guarantor', entity: null as EntityOption | null, reason: '' })
   const [entityOptions, setEntityOptions] = useState<EntityOption[]>([])
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' | 'warning' })
   
   // Excel import dialog
   const [excelImportDialogOpen, setExcelImportDialogOpen] = useState(false)

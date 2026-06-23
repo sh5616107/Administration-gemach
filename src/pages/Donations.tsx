@@ -271,7 +271,7 @@ export default function Donations() {
       try {
         setPaymentMethod(JSON.parse(donation.payment_details));
       } catch {
-        setPaymentMethod({ payment_method: donation.payment_method || '' });
+        setPaymentMethod({ payment_method: (donation.payment_method || '') as import('../components/PaymentMethodSelect').PaymentMethodType });
       }
     }
     
