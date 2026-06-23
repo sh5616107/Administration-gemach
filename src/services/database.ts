@@ -331,10 +331,10 @@ export const db = {
     if (sql.includes('INSERT INTO donations') && params) { 
       const id = generateId('donations'); 
       // Generate sequential receipt number
-      const allDonations = getAllItems('donations');
+      const allDonations = getAllItems<any>('donations');
       
       // Calculate max receipt number - only count valid numeric receipt numbers (6 digits or less)
-      const maxReceiptNum = allDonations.reduce((max: number, d: any) => {
+      const maxReceiptNum: number = allDonations.reduce((max: number, d: any) => {
         // Check if receipt_number is a valid numeric string (not UUID, not empty)
         const receiptStr = d.receipt_number;
         if (!receiptStr) return max;
@@ -1118,11 +1118,7 @@ export const donorsService = {
   async search(t: string): Promise<any[]> { 
     const x = t.toLowerCase()
     const allDonors = await this.getAll()
-    const donations = getAllItems<any>('donations')
-    // סינון רק תורמים שיש להם תרומות
-    const donorIdsWithDonations = new Set(donations.map(d => d.donor_id))
     return allDonors
-      .filter(d => donorIdsWithDonations.has(d.id))
       .filter(d => d.first_name?.toLowerCase().includes(x) || d.last_name?.toLowerCase().includes(x) || d.phone?.includes(t))
       .slice(0, 5) 
   } 
@@ -1132,11 +1128,7 @@ export const depositorsService = {
   async search(t: string): Promise<any[]> { 
     const x = t.toLowerCase()
     const allDepositors = await this.getAll()
-    const deposits = getAllItems<any>('deposits').filter((d: any) => !d.is_deleted)
-    // סינון רק מפקידים שיש להם הפקדות
-    const depositorIdsWithDeposits = new Set(deposits.map(d => d.depositor_id))
     return allDepositors
-      .filter(d => depositorIdsWithDeposits.has(d.id))
       .filter(d => d.first_name?.toLowerCase().includes(x) || d.last_name?.toLowerCase().includes(x) || d.phone?.includes(t))
       .slice(0, 5) 
   } 
