@@ -423,7 +423,7 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש לווה לפי שם, טלפון, ת.ז..." fullWidth />
+                <TextField {...params} placeholder="חיפוש לווה לפי שם, טלפון, ת.ז..." fullWidth autoFocus />
               )}
             />
           </Grid>

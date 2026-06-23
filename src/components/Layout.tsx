@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from 'react'
+import { ReactNode, useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Box,
@@ -73,6 +73,7 @@ export default function Layout({ children }: LayoutProps) {
     donors: any[]
     depositors: any[]
   }>({ borrowers: [], guarantors: [], donors: [], depositors: [] })
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Wait a bit for database to initialize, then check alerts
@@ -98,6 +99,16 @@ export default function Layout({ children }: LayoutProps) {
       setSearchResults({ borrowers: [], guarantors: [], donors: [], depositors: [] })
     }
   }, [searchTerm])
+
+  // Focus the search input when dialog opens
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      // Small delay to ensure dialog is fully rendered
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 100)
+    }
+  }, [searchOpen])
 
   const checkAlertCount = async () => {
     const count = await getUnreadAlertCount()
@@ -144,13 +155,13 @@ export default function Layout({ children }: LayoutProps) {
         navigate(`/loans?tab=0&borrower=${id}`)
         break
       case 'guarantor':
-        navigate(`/loans?tab=1`)
+        navigate(`/loans?tab=1&guarantor=${id}`)
         break
       case 'donor':
-        navigate(`/donations?tab=1`)
+        navigate(`/donations?tab=1&donor=${id}`)
         break
       case 'depositor':
-        navigate(`/deposits?tab=1`)
+        navigate(`/deposits?tab=1&depositor=${id}`)
         break
     }
   }
@@ -325,11 +336,17 @@ export default function Layout({ children }: LayoutProps) {
         maxWidth="sm" 
         fullWidth
         PaperProps={{ sx: { position: 'fixed', top: 100 } }}
+        TransitionProps={{
+          onEntered: () => {
+            searchInputRef.current?.focus()
+          }
+        }}
       >
         <DialogTitle sx={{ pb: 1 }}>
           <TextField
             fullWidth
             autoFocus
+            inputRef={searchInputRef}
             placeholder="חיפוש בכל המערכת..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
