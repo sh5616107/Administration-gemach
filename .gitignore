@@ -38,6 +38,11 @@ temp/
 src-tauri/target/
 src-tauri/gen/
 
+# Sidecar binaries (built artifacts, not tracked in git)
+src-tauri/binaries/*.exe
+src-tauri/binaries/*.bin
+!src-tauri/binaries/.gitkeep
+
 # Data files (backup files should not be in git)
 src/data/*.json
 !src/data/.gitkeep
