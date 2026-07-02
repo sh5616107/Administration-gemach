@@ -45,6 +45,7 @@ const defaultData: DataStore = {
 
 let data: DataStore = JSON.parse(JSON.stringify(defaultData))
 let isInitialized = false
+let initializationPromise: Promise<void> | null = null
 
 import { saveAppData, loadAppData } from './persistence'
 
@@ -54,29 +55,52 @@ function saveData(): void {
 }
 
 // Load data (async)
-function loadData(): void {
-  if (isInitialized) return
-  loadAppData().then((stored) => {
-    if (stored) {
-      data = { ...JSON.parse(JSON.stringify(defaultData)), ...stored }
-      console.log('✅ Data loaded, borrowers:', Object.keys((data).borrowers).length)
-    } else {
-      console.log('ℹ️ No existing data, using defaults')
-    }
-    isInitialized = true
-  }).catch(e => {
-    console.error('❌ Error loading:', e)
-    isInitialized = true
-  })
+function loadData(): Promise<void> {
+  if (initializationPromise) {
+    console.log('⏳ Database already initializing, returning existing promise');
+    return initializationPromise;
+  }
+  
+  if (isInitialized) {
+    console.log('✅ Database already initialized');
+    return Promise.resolve();
+  }
+  
+  console.log('🔄 Starting database initialization...');
+  initializationPromise = loadAppData()
+    .then((stored) => {
+      if (stored) {
+        data = { ...JSON.parse(JSON.stringify(defaultData)), ...stored }
+        console.log('✅ Data loaded, borrowers:', Object.keys((data).borrowers).length)
+      } else {
+        console.log('ℹ️ No existing data, using defaults')
+      }
+      isInitialized = true
+    })
+    .catch(e => {
+      console.error('❌ Error loading:', e)
+      isInitialized = true
+    });
+  
+  return initializationPromise;
 }
 
 // Initialize on module load
 loadData()
 
+// Export for components that need to wait
+export async function ensureInitialized(): Promise<void> {
+  if (!isInitialized) {
+    console.log('⏳ Waiting for database initialization...');
+    await loadData();
+  }
+}
+
 // Reset function for tests
 export function resetDatabase(): void {
   data = JSON.parse(JSON.stringify(defaultData))
   isInitialized = false
+  initializationPromise = null
   localStorage.clear()
 }
 

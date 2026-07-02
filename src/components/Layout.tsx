@@ -46,6 +46,7 @@ const drawerWidth = 220
 const menuItems = [
   { text: 'דף הבית', icon: <HomeIcon />, path: '/' },
   { text: 'לווים והלוואות', icon: <PeopleIcon />, path: '/loans' },
+  { text: 'לווים והלוואות (מחודש)', icon: <PeopleIcon />, path: '/borrowers-loans-modern' },
   { text: 'תרומות', icon: <DonationIcon />, path: '/donations' },
   { text: 'הפקדות', icon: <DepositIcon />, path: '/deposits' },
   { text: 'אנשי קשר', icon: <PersonIcon />, path: '/contacts' },
