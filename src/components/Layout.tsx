@@ -35,6 +35,7 @@ import {
   Search as SearchIcon,
   Person as PersonIcon,
   AccountBalanceWallet as DepositIcon,
+  AccountBalance as BankIcon,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
 import { loansService, borrowersService, guarantorsService, donorsService, depositorsService } from '../services/database'
@@ -50,6 +51,12 @@ const menuItems = [
   { text: 'אנשי קשר', icon: <PersonIcon />, path: '/contacts' },
   { text: 'לוח שנה', icon: <CalendarIcon />, path: '/calendar' },
   { text: 'כלים מתקדמים', icon: <ToolsIcon />, path: '/tools' },
+  { text: 'שילוב בנקים', icon: <BankIcon />, path: '/bank', submenu: [
+    { text: 'חשבונות בנק', path: '/bank/accounts' },
+    { text: 'סנכרון', path: '/bank/sync' },
+    { text: 'אישור התאמות', path: '/bank/matching' },
+    { text: 'היסטוריה', path: '/bank/history' },
+  ]},
   { text: 'הגדרות', icon: <SettingsIcon />, path: '/settings' },
   { text: 'מדריך שימוש', icon: <HelpIcon />, path: '/help' },
 ]
@@ -193,6 +200,69 @@ export default function Layout({ children }: LayoutProps) {
         {menuItems.map((item) => {
           const isSelected = location.pathname === item.path || 
             (item.path !== '/' && location.pathname.startsWith(item.path))
+          
+          // If item has submenu, render parent + children
+          if (item.submenu) {
+            return (
+              <Box key={item.path}>
+                <ListItem disablePadding sx={{ px: 1, py: 0.25 }}>
+                  <ListItemButton
+                    selected={isSelected}
+                    sx={{
+                      borderRadius: 2,
+                      '&.Mui-selected': {
+                        bgcolor: '#e3f2fd',
+                        color: '#1976d2',
+                        '& .MuiListItemIcon-root': { color: '#1976d2' },
+                        '&:hover': { bgcolor: '#bbdefb' },
+                      },
+                      '&:hover': { bgcolor: '#f5f5f5' },
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 36, color: isSelected ? '#1976d2' : '#666' }}>
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.text} 
+                      primaryTypographyProps={{ fontSize: '0.9rem' }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+                {/* Submenu items */}
+                {item.submenu.map((subItem) => {
+                  const subIsSelected = location.pathname === subItem.path
+                  return (
+                    <ListItem key={subItem.path} disablePadding sx={{ px: 1, py: 0.25, pl: 4 }}>
+                      <ListItemButton
+                        selected={subIsSelected}
+                        onClick={() => {
+                          navigate(subItem.path)
+                          setMobileOpen(false)
+                        }}
+                        sx={{
+                          borderRadius: 2,
+                          py: 0.75,
+                          '&.Mui-selected': {
+                            bgcolor: '#e3f2fd',
+                            color: '#1976d2',
+                            '&:hover': { bgcolor: '#bbdefb' },
+                          },
+                          '&:hover': { bgcolor: '#f5f5f5' },
+                        }}
+                      >
+                        <ListItemText 
+                          primary={subItem.text} 
+                          primaryTypographyProps={{ fontSize: '0.85rem' }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  )
+                })}
+              </Box>
+            )
+          }
+          
+          // Regular menu item without submenu
           return (
             <ListItem key={item.path} disablePadding sx={{ px: 1, py: 0.25 }}>
               <ListItemButton

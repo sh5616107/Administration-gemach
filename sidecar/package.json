@@ -1,0 +1,40 @@
+{
+  "name": "gemach-bank-scraper-sidecar",
+  "version": "1.0.0",
+  "description": "Bank scraper sidecar for Gemach Manager using israeli-bank-scrapers",
+  "main": "src/index.js",
+  "bin": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "israeli-bank-scrapers": "^6.7.8",
+    "puppeteer": "^22.0.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^5.12.0"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/puppeteer/.local-chromium/**/*"
+    ],
+    "targets": [
+      "node18-win-x64",
+      "node18-macos-x64",
+      "node18-macos-arm64",
+      "node18-linux-x64"
+    ],
+    "outputPath": "../src-tauri/binaries",
+    "output": "../src-tauri/binaries/gemach-bank-scraper-sidecar"
+  },
+  "keywords": [
+    "bank",
+    "scraper",
+    "israeli-banks",
+    "sidecar"
+  ],
+  "author": "",
+  "license": "MIT"
+}

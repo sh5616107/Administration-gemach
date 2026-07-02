@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +22,12 @@ const Contacts = lazy(() => import('./pages/Contacts'))
 const AdvancedTools = lazy(() => import('./pages/AdvancedTools'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
+
+// Bank integration pages
+const BankAccountsPage = lazy(() => import('./pages/bank/BankAccountsPage'))
+const BankSyncPage = lazy(() => import('./pages/bank/BankSyncPage'))
+const BankMatchingPage = lazy(() => import('./pages/bank/BankMatchingPage'))
+const BankHistoryPage = lazy(() => import('./pages/bank/BankHistoryPage'))
 
 import { exportAllData } from './services/database'
 import { isProtectionEnabled, checkAuthenticated } from './services/protection'
@@ -165,6 +171,13 @@ function App() {
               <Route path="/tools" element={<AdvancedTools />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/help" element={<Help />} />
+              
+              {/* Bank Integration Routes */}
+              <Route path="/bank" element={<Navigate to="/bank/accounts" replace />} />
+              <Route path="/bank/accounts" element={<BankAccountsPage />} />
+              <Route path="/bank/sync" element={<BankSyncPage />} />
+              <Route path="/bank/matching" element={<BankMatchingPage />} />
+              <Route path="/bank/history" element={<BankHistoryPage />} />
             </Routes>
           </Suspense>
         </Layout>

@@ -1,0 +1,7 @@
+# This directory will contain the bank scraper sidecar binaries
+# Run `npm run build` in the sidecar/ directory to generate them
+
+# Expected files:
+# - bank-scraper-x86_64-pc-windows-msvc.exe (Windows)
+# - bank-scraper-universal-apple-darwin (macOS)
+# - bank-scraper-x86_64-unknown-linux-gnu (Linux)
