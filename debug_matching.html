@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 בדיקת מערכת התאמות - Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #1976d2; }
+        h2 { color: #424242; border-bottom: 2px solid #1976d2; padding-bottom: 10px; }
+        button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #1565c0; }
+        .result {
+            background: #f5f5f5;
+            padding: 15px;
+            border-right: 4px solid #1976d2;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            direction: ltr;
+            text-align: left;
+        }
+        .error {
+            background: #ffebee;
+            border-right-color: #f44336;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e9;
+            border-right-color: #4caf50;
+            color: #2e7d32;
+        }
+        .warning {
+            background: #fff3e0;
+            border-right-color: #ff9800;
+            color: #e65100;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+        }
+        th {
+            background: #1976d2;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-success { background: #4caf50; color: white; }
+        .badge-danger { background: #f44336; color: white; }
+        .badge-warning { background: #ff9800; color: white; }
+        .badge-info { background: #2196f3; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔍 מערכת בדיקת התאמות - Debug Tool</h1>
+    <p>כלי זה יעזור לך לאבחן למה לא נוצרות התאמות אוטומטיות</p>
+
+    <div class="section">
+        <h2>שלב 1: בדיקת עסקאות ללא התאמה</h2>
+        <button onclick="checkUnmatchedTransactions()">🔍 בדוק עסקאות ללא התאמה</button>
+        <div id="unmatchedResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>שלב 2: בדיקת לווים והלוואות פעילות</h2>
+        <button onclick="checkBorrowersAndLoans()">👥 בדוק לווים והלוואות</button>
+        <div id="borrowersResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>שלב 3: בדיקת תאימות (עסקה ראשונה מול לווה ראשון)</h2>
+        <button onclick="checkCompatibility()">⚖️ בדוק תאימות</button>
+        <div id="compatibilityResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>שלב 4: ניסיון יצירת התאמה ידנית</h2>
+        <button onclick="tryCreateMatch()">🎯 נסה ליצור התאמה</button>
+        <div id="createResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>שלב 5: בדיקת קובץ bank_data.json</h2>
+        <button onclick="checkBankDataFile()">📁 בדוק קובץ נתונים</button>
+        <div id="fileCheckResult"></div>
+    </div>
+
+    <script>
+        let unmatchedTransactions = [];
+        let borrowersWithLoans = [];
+
+        async function checkUnmatchedTransactions() {
+            const resultDiv = document.getElementById('unmatchedResult');
+            resultDiv.innerHTML = '<div class="result">🔄 טוען...</div>';
+
+            try {
+                // Check if we're in Tauri environment
+                if (typeof window.__TAURI__ === 'undefined') {
+                    resultDiv.innerHTML = '<div class="result error">❌ לא רצה בסביבת Tauri! הרץ את הקובץ מתוך האפליקציה.</div>';
+                    return;
+                }
+
+                const { invoke } = window.__TAURI__.core;
+                const txns = await invoke('get_unmatched_transactions');
+                unmatchedTransactions = txns;
+
+                if (txns.length === 0) {
+                    resultDiv.innerHTML = `
+                        <div class="result warning">
+                            ⚠️ אין עסקאות ללא התאמה!
+                            
+                            אם אתה מצפה לעסקאות:
+                            1. בדוק שסנכרנת את הבנק (ניהול בנקים > סנכרון)
+                            2. בדוק שיש עסקאות שלא אושרו/נדחו
+                            3. ייתכן שכל העסקאות כבר הותאמו
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '<div class="result success">';
+                html += `✅ נמצאו ${txns.length} עסקאות ללא התאמה\n\n`;
+                html += '<table>';
+                html += '<tr><th>תאריך</th><th>סכום</th><th>תיאור</th><th>Memo</th></tr>';
+                
+                txns.slice(0, 10).forEach(txn => {
+                    html += '<tr>';
+                    html += `<td>${txn.date}</td>`;
+                    html += `<td style="direction: ltr">${txn.amount > 0 ? '+' : ''}${txn.amount.toFixed(2)} ₪</td>`;
+                    html += `<td>${txn.description}</td>`;
+                    html += `<td>${txn.memo || '(ריק)'}</td>`;
+                    html += '</tr>';
+                });
+
+                if (txns.length > 10) {
+                    html += `<tr><td colspan="4" style="text-align: center;">...ועוד ${txns.length - 10} עסקאות</td></tr>`;
+                }
+
+                html += '</table>';
+                html += '</div>';
+                resultDiv.innerHTML = html;
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">❌ שגיאה: ${error}</div>`;
+            }
+        }
+
+        async function checkBorrowersAndLoans() {
+            const resultDiv = document.getElementById('borrowersResult');
+            resultDiv.innerHTML = '<div class="result">🔄 טוען...</div>';
+
+            try {
+                const { invoke } = window.__TAURI__.core;
+                
+                // Get database path
+                const dbPath = await invoke('get_database_path');
+                
+                // We need to use the database service
+                // This will only work if we're in the actual app context
+                resultDiv.innerHTML = `
+                    <div class="result warning">
+                        ⚠️ בדיקה זו דורשת גישה ל-database.ts
+                        
+                        פתח את ה-DevTools (F12) בעמוד "אישור התאמות" והרץ:
+                        
+                        <code style="display: block; background: #333; color: #0f0; padding: 10px; margin: 10px 0;">
+const { db, loansService } = await import('./src/services/database');
+const borrowers = await db.query('SELECT * FROM borrowers WHERE is_deleted = 0');
+console.log('Borrowers:', borrowers.length);
+
+for (const borrower of borrowers) {
+  const loans = await loansService.getByBorrower(borrower.id);
+  const active = loans.filter(l => l.remaining > 0);
+  if (active.length > 0) {
+    console.log(\`\${borrower.first_name} \${borrower.last_name}: \${active.length} הלוואות פעילות\`);
+    active.forEach(loan => {
+      console.log(\`  - יתרה: \${loan.remaining} ₪, תאריך: \${loan.date || loan.loan_date}\`);
+    });
+  }
+}
+                        </code>
+                    </div>
+                `;
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">❌ שגיאה: ${error}</div>`;
+            }
+        }
+
+        async function checkCompatibility() {
+            const resultDiv = document.getElementById('compatibilityResult');
+            
+            if (unmatchedTransactions.length === 0) {
+                resultDiv.innerHTML = '<div class="result warning">⚠️ קודם הרץ "בדוק עסקאות ללא התאמה"</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = `
+                <div class="result warning">
+                    ⚠️ בדיקה זו דורשת הרצה ידנית
+                    
+                    פתח DevTools (F12) בעמוד "אישור התאמות" והרץ את הקוד הבא:
+                    
+                    <code style="display: block; background: #333; color: #0f0; padding: 10px; margin: 10px 0;">
+// קבל עסקאות ללא התאמה
+const txns = await bankService.getUnmatchedTransactions();
+const txn = txns[0]; // עסקה ראשונה
+
+console.log('עסקה:', {
+  id: txn.id,
+  amount: txn.amount,
+  date: txn.date,
+  description: txn.description,
+  memo: txn.memo
+});
+
+// קבל לווים
+const { db, loansService } = await import('./src/services/database');
+const borrowers = await db.query('SELECT * FROM borrowers WHERE is_deleted = 0');
+const borrower = borrowers[0]; // לווה ראשון
+
+if (borrower) {
+  const loans = await loansService.getByBorrower(borrower.id);
+  const activeLoans = loans.filter(l => l.remaining > 0);
+  
+  console.log('לווה:', {
+    name: \`\${borrower.first_name} \${borrower.last_name}\`,
+    phone: borrower.phone,
+    activeLoans: activeLoans.length
+  });
+  
+  if (activeLoans.length > 0) {
+    const loan = activeLoans[0];
+    console.log('הלוואה פעילה:', {
+      remaining: loan.remaining,
+      date: loan.date || loan.loan_date,
+      amount: loan.amount
+    });
+    
+    // חשב הפרשים
+    const amountDiff = Math.abs(Math.abs(txn.amount) - loan.remaining);
+    const txnDate = new Date(txn.date);
+    const loanDate = new Date(loan.date || loan.loan_date);
+    const daysDiff = Math.abs((txnDate - loanDate) / (1000 * 60 * 60 * 24));
+    
+    console.log('הפרשים:', {
+      amountDiff: amountDiff.toFixed(2) + ' ₪',
+      daysDiff: Math.floor(daysDiff) + ' ימים'
+    });
+    
+    // ציון משוער
+    let score = 0;
+    if (amountDiff < 0.01) score += 35;
+    else if (amountDiff < 1) score += 30;
+    else if (amountDiff < 10) score += 20;
+    else if (amountDiff < 100) score += 8;
+    
+    if (daysDiff === 0) score += 25;
+    else if (daysDiff <= 3) score += 20;
+    else if (daysDiff <= 7) score += 12;
+    else if (daysDiff <= 14) score += 4;
+    
+    console.log('ציון משוער (סכום+תאריך):', score);
+    console.log('מינימום לציון:', score >= 50 ? '✅ כן' : '❌ לא - צריך לפחות 50');
+  }
+}
+                    </code>
+                </div>
+            `;
+        }
+
+        async function tryCreateMatch() {
+            const resultDiv = document.getElementById('createResult');
+            resultDiv.innerHTML = `
+                <div class="result warning">
+                    ⚠️ ליצירת התאמות ידנית:
+                    
+                    1. לך לעמוד "ניהול בנקים > אישור התאמות"
+                    2. לחץ על הכפתור "צור התאמות אוטומטיות"
+                    3. בדוק את הקונסול (F12) לשגיאות
+                    4. אם יש שגיאה, העתק אותה לכאן
+                </div>
+            `;
+        }
+
+        async function checkBankDataFile() {
+            const resultDiv = document.getElementById('fileCheckResult');
+            resultDiv.innerHTML = '<div class="result">🔄 בודק...</div>';
+
+            try {
+                const { invoke } = window.__TAURI__.core;
+                
+                // Try to get bank data
+                const data = await invoke('load_bank_data_raw');
+                
+                let html = '<div class="result success">';
+                html += '✅ קובץ bank_data.json קיים\n\n';
+                html += `📊 סטטיסטיקות:\n`;
+                html += `- עסקאות בנק: ${data.bank_transactions?.length || 0}\n`;
+                html += `- התאמות: ${data.match_suggestions?.length || 0}\n`;
+                html += `- חשבונות בנק: ${data.bank_accounts?.length || 0}\n`;
+                html += `- סשני סנכרון: ${data.sync_sessions?.length || 0}\n\n`;
+                
+                const pending = data.match_suggestions?.filter(s => s.status === 'pending').length || 0;
+                const approved = data.match_suggestions?.filter(s => s.status === 'approved').length || 0;
+                const rejected = data.match_suggestions?.filter(s => s.status === 'rejected').length || 0;
+                
+                html += `📋 התאמות לפי סטטוס:\n`;
+                html += `- ממתין: ${pending}\n`;
+                html += `- מאושר: ${approved}\n`;
+                html += `- נדחה: ${rejected}\n`;
+                
+                html += '</div>';
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        ❌ לא הצלחתי לטעון את bank_data.json
+                        
+                        שגיאה: ${error}
+                        
+                        האם:
+                        1. הרצת סנכרון בנק לפחות פעם אחת?
+                        2. יש לך סיסמת-על מוגדרת?
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

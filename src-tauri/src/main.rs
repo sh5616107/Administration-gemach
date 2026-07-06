@@ -52,8 +52,10 @@ fn main() {
             bank_match_commands::reject_match,
             bank_match_commands::skip_match,
             bank_match_commands::create_manual_match,
+            bank_match_commands::create_auto_matches_for_transaction,
             bank_match_commands::get_unmatched_transactions,
             bank_match_commands::get_transaction_details,
+            bank_match_commands::delete_unmatched_transactions,
             bank_match_commands::reset_all_bank_data,
         ])
         .run(tauri::generate_context!())

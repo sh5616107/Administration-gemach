@@ -50,6 +50,25 @@ export interface BankTransaction {
   duplicate_reason?: string;
 }
 
+/**
+ * Extract the display name from a bank transaction.
+ * Priority: memo with "המבצע:" format > any memo > description
+ */
+export function getTransactionDisplayName(transaction: BankTransaction): string {
+  // If memo exists and contains "המבצע:" format, extract the name
+  if (transaction.memo) {
+    const memoMatch = transaction.memo.match(/המבצע:\s*([^.]+)\./);
+    if (memoMatch) {
+      return memoMatch[1].trim();
+    }
+    // If memo exists in any other format, use it
+    return transaction.memo;
+  }
+  
+  // Fallback to description
+  return transaction.description;
+}
+
 export interface MatchSuggestion {
   id: string;
   transaction_id: string;
@@ -331,6 +350,65 @@ class BankService {
     }
   }
 
+  async createAutoMatchesForTransaction(
+    transactionId: string,
+    borrowers: Array<{
+      borrower_id: string;
+      first_name: string;
+      last_name: string;
+      phone: string;
+      loan_amount: number;
+      loan_date: string;
+      loan_id: string;
+    }>,
+    donations: Array<{
+      donation_id: string;
+      amount: number;
+      date: string;
+      donor_first: string;
+      donor_last: string;
+      donor_phone: string;
+    }>,
+    deposits: Array<{
+      deposit_id: string;
+      amount: number;
+      date: string;
+      depositor_first: string;
+      depositor_last: string;
+      depositor_phone: string;
+    }>,
+    expenses: Array<{
+      expense_id: string;
+      amount: number;
+      date: string;
+      description: string;
+      category: string;
+    }>,
+    loanDisbursements: Array<{
+      loan_id: string;
+      borrower_id: string;
+      first_name: string;
+      last_name: string;
+      amount: number;
+      date: string;
+      loan_purpose: string;
+    }>
+  ): Promise<number> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke('create_auto_matches_for_transaction', {
+        transactionId,
+        borrowers,
+        donations,
+        deposits,
+        expenses,
+        loanDisbursements,
+      });
+    } catch (error) {
+      throw new Error(`Failed to create auto matches: ${error}`);
+    }
+  }
+
   // Transactions
   // --------------------------------------------------------------------------
 
@@ -351,6 +429,15 @@ class BankService {
     } catch (error) {
       console.error('Failed to get transaction details:', error);
       return null;
+    }
+  }
+
+  async deleteUnmatchedTransactions(): Promise<number> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke('delete_unmatched_transactions');
+    } catch (error) {
+      throw new Error(`Failed to delete unmatched transactions: ${error}`);
     }
   }
 

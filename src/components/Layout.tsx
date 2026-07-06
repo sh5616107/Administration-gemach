@@ -46,7 +46,6 @@ const drawerWidth = 220
 const menuItems = [
   { text: 'דף הבית', icon: <HomeIcon />, path: '/' },
   { text: 'לווים והלוואות', icon: <PeopleIcon />, path: '/loans' },
-  { text: 'לווים והלוואות (מחודש)', icon: <PeopleIcon />, path: '/borrowers-loans-modern' },
   { text: 'תרומות', icon: <DonationIcon />, path: '/donations' },
   { text: 'הפקדות', icon: <DepositIcon />, path: '/deposits' },
   { text: 'אנשי קשר', icon: <PersonIcon />, path: '/contacts' },
@@ -57,6 +56,7 @@ const menuItems = [
     { text: 'סנכרון', path: '/bank/sync' },
     { text: 'אישור התאמות', path: '/bank/matching' },
     { text: 'היסטוריה', path: '/bank/history' },
+    { text: '🐛 אבחון בעיות', path: '/bank/debug' },
   ]},
   { text: 'הגדרות', icon: <SettingsIcon />, path: '/settings' },
   { text: 'מדריך שימוש', icon: <HelpIcon />, path: '/help' },

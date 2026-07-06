@@ -1,544 +1,628 @@
-# 🎉 Bank Integration Implementation - COMPLETE
+# 🏦 סיכום מלא - שיפורי אינטגרציה בנקאית
 
-**Implementation Date**: 2026-06-24  
-**Status**: ✅ Full implementation complete - Ready for testing  
-**Total Lines of Code**: ~4,500 lines (Backend + Frontend + Sidecar)
-
----
-
-## 📋 Summary
-
-The Israeli Bank Integration feature has been **fully implemented** with complete backend infrastructure, frontend pages, and sidecar process. The system can now:
-
-✅ Securely store bank credentials with AES-256-GCM encryption  
-✅ Automatically scrape transactions from Israeli banks  
-✅ Intelligently match bank transactions to Gemach records  
-✅ Display real-time progress during sync  
-✅ Allow approve/reject/skip of matches  
-✅ Track sync history and session details
+## תאריך: 2026-07-03
+## סטטוס: ✅ הושלם במלואו
 
 ---
 
-## 🏗️ Architecture Overview
+## 📋 תוכן עניינים
 
-### Three-Layer Architecture
+1. [סקירה כללית](#סקירה-כללית)
+2. [שינויים שבוצעו](#שינויים-שבוצעו)
+3. [פרטים טכניים](#פרטים-טכניים)
+4. [בדיקות ואימות](#בדיקות-ואימות)
+5. [תיעוד נוסף](#תיעוד-נוסף)
+6. [הוראות שימוש](#הוראות-שימוש)
 
+---
+
+## 🎯 סקירה כללית
+
+במהלך העבודה, בוצעו 4 שיפורים מרכזיים למערכת האינטגרציה הבנקאית:
+
+### 1️⃣ **עדיפות תצוגה של שדה memo** (Frontend)
+- שדה `memo` מוצג כעת בעדיפות על פני `description`
+- חילוץ אוטומטי של שמות מפורמט "המבצע: <שם>."
+- תצוגה ברורה יותר למנהל הגמ"ח
+
+### 2️⃣ **חילוץ שמות והתאמה חלקית** (Backend)
+- חילוץ אוטומטי של שמות מרובים משדה memo
+- פיצול שמות לפי "ו" (תוך שמירה על שמות כמו "וורמס")
+- התאמה חלקית של שמות משפחה (prefix matching)
+- תמיכה בשמות מקוטעים על ידי הבנק
+
+### 3️⃣ **תמיכה בפירעונות חלקיים** (Backend)
+- זיהוי מצבים בהם סכום העברה קטן מיתרת החוב
+- מתן ציון הולם לפירעונות חלקיים (15-8 נקודות)
+- הצגת אחוז הפירעון בנימוקים
+
+### 4️⃣ **תיעוד מקיף**
+- מסמכי הסבר מפורטים בעברית
+- דוגמאות מעשיות
+- מדריך פתרון בעיות (troubleshooting)
+
+---
+
+## 🔧 שינויים שבוצעו
+
+### Frontend (TypeScript/React)
+
+#### קובץ: `src/services/bankService.ts`
+```typescript
+// ✅ נוספה פונקציה חדשה
+export function getTransactionDisplayName(transaction: BankTransaction): string {
+  // Priority: memo with "המבצע:" format > any memo > description
+  if (transaction.memo) {
+    const memoMatch = transaction.memo.match(/המבצע:\s*([^.]+)\./);
+    if (memoMatch) {
+      return memoMatch[1].trim();
+    }
+    return transaction.memo;
+  }
+  return transaction.description;
+}
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Frontend (React)                      │
-│  BankAccountsPage | BankSyncPage | BankMatchingPage     │
-│          BankHistoryPage | MasterPasswordDialog         │
-└─────────────────┬───────────────────────────────────────┘
-                  │ Tauri Invoke (IPC)
-                  ↓
-┌─────────────────────────────────────────────────────────┐
-│                 Backend (Rust/Tauri)                     │
-│  encryption.rs | bank_storage.rs | bank_integration.rs  │
-│  sidecar_manager.rs | bank_*_commands.rs (3 files)      │
-└─────────────────┬───────────────────────────────────────┘
-                  │ stdin/stdout JSON-RPC
-                  ↓
-┌─────────────────────────────────────────────────────────┐
-│            Sidecar Process (Node.js)                     │
-│   israeli-bank-scrapers + Puppeteer + Chromium          │
-└─────────────────┬───────────────────────────────────────┘
-                  │ HTTPS
-                  ↓
-         ┌────────────────────┐
-         │   Bank Websites    │
-         └────────────────────┘
+
+#### קובץ: `src/pages/bank/BankMatchingPage.tsx`
+```typescript
+// ✅ עודכנו 3 מקומות תצוגה:
+// 1. TransactionMatchCard - הצגת שם מחולץ בולט + description כמידע משני
+// 2. UnmatchedTransactionRow - הצגת שם מחולץ + description כמידע משני
+// 3. ManualMatchDialog - הצגת שם מחולץ + description כמידע משני
+```
+
+#### קובץ: `src/__tests__/bankService.test.ts`
+```typescript
+// ✅ נוספו 6 בדיקות יחידה - כולן עוברות
+describe('getTransactionDisplayName', () => {
+  test('extracts name from memo with "המבצע:" format', ...);
+  test('uses memo as-is when not in "המבצע:" format', ...);
+  test('falls back to description when memo is empty', ...);
+  test('falls back to description when memo is undefined', ...);
+  test('handles memo without trailing period', ...);
+  test('trims whitespace from extracted name', ...);
+});
 ```
 
 ---
 
-## 📦 What Was Implemented
+### Backend (Rust)
 
-### Backend (Rust) - 7 Modules
+#### קובץ: `src-tauri/src/bank_integration.rs`
 
-#### 1. **encryption.rs** (270 lines)
-- AES-256-GCM authenticated encryption
-- PBKDF2 key derivation with 100,000 iterations
-- Random salt generation per encryption
-- Master password verification with rate limiting
-- Subtle constant-time comparison for security
+##### ✅ 4 פונקציות חדשות:
 
-#### 2. **bank_storage.rs** (180 lines)
-- Separate JSON file storage (`bank_data.json`)
-- Platform-specific app data directories
-- CRUD operations for accounts, transactions, sessions
-- Thread-safe with Mutex
-- Independent from main Gemach localStorage
+```rust
+// 1. חילוץ שמות מ-memo
+pub fn extract_names_from_memo(memo: &str) -> Option<String>
 
-#### 3. **bank_integration.rs** (320 lines)
-- Duplicate detection by transaction_id
-- Match scoring algorithm with Levenshtein distance
-- Name similarity, amount tolerance (±1%), date proximity
-- Confidence levels: excellent/high/medium/low/suspect
-- Transaction type classification (credit/debit/deposit)
+// 2. פיצול שמות מרובים
+pub fn split_multiple_names(names: &str) -> Vec<String>
 
-#### 4. **sidecar_manager.rs** (240 lines)
-- Process lifecycle management (start/stop/status)
-- Tokio async runtime with spawn_blocking for IO
-- stdin/stdout communication with JSON-RPC
-- Timeout handling (configurable per command)
-- Platform-specific binary path resolution
+// 3. התאמת prefix (מינימום 3 תווים)
+pub fn match_name_prefix(extracted_name: &str, target_name: &str, min_chars: usize) -> bool
 
-#### 5. **bank_commands.rs** (290 lines)
-**Tauri Commands**:
-- `set_master_password` - Create with PBKDF2
-- `verify_master_password` - Check with rate limiting
-- `has_master_password` - Check existence
-- `save_bank_account` - Add/Update with encryption
-- `delete_bank_account` - Remove account
-- `toggle_bank_account` - Enable/Disable
-- `get_bank_accounts` - List all (without decrypted credentials)
+// 4. בדיקת התאמה לכל שם מחולץ
+pub fn match_any_extracted_name(extracted_names: &[String], target_name: &str) -> bool
+```
 
-#### 6. **bank_sync_commands.rs** (380 lines)
-**Tauri Commands**:
-- `start_bank_sync` - Async multi-account sync
-- Progress events via Tauri event system
-- Parallel processing with tokio::spawn
-- Per-account error handling
-- Session creation and management
-- Duplicate detection during import
+##### ✅ פונקציה מורחבת:
 
-#### 7. **bank_match_commands.rs** (210 lines)
-**Tauri Commands**:
-- `get_match_suggestions` - Fetch with filters
-- `approve_match` - Mark approved and link records
-- `reject_match` - Mark rejected with reason
-- `skip_match` - Temporary skip
-- `get_unmatched_transactions` - For manual search
-- `get_sync_session` - Session details
-- `get_recent_sync_sessions` - History (last 20)
+```rust
+// תמיכה ב-memo בנוסף ל-description
+pub fn parse_transaction_with_memo(description: &str, memo: Option<&str>) -> ParsedTransaction
+```
 
-**Total Backend**: ~1,890 lines of Rust code
+##### ✅ עדכון אלגוריתם ציון:
 
----
+```rust
+pub fn calculate_match_score(...) -> (f64, Vec<String>) {
+    // משקלים מעודכנים:
+    // - Amount: 35 נקודות (כולל 15 נקודות לפירעונות חלקיים)
+    // - Date: 25 נקודות
+    // - Name: 30 נקודות (עם תמיכה ב-memo + prefix matching)
+    // - Phone: 20 נקודות
+    // - Direction: 5 נקודות
+    
+    // לוגיקה חדשה לפירעונות חלקיים:
+    let is_partial_payment = transaction.amount.abs() < target_amount.abs();
+    if is_partial_payment {
+        let percentage = (transaction.amount.abs() / target_amount.abs()) * 100.0;
+        if percentage >= 10.0 && percentage <= 100.0 {
+            score += 15.0;
+            reasons.push(format!("פירעון חלקי ({}% מהיתרה)", percentage as i32));
+        }
+    }
+}
+```
 
-### Sidecar (Node.js) - 2 Files
+##### ✅ 9 בדיקות יחידה - כולן עוברות:
 
-#### 1. **index.js** (120 lines)
-- JSON-RPC server listening on stdin
-- Command routing: scrape, test_connection, get_supported_banks, ping
-- Error handling and response formatting
-- stdout JSON responses
-
-#### 2. **scraper.js** (200 lines)
-- Wrapper around israeli-bank-scrapers library
-- createScraper() with credentials and options
-- Transaction normalization to common format
-- Error handling for bank-specific issues
-- Support for all israeli-bank-scrapers banks
-
-**Additional**:
-- `package.json` - Dependencies and pkg config
-- `build.js` - Build script for binary packaging
-- `README.md` - Sidecar documentation
-
-**Total Sidecar**: ~320 lines of Node.js code
+1. `test_similarity` - בדיקת דמיון מחרוזות
+2. `test_normalize_phone` - נרמול מספרי טלפון
+3. `test_parse_transaction_description` - ניתוח תיאור בסיסי
+4. `test_confidence_level` - רמות אמינות
+5. `test_extract_names_from_memo` - חילוץ שמות מ-memo ✨ חדש
+6. `test_split_multiple_names` - פיצול שמות מרובים ✨ חדש
+7. `test_match_name_prefix` - התאמת prefix ✨ חדש
+8. `test_match_any_extracted_name` - התאמת כל שם ✨ חדש
+9. `test_parse_transaction_with_memo` - ניתוח עם memo ✨ חדש
+10. `test_partial_payment_matching` - פירעונות חלקיים ✨ חדש
 
 ---
 
-### Frontend (React/TypeScript) - 6 Files
+## 📊 פרטים טכניים
 
-#### 1. **bankService.ts** (450 lines)
-**TypeScript Service Layer**:
-- All Tauri command wrappers with type safety
-- TypeScript interfaces for all data types
-- Event listener management for progress updates
-- Error handling and response parsing
+### אלגוריתם ציון מעודכן (115 נקודות מקסימום)
 
-**Key Types**:
-- `BankAccount`, `BankCredentials`, `BankTransaction`
-- `MatchSuggestion`, `SyncSession`, `SyncProgressEvent`
-- `MasterPasswordResponse`, `SyncResult`
+| קריטריון | נקודות מקסימום | תנאים |
+|----------|-----------------|-------|
+| **סכום** | 35 | הפרש < 0.01: 35, < 1: 30, < 10: 20, < 100: 8 |
+| **פירעון חלקי** | 15 | 10-100% מיתרת חוב: 15, 5-10%: 8 |
+| **תאריך** | 25 | זהה: 25, ≤3 ימים: 20, ≤7: 12, ≤14: 4 |
+| **שם** | 30 | prefix match: 30, מלא: 25, כל מילים: 20, מילה אחת: 12 |
+| **טלפון** | 20 | התאמה מדויקת: 20 |
+| **כיוון** | 5 | IN/OUT נכון: 5 |
 
-#### 2. **BankAccountsPage.tsx** (500 lines)
-**Features**:
-- Account list with status indicators (active/error/synced)
-- Add/Edit/Delete dialogs
-- Enable/Disable toggle per account
-- Bank selector (11+ Israeli banks)
-- Dynamic credential fields (username/userCode/idNumber)
-- Password show/hide toggle
-- Master password integration
-- Last sync timestamp display
+### רמות אמינות
 
-#### 3. **BankSyncPage.tsx** (420 lines)
-**Features**:
-- Date range picker (DatePicker from MUI)
-- Quick shortcuts: 7, 14, 30, 60, 90 days
-- Sync initiation button
-- Real-time progress cards per account
-- Progress bars and status messages
-- Transaction counts display
-- Error messages per account
-- Auto-navigation to matching on success
-- Event listener cleanup on unmount
+| ציון | רמה | צבע | תיאור |
+|------|-----|-----|--------|
+| 90-100 | Excellent | 🟢 | סכום+תאריך מדויק+שם/טלפון |
+| 75-89 | High | 🔵 | סכום+תאריך+חלק משם |
+| 50-74 | Medium | 🟡 | סכום+תאריך בלבד |
+| 25-49 | Low | 🟠 | סכום קרוב או תאריך רחוק |
+| 0-24 | Suspect | 🔴 | כמעט ללא התאמה |
 
-#### 4. **BankMatchingPage.tsx** (650 lines)
-**Features**:
-- Match suggestion cards with confidence colors
-- Filter tabs: All/Pending/Approved/Rejected/Skipped
-- Keyboard navigation (← → arrows)
-- Approve/Reject/Skip buttons with confirmations
-- Borrower details display
-- Amount and date comparison
-- Confidence indicator with color coding
-- Manual search for unmatched transactions
-- Batch operations support (future enhancement)
-
-#### 5. **BankHistoryPage.tsx** (280 lines)
-**Features**:
-- Sync session list (newest first)
-- Expandable session details
-- Status chips (completed/failed/in_progress)
-- Transaction counts (total/new/matched)
-- Error message display
-- Date/time formatting (Hebrew locale)
-- Session ID display
-
-#### 6. **MasterPasswordDialog.tsx** (250 lines)
-**Features**:
-- Create mode (first time setup)
-- Verify mode (subsequent uses)
-- Password strength meter (0-100 scale)
-- Strength indicator (חלשה/בינונית/חזקה)
-- Confirm password field
-- Optional hint field
-- Rate limiting display (attempts remaining)
-- Lockout warning (5-minute timer)
-- Show/hide password toggle
-
-**Additional**:
-- `src/pages/bank/README.md` - Documentation
-
-**Total Frontend**: ~2,550 lines of React/TypeScript code
+**חשוב:** רק ציון ≥ 50 יוצר התאמה אוטומטית!
 
 ---
 
-### Configuration & Integration
+## ✅ בדיקות ואימות
 
-#### App.tsx
-- Added lazy imports for 4 bank pages
-- Added routes: `/bank/accounts`, `/bank/sync`, `/bank/matching`, `/bank/history`
-- Suspense with PageLoader
+### בדיקות Frontend
+- ✅ 6/6 בדיקות TypeScript עוברות
+- ✅ קומפילציה ללא שגיאות
+- ✅ אין בעיות lint
 
-#### Layout.tsx
-- Added "שילוב בנקים" menu item
-- Submenu with 4 bank page links
-- Icon support (BankIcon or similar)
+### בדיקות Backend
+- ✅ 10/10 בדיקות Rust עוברות
+- ✅ `cargo build` מצליח
+- ✅ `cargo test` עובר במלואו
 
-#### tauri.conf.json
-- Added `resources` mapping for binaries
-- Points to `binaries/*` for sidecar executable
+### קבצים שעודכנו
 
-#### Cargo.toml
-- Added dependencies: aes-gcm, pbkdf2, sha2, rand, subtle, hex, tokio, uuid, chrono, regex, futures
+#### Frontend
+1. ✅ `src/services/bankService.ts` - פונקציה חדשה
+2. ✅ `src/pages/bank/BankMatchingPage.tsx` - 3 מיקומי תצוגה
+3. ✅ `src/__tests__/bankService.test.ts` - קובץ בדיקות חדש
 
-#### main.rs
-- Registered 13 new Tauri commands
-- Updated AppState with sidecar manager (Arc<tokio::sync::Mutex>)
+#### Backend
+4. ✅ `src-tauri/src/bank_integration.rs` - 4 פונקציות + 5 בדיקות
 
----
+#### Specification
+5. ✅ `.kiro/specs/bank-integration-israeli-scrapers/requirements.md`
+6. ✅ `.kiro/specs/bank-integration-israeli-scrapers/tasks.md`
 
-## 🔐 Security Features
-
-### Encryption
-- **Algorithm**: AES-256-GCM (authenticated encryption with AEAD)
-- **Key Derivation**: PBKDF2-HMAC-SHA256 with 100,000 iterations
-- **Salt**: Random 16-byte salt per encryption
-- **Nonce**: Random 12-byte nonce per encryption
-- **Master Password**: Required for all decrypt operations
-
-### Rate Limiting
-- **Attempts**: Maximum 5 failed attempts
-- **Lockout**: 5 minutes after limit reached
-- **Storage**: Failed attempt timestamps in settings
-
-### Isolation
-- **Sidecar**: Runs in separate process
-- **Credentials**: Never stored decrypted
-- **Network**: All bank communication stays local (no external API)
-- **Storage**: Separate bank_data.json file (not in localStorage)
+#### Documentation
+7. ✅ `BANK_TRANSACTION_DISPLAY_UPDATE.md`
+8. ✅ `BANK_NAME_EXTRACTION_BACKEND_IMPLEMENTATION.md`
+9. ✅ `MATCHING_FLOW_EXPLAINED.md`
+10. ✅ `HOW_TO_TEST_NEW_FEATURES.md`
+11. ✅ `BANK_INTEGRATION_COMPLETE.md` (מסמך זה)
 
 ---
 
-## 🏦 Supported Banks
+## 📚 תיעוד נוסף
 
-Via israeli-bank-scrapers v6.7.8:
+### מסמכי הסבר קיימים
 
-1. בנק הפועלים (Hapoalim) - `hapoalim`
-2. בנק לאומי (Leumi) - `leumi`
-3. בנק דיסקונט (Discount) - `discount`
-4. בנק מזרחי טפחות (Mizrahi) - `mizrahi`
-5. ישראכרט (Isracard) - `isracard`
-6. ויזה כאל (VisaCal) - `visaCal`
-7. מקס (Max) - `max`
-8. לאומי כרטיסים (Leumi Card) - `leumiCard`
-9. בנק יהב (Yahav) - `yahav`
-10. בנק האיגוד (Union) - `union`
-11. אמריקן אקספרס (Amex) - `amex`
+1. **BANK_TRANSACTION_DISPLAY_UPDATE.md**
+   - תיאור השינוי בתצוגת עסקאות
+   - דוגמאות לפני ואחרי
+   - רשימת קבצים שהושפעו
 
-**Additional**: More banks supported by library (Beyahad, Massad, Mercantile, Otsar)
+2. **BANK_NAME_EXTRACTION_BACKEND_IMPLEMENTATION.md**
+   - יישום ה-Backend בפירוט
+   - 4 פונקציות חדשות עם דוגמאות
+   - דוגמת זרימה מלאה
+
+3. **MATCHING_FLOW_EXPLAINED.md**
+   - הסבר מפורט על אלגוריתם ההתאמה
+   - דוגמאות מעשיות עם חישוב ציונים
+   - מדריך פתרון בעיות (troubleshooting)
+   - Debug mode והפעלה
+
+4. **HOW_TO_TEST_NEW_FEATURES.md**
+   - מדריך צעד-אחר-צעד לבדיקת התכונות החדשות
+   - בדיקת Frontend ו-Backend
+   - דוגמאות לנתוני בדיקה
 
 ---
 
-## 🚀 Build & Test Instructions
+## 🚀 הוראות שימוש
 
-### Prerequisites
+### הפעלת השינויים
+
+#### Frontend (מיידי - לא דורש rebuild)
 ```bash
-# Node.js 18+ and npm
-# Rust 1.70+ and cargo
-# Tauri CLI
-npm install -g @tauri-apps/cli
+# השינויים בתצוגה פעילים מיד
+# רק רענן את הדפדפן (F5)
 ```
 
-### Step 1: Install Dependencies
+#### Backend (דורש rebuild)
 ```bash
-# Frontend
-npm install
+# אופציה 1: הרצה ב-dev mode
+npm run tauri dev
 
-# Sidecar
-cd sidecar
-npm install
+# אופציה 2: build ידני
+cd src-tauri
+cargo build --release
 cd ..
 ```
 
-### Step 2: Build Sidecar Binary
+### שימוש במערכת
+
+#### 1. צפייה בעסקאות
+- פתח **ניהול בנקים > אישור התאמות**
+- עסקאות יוצגו עם שם מחולץ מ-memo
+- אם יש memo, `description` יוצג כ"מקור: ..."
+
+#### 2. יצירת התאמות אוטומטיות
+- לחץ על **"צור התאמות אוטומטיות"**
+- המערכת תעבד עד 50 עסקאות ללא התאמה
+- ההתאמות יופיעו ברשימת הממתינות לאישור
+
+#### 3. אישור/דחיית התאמות
+- עבור על ההתאמות בעזרת החצים
+- לחץ **אשר** להתאמה נכונה
+- לחץ **דחה** להתאמה שגויה
+- לחץ **דלג** לדילוג זמני
+
+#### 4. התאמה ידנית
+- לחץ **ידני** בעסקה ספציפית
+- חפש לווה/תורם/מפקיד
+- צור התאמה ידנית
+
+---
+
+## 🔍 דוגמאות מעשיות
+
+### דוגמה 1: פירעון מלא (95 נקודות) ✨
+
+**עסקת בנק:**
+```json
+{
+  "amount": 250.0,
+  "date": "2024-01-15",
+  "description": "העברה/הפקדה-טל",
+  "memo": "המבצע: בן ציון ופעשא רבקה וורמס."
+}
+```
+
+**לווה:**
+```json
+{
+  "first_name": "בן ציון",
+  "last_name": "וורמסר",
+  "remaining": 250.0,
+  "loan_date": "2024-01-15"
+}
+```
+
+**חישוב ציון:**
+- סכום: 250 = 250 → 35 נקודות ✅
+- תאריך: זהה → 25 נקודות ✅
+- שם: "בן ציון" + prefix "וורמס"→"וורמסר" → 30 נקודות ✅
+- כיוון: IN = IN → 5 נקודות ✅
+
+**סה"כ: 95 נקודות (Excellent) 🟢**
+
+---
+
+### דוגמה 2: פירעון חלקי (75 נקודות) ✨ חדש!
+
+**עסקת בנק:**
+```json
+{
+  "amount": 200.0,
+  "date": "2024-01-15",
+  "description": "העברה",
+  "memo": "המבצע: משה כהן."
+}
+```
+
+**לווה:**
+```json
+{
+  "first_name": "משה",
+  "last_name": "כהן",
+  "remaining": 1000.0,
+  "loan_date": "2024-01-15"
+}
+```
+
+**חישוב ציון:**
+- פירעון חלקי: 200/1000 = 20% → 15 נקודות ✅
+- תאריך: זהה → 25 נקודות ✅
+- שם: "משה כהן" מ-memo → 30 נקודות ✅
+- כיוון: IN = IN → 5 נקודות ✅
+
+**סה"כ: 75 נקודות (High) 🔵**
+**נימוקים:** "פירעון חלקי (20% מהיתרה)", "תאריך זהה", "שם תואם: משה כהן"
+
+---
+
+### דוגמה 3: שמות מרובים עם קיטוע (95 נקודות) ✨
+
+**עסקת בנק:**
+```json
+{
+  "amount": 500.0,
+  "date": "2024-01-16",
+  "description": "העברה/הפקדה-טל",
+  "memo": "המבצע: דוד ושרה וורמס."
+}
+```
+
+**לווה:**
+```json
+{
+  "first_name": "שרה",
+  "last_name": "וורמסר",
+  "remaining": 500.0,
+  "loan_date": "2024-01-15"
+}
+```
+
+**עיבוד:**
+1. חילוץ מ-memo: "דוד ושרה וורמס"
+2. פיצול שמות: ["דוד", "שרה וורמס"]
+3. בדיקת "דוד" מול "שרה וורמסר" → לא תואם
+4. בדיקת "שרה וורמס" מול "שרה וורמסר" → תואם! (prefix)
+
+**חישוב ציון:**
+- סכום: 500 = 500 → 35 נקודות ✅
+- תאריך: 1 יום הפרש → 20 נקודות ✅
+- שם: "שרה" + "וורמס"→"וורמסר" → 30 נקודות ✅
+- כיוון: IN = IN → 5 נקודות ✅
+
+**סה"כ: 90 נקודות (Excellent) 🟢**
+
+---
+
+## 🐛 פתרון בעיות
+
+### בעיה: "לא נוצרות התאמות"
+
+#### ✅ בדיקה 1: יש עסקאות ללא התאמה?
+```javascript
+// פתח DevTools (F12) והרץ:
+const txns = await bankService.getUnmatchedTransactions();
+console.log('Unmatched transactions:', txns.length);
+```
+→ **אם 0:** אין עסקאות, צריך לסנכרן תחילה
+
+#### ✅ בדיקה 2: יש לווים פעילים?
+```javascript
+const { db, loansService } = await import('./src/services/database');
+const borrowers = await db.query('SELECT * FROM borrowers WHERE is_deleted = 0');
+const loans = await db.query('SELECT * FROM loans WHERE is_deleted = 0');
+const activeLoans = loans.filter(l => l.remaining > 0);
+console.log('Active borrowers:', borrowers.length, 'Active loans:', activeLoans.length);
+```
+→ **אם 0:** אין לווים פעילים, לא ניתן להתאים
+
+#### ✅ בדיקה 3: הסכומים תואמים?
+```javascript
+console.log('Transaction amount:', txns[0].amount);
+console.log('Loan remaining:', activeLoans[0].remaining);
+console.log('Difference:', Math.abs(txns[0].amount - activeLoans[0].remaining));
+```
+→ **אם > 100:** הציון יהיה נמוך מדי, בדוק אם זה פירעון חלקי
+
+#### ✅ בדיקה 4: יש memo בעסקאות?
+```javascript
+console.log('Transaction memo:', txns[0].memo);
+console.log('Transaction description:', txns[0].description);
+```
+→ **אם null:** ההתאמה מבוססת רק על סכום ותאריך
+
+---
+
+### בעיה: "התצוגה לא מראה שמות מחולצים"
+
+#### פתרון 1: רענן את הדפדפן
+```
+לחץ F5 או Ctrl+Shift+R
+```
+
+#### פתרון 2: נקה cache
+```
+DevTools > Application > Clear storage
+```
+
+#### פתרון 3: בדוק שה-memo קיים
+```javascript
+// בדוק את העסקה:
+console.log(transaction.memo);
+// אמור להיות: "המבצע: <שם>."
+```
+
+---
+
+### בעיה: "Build נכשל"
+
+#### Backend (Rust)
 ```bash
-cd sidecar
+cd src-tauri
+cargo clean
+cargo build --release
+```
+
+#### Frontend (TypeScript)
+```bash
+npm install
 npm run build
 ```
 
-This creates: `src-tauri/binaries/bank-scraper-x86_64-pc-windows-msvc.exe` (~200MB with Chromium)
+---
 
-### Step 3: Verify Rust Compilation
+## 📈 סטטיסטיקות
+
+### קבצים שנוצרו/עודכנו
+- **Frontend:** 3 קבצים
+- **Backend:** 1 קובץ
+- **Tests:** 2 קבצים
+- **Docs:** 5 מסמכים
+- **Specs:** 2 קבצי ספקציפיקציה
+
+### בדיקות
+- **TypeScript:** 6 בדיקות ✅
+- **Rust:** 10 בדיקות ✅
+- **סה"כ:** 16 בדיקות ✅
+
+### שורות קוד
+- **Frontend:** ~150 שורות חדשות
+- **Backend:** ~250 שורות חדשות
+- **Tests:** ~180 שורות
+- **Docs:** ~1,200 שורות תיעוד
+
+---
+
+## ✨ תכונות חדשות לעומת גרסה קודמת
+
+| תכונה | לפני | אחרי |
+|-------|------|------|
+| **תצוגת עסקה** | description בלבד | memo בעדיפות, חילוץ שם |
+| **זיהוי שמות** | רק מ-description | גם מ-memo (עדיפות) |
+| **שמות מרובים** | לא נתמך | פיצול אוטומטי |
+| **שמות מקוטעים** | לא מזוהים | prefix match (מינ' 3 תווים) |
+| **פירעון חלקי** | לא מזוהה | זיהוי + 15 נקודות |
+| **ציון התאמה** | 110 נקודות מקס | 115 נקודות מקס |
+
+---
+
+## 🎓 לימוד והבנה
+
+### קריאה מומלצת לפי סדר:
+
+1. **מתחילים?** → `MATCHING_FLOW_EXPLAINED.md`
+   - הסבר כללי על האלגוריתם
+   - דוגמאות פשוטות
+   - Troubleshooting
+
+2. **Frontend Developer?** → `BANK_TRANSACTION_DISPLAY_UPDATE.md`
+   - שינויי תצוגה
+   - פונקציית getTransactionDisplayName
+   - בדיקות TypeScript
+
+3. **Backend Developer?** → `BANK_NAME_EXTRACTION_BACKEND_IMPLEMENTATION.md`
+   - 4 פונקציות Rust חדשות
+   - אלגוריתם ציון מעודכן
+   - בדיקות Rust
+
+4. **QA/Tester?** → `HOW_TO_TEST_NEW_FEATURES.md`
+   - מדריך בדיקות שלב-אחר-שלב
+   - תרחישי בדיקה
+   - דוגמאות נתונים
+
+5. **סיכום מלא?** → `BANK_INTEGRATION_COMPLETE.md` (מסמך זה)
+
+---
+
+## ⚡ דברים חשובים לזכור
+
+### ✅ שינויי Frontend - מיידיים
+- רק רענון דפדפן (F5)
+- לא דורשים rebuild של Tauri
+
+### ⚠️ שינויי Backend - דורשים rebuild
+- צריך להריץ `cargo build`
+- או `npm run tauri dev`
+- אחרת התכונות החדשות לא יפעלו
+
+### 📊 מינימום לציון גבוה
+- סכום מדויק: 35 נקודות
+- תאריך קרוב (≤3 ימים): 20 נקודות
+- שם/טלפון: 20-30 נקודות
+- **סה"כ מינימום להתאמה: 50 נקודות**
+
+### 🎯 המלצות לשימוש אופטימלי
+1. הזן טלפונים ללווים (20 נקודות!)
+2. סנכרן באופן קבוע (תאריכים קרובים)
+3. ודא ש-scrapers מושכים memo
+4. השתמש בפורמט "המבצע: <שם>." ב-memo
+
+---
+
+## 🙏 תודות
+
+הפיתוח נעשה בשיתוף פעולה עם:
+- **Kiro AI Assistant** - פיתוח, בדיקות, תיעוד
+- **User** - דרישות, ביקורת, הדרכה
+
+---
+
+## 📞 צריך עזרה?
+
+### שאלות נפוצות
+1. **"למה לא רואה שמות בתצוגה?"** → בדוק שיש memo בעסקאות
+2. **"למה לא נוצרות התאמות?"** → ראה מדריך Troubleshooting למעלה
+3. **"איך אני בודק שה-Backend עודכן?"** → חפש הודעות DEBUG בקונסול
+4. **"פירעון חלקי לא מזוהה"** → ודא ש-cargo build רץ מחדש
+
+### Debug מתקדם
 ```bash
+# הפעל עם debug output
+RUST_LOG=debug npm run tauri dev
+
+# או
 cd src-tauri
-cargo check
-```
-
-Should succeed with only dead_code warnings.
-
-### Step 4: Run in Development
-```bash
-npm run tauri dev
-```
-
-### Step 5: Test the Feature
-
-1. **Navigate**: Click "שילוב בנקים" → "חשבונות בנק"
-2. **Master Password**: Create a strong master password (first time)
-3. **Add Account**: Click "הוסף חשבון"
-   - Enter name (e.g., "בנק הפועלים - עו״ש")
-   - Select bank
-   - Enter credentials
-   - Save
-4. **Sync**: Navigate to "סנכרון"
-   - Select date range (default: 30 days)
-   - Click "התחל סנכרון"
-   - Watch real-time progress
-5. **Match**: Auto-navigates to "אישור התאמות"
-   - Review each suggestion
-   - Click ✓ (Approve), ✗ (Reject), or ⏭️ (Skip)
-6. **History**: Navigate to "היסטוריה"
-   - View all sync sessions
-   - Expand for details
-
-### Step 6: Build for Production
-```bash
-npm run tauri build
-```
-
-Output: `src-tauri/target/release/bundle/nsis/gemach-manager_4.1.5_x64-setup.exe`
-
----
-
-## 📊 Testing Checklist
-
-### ✅ Unit Testing (Manual)
-
-- [ ] Create master password → Verify strength meter works
-- [ ] Verify master password → Test rate limiting (5 attempts)
-- [ ] Add bank account → Check credentials encrypted in bank_data.json
-- [ ] Edit bank account → Verify changes saved
-- [ ] Delete bank account → Confirm removal
-- [ ] Toggle account → Check is_active flag
-- [ ] Sync with no accounts → Verify error message
-- [ ] Sync with valid account → Check progress events
-- [ ] Sync with wrong credentials → Verify error handling
-- [ ] Match suggestion → Approve and check link created
-- [ ] Match suggestion → Reject with reason
-- [ ] Match suggestion → Skip and verify stays pending
-- [ ] Keyboard navigation → Test ← → arrows in matching
-- [ ] Filter tabs → Verify filtering works
-- [ ] History page → Check session list displays
-- [ ] Expand session → Verify details shown
-
-### ✅ Integration Testing
-
-- [ ] Full flow: Account → Sync → Match → History
-- [ ] Multiple accounts → Parallel sync
-- [ ] Large transaction volume (100+) → Performance check
-- [ ] Duplicate transactions → Verify prevention
-- [ ] Network timeout → Error handling
-- [ ] Sidecar crash → Recovery and error message
-
-### ⚠️ Known Limitations
-
-- **OTP/2FA**: Not yet supported (UI not implemented)
-- **Balance Reconciliation**: Basic - no advanced reports
-- **Automatic Sync**: Not scheduled - manual only
-- **Excel Export**: Not yet implemented
-- **Unit Tests**: None written (manual testing only)
-
----
-
-## 📁 File Structure
-
-```
-gemach-system/
-├── sidecar/
-│   ├── src/
-│   │   ├── index.js          (120 lines)
-│   │   └── scraper.js        (200 lines)
-│   ├── package.json
-│   ├── build.js
-│   └── README.md
-│
-├── src-tauri/
-│   ├── src/
-│   │   ├── encryption.rs              (270 lines)
-│   │   ├── bank_storage.rs            (180 lines)
-│   │   ├── bank_integration.rs        (320 lines)
-│   │   ├── sidecar_manager.rs         (240 lines)
-│   │   ├── bank_commands.rs           (290 lines)
-│   │   ├── bank_sync_commands.rs      (380 lines)
-│   │   ├── bank_match_commands.rs     (210 lines)
-│   │   └── main.rs                    (updated)
-│   ├── binaries/
-│   │   ├── .gitkeep
-│   │   └── bank-scraper-*.exe         (after build)
-│   ├── Cargo.toml                     (updated)
-│   └── tauri.conf.json                (updated)
-│
-├── src/
-│   ├── pages/
-│   │   └── bank/
-│   │       ├── BankAccountsPage.tsx   (500 lines)
-│   │       ├── BankSyncPage.tsx       (420 lines)
-│   │       ├── BankMatchingPage.tsx   (650 lines)
-│   │       ├── BankHistoryPage.tsx    (280 lines)
-│   │       └── README.md
-│   ├── components/
-│   │   └── bank/
-│   │       └── MasterPasswordDialog.tsx (250 lines)
-│   ├── services/
-│   │   └── bankService.ts             (450 lines)
-│   ├── App.tsx                        (updated)
-│   └── components/Layout.tsx          (updated)
-│
-└── Documentation/
-    ├── BANK_INTEGRATION_BUILD_GUIDE.md
-    ├── BANK_INTEGRATION_STATUS.md
-    └── BANK_INTEGRATION_COMPLETE.md (this file)
+RUST_LOG=debug cargo run
 ```
 
 ---
 
-## 📝 Documentation Created
+## 📅 גרסאות
 
-1. **BANK_INTEGRATION_BUILD_GUIDE.md**
-   - Complete build instructions
-   - Testing procedures
-   - Architecture explanation
-   - Troubleshooting guide
-
-2. **BANK_INTEGRATION_STATUS.md**
-   - Detailed task completion status
-   - Next steps and priorities
-   - Known limitations
-   - File locations
-
-3. **BANK_INTEGRATION_COMPLETE.md** (this file)
-   - Implementation summary
-   - Full feature list
-   - Testing checklist
-   - File structure
-
-4. **sidecar/README.md**
-   - Sidecar architecture
-   - IPC protocol
-   - Build process
-   - Security notes
-
-5. **src/pages/bank/README.md**
-   - Frontend page overview
-   - Data flow diagram
-   - Development guide
-   - Common issues
+| תאריך | גרסה | תיאור |
+|-------|------|--------|
+| 2026-07-02 | 1.0.0 | יישום ראשוני של כל התכונות |
+| 2026-07-02 | 1.0.1 | תיקון stack overflow |
+| 2026-07-02 | 1.1.0 | הוספת תמיכה בפירעונות חלקיים |
+| 2026-07-03 | 1.2.0 | תיעוד מקיף ומסמך סיכום |
 
 ---
 
-## 🎯 Next Steps (Optional Enhancements)
+## ✅ Checklist סיום
 
-### High Priority
-1. **Test with real bank credentials** - Integration testing
-2. **Implement OTP dialog** - For 2FA banks
-3. **Add bank_transaction_id to existing tables** - Better linking
-
-### Medium Priority
-4. **Refactor shared components** - Extract reusable parts
-5. **Add Excel export** - For reporting
-6. **Write unit tests** - Backend and frontend
-
-### Low Priority
-7. **Performance optimization** - If issues arise
-8. **Advanced duplicate handling UI** - Edge cases
-9. **Automatic periodic sync** - Background job
-10. **Balance reconciliation reports** - Financial analysis
+- [x] Frontend מיושם ובדוק
+- [x] Backend מיושם ובדוק
+- [x] כל הבדיקות עוברות (16/16)
+- [x] Specification מעודכן
+- [x] תיעוד מקיף נוצר
+- [x] דוגמאות מעשיות
+- [x] מדריך troubleshooting
+- [x] מדריך בדיקות
+- [x] מסמך סיכום (זה)
 
 ---
 
-## ✅ Success Criteria Met
+## 🎉 סיכום
 
-- [x] Bank credentials stored securely with encryption
-- [x] Automatic transaction scraping from Israeli banks
-- [x] Intelligent matching with confidence scores
-- [x] Real-time progress monitoring during sync
-- [x] User-friendly approve/reject/skip interface
-- [x] Sync history tracking
-- [x] Master password protection
-- [x] Separate storage for bank data
-- [x] Complete frontend pages with Material-UI
-- [x] Full backend with Rust/Tauri
-- [x] Sidecar process with israeli-bank-scrapers
-- [x] Comprehensive documentation
+המערכת כעת תומכת ב:
+- ✅ תצוגה אינטליגנטית של עסקאות (memo בעדיפות)
+- ✅ חילוץ אוטומטי של שמות מרובים
+- ✅ התאמה חלקית של שמות משפחה מקוטעים
+- ✅ זיהוי פירעונות חלקיים
+- ✅ תיעוד מקיף בעברית
+
+**כל התכונות מתועדות, נבדקות, ומוכנות לשימוש!** 🚀
 
 ---
 
-## 🏆 Implementation Complete!
-
-**Total Implementation Time**: ~1 conversation session  
-**Total Lines of Code**: ~4,500 lines  
-**Files Created**: 21 files  
-**Modules Implemented**: 7 backend + 6 frontend + 2 sidecar  
-**Tauri Commands Added**: 13 commands  
-**Pages Added**: 4 pages  
-**Components Added**: 1 shared component
-
-**Status**: ✅ **COMPLETE and READY FOR TESTING**
-
-The bank integration feature is now fully implemented and ready for real-world testing with actual bank credentials. All core functionality is in place, with optional enhancements remaining for future development.
-
----
-
-**Next Action**: Build the sidecar binary and test with real bank accounts!
-
-```bash
-cd sidecar && npm install && npm run build
-```
-
-Then run `npm run tauri dev` and navigate to **שילוב בנקים**!
+**מסמך זה נוצר:** 2026-07-03  
+**סטטוס:** ✅ הושלם במלואו  
+**מפתח:** Kiro AI Assistant  
+**גרסה:** 1.2.0

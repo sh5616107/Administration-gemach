@@ -185,6 +185,31 @@ export const db = {
       }
       return items
     }
+    if (sql.includes('FROM borrowers')) {
+      const items = getAllItems<any>('borrowers')
+      // Filter out deleted borrowers if WHERE is_deleted = 0 or similar
+      if (sql.includes('is_deleted')) {
+        return items.filter(b => !b.is_deleted)
+      }
+      // Support search with LIKE
+      if (params && params.length >= 3 && sql.includes('LIKE')) {
+        const term = String(params[0]).replace(/%/g, '').toLowerCase()
+        return items.filter(b => 
+          b.first_name?.toLowerCase().includes(term) || 
+          b.last_name?.toLowerCase().includes(term) || 
+          b.phone?.includes(term)
+        ).slice(0, 10)
+      }
+      return items
+    }
+    if (sql.includes('FROM loans')) {
+      const items = getAllItems<any>('loans')
+      // Filter out deleted loans if WHERE is_deleted = 0 or similar
+      if (sql.includes('is_deleted')) {
+        return items.filter(l => !l.is_deleted)
+      }
+      return items
+    }
     if (sql.includes('FROM donors')) {
       const items = getAllItems<any>('donors')
       if (params && params.length >= 3) {
@@ -656,7 +681,10 @@ export interface Repayment {
   recurring_repayment_number?: number; 
   recurring_repayment_count?: number; 
   is_deleted?: boolean; 
-  deleted_at?: string 
+  deleted_at?: string;
+  bank_verified?: boolean;
+  bank_transaction_id?: string;
+  verified_at?: string;
 }
 
 export const repaymentsService = {

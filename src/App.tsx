@@ -28,6 +28,7 @@ const BankAccountsPage = lazy(() => import('./pages/bank/BankAccountsPage'))
 const BankSyncPage = lazy(() => import('./pages/bank/BankSyncPage'))
 const BankMatchingPage = lazy(() => import('./pages/bank/BankMatchingPage'))
 const BankHistoryPage = lazy(() => import('./pages/bank/BankHistoryPage'))
+const BankDebugPage = lazy(() => import('./pages/bank/BankDebugPage'))
 
 import { exportAllData } from './services/database'
 import { isProtectionEnabled, checkAuthenticated } from './services/protection'
@@ -178,6 +179,7 @@ function App() {
               <Route path="/bank/sync" element={<BankSyncPage />} />
               <Route path="/bank/matching" element={<BankMatchingPage />} />
               <Route path="/bank/history" element={<BankHistoryPage />} />
+              <Route path="/bank/debug" element={<BankDebugPage />} />
             </Routes>
           </Suspense>
         </Layout>
