@@ -30,7 +30,7 @@ import {
   AccountBalance as LoanIcon,
   AccountBalanceWallet as DepositIcon,
   VolunteerActivism as DonationIcon,
-  AttachMoney as MoneyIcon,
+  AccountBalanceWallet as MoneyIcon,
   Description as ReportIcon,
   DeleteForever as ClearIcon,
   Edit as EditIcon,
@@ -414,11 +414,13 @@ export default function Dashboard() {
 
   const formatCurrency = (amount: number) => {
     const currency = settings.currency || 'ILS'
-    return new Intl.NumberFormat('he-IL', {
-      style: 'currency',
-      currency: currency,
+    const formatted = new Intl.NumberFormat('he-IL', {
       minimumFractionDigits: 0,
     }).format(amount)
+    
+    // מציגים את סימן המטבע בהתאם להגדרה
+    const currencySymbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪'
+    return `${formatted} ${currencySymbol}`
   }
 
   const availableCash = stats
@@ -588,7 +590,6 @@ export default function Dashboard() {
       <Card sx={{ mb: 4, bgcolor: availableCash >= 0 ? 'success.light' : 'error.light' }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <MoneyIcon sx={{ fontSize: 40, mr: 2 }} />
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h6">כסף זמין</Typography>
               <Typography variant="h3" fontWeight={700}>
