@@ -2288,3 +2288,279 @@ ${params.gemachName}`,
     filename: `דוח-תורם-${params.donorName}`
   }
 }
+
+
+/**
+ * יצירת דוח תנועות תקופתי (חודשי/שנתי)
+ * כולל הלוואות שניתנו, פירעונות שהתקבלו, תרומות והפקדות
+ */
+export function generatePeriodicTransactionsReport(data: {
+  gemachName: string
+  gemachLogo?: string
+  startDate: string
+  endDate: string
+  loans: Array<{
+    loan_number: number
+    borrower_name: string
+    amount: number
+    loan_date: string
+    status: string
+    remaining: number
+    is_recurring?: number
+    recurring_loan_number?: number
+    recurring_loan_count?: number
+  }>
+  repayments: Array<{
+    loan_number: number
+    borrower_name: string
+    amount: number
+    payment_date: string
+    is_recurring?: number
+    recurring_repayment_number?: number
+    recurring_repayment_count?: number
+  }>
+  donations: Array<{
+    donor_name: string
+    amount: number
+    donation_date: string
+  }>
+  deposits: Array<{
+    depositor_name: string
+    amount: number
+    deposit_date: string
+    is_recurring?: number
+    recurring_deposit_number?: number
+    recurring_deposit_count?: number
+  }>
+  summary: {
+    totalLoansAmount: number
+    totalRepaymentsAmount: number
+    totalDonationsAmount: number
+    totalDepositsAmount: number
+    loansClosedInPeriod: number
+  }
+}) {
+  const today = new Date().toLocaleDateString('he-IL')
+  const startDateDisplay = new Date(data.startDate).toLocaleDateString('he-IL')
+  const endDateDisplay = new Date(data.endDate).toLocaleDateString('he-IL')
+  
+  const logoHtml = data.gemachLogo 
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
+    : ''
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('he-IL', {
+      style: 'currency',
+      currency: 'ILS',
+      minimumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  // טבלת סיכום
+  const summaryHtml = `
+    <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+      <h3 style="margin: 0 0 10px 0; font-size: 16px; text-align: center;">סיכום תקופתי</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">הלוואות שניתנו:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${data.loans.length} הלוואות</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${formatCurrency(data.summary.totalLoansAmount)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">פירעונות שהתקבלו:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${data.repayments.length} פירעונות</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${formatCurrency(data.summary.totalRepaymentsAmount)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">תרומות שהתקבלו:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${data.donations.length} תרומות</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${formatCurrency(data.summary.totalDonationsAmount)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">הפקדות שהתקבלו:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${data.deposits.length} הפקדות</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: left;">${formatCurrency(data.summary.totalDepositsAmount)}</td>
+        </tr>
+        <tr style="background: #e3f2fd;">
+          <td style="padding: 8px; font-weight: bold;">הלוואות שנסגרו בתקופה:</td>
+          <td colspan="2" style="padding: 8px; text-align: left; font-weight: bold;">${data.summary.loansClosedInPeriod} הלוואות</td>
+        </tr>
+      </table>
+    </div>
+  `
+
+  // טבלת הלוואות
+  const loansTableHtml = data.loans.length > 0 ? `
+    <h3 style="margin-top: 30px; color: #d32f2f;">📤 הלוואות שניתנו</h3>
+    <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;">
+      <thead>
+        <tr style="background: #f44336; color: white;">
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">#</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">מס' הלוואה</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">שם לווה</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">סכום</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">תאריך</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">מחזורי</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">יתרה</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.loans.map((loan, index) => {
+          const recurringInfo = loan.is_recurring && loan.recurring_loan_number && loan.recurring_loan_count && loan.recurring_loan_count > 1
+            ? `🔄 ${loan.recurring_loan_number}/${loan.recurring_loan_count}`
+            : '-'
+          return `
+          <tr>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${loan.loan_number}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">${loan.borrower_name}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;"><strong>${formatCurrency(loan.amount)}</strong></td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${new Date(loan.loan_date).toLocaleDateString('he-IL')}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center; color: ${loan.remaining > 0 ? '#d32f2f' : '#2e7d32'};">${formatCurrency(loan.remaining)}</td>
+          </tr>
+        `}).join('')}
+        <tr style="background: #ffebee; font-weight: bold;">
+          <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right;">סה"כ</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(data.summary.totalLoansAmount)}</td>
+          <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"></td>
+        </tr>
+      </tbody>
+    </table>
+  ` : '<p style="color: #999;">אין הלוואות בתקופה זו.</p>'
+
+  // טבלת פירעונות
+  const repaymentsTableHtml = data.repayments.length > 0 ? `
+    <h3 style="margin-top: 30px; color: #2e7d32;">📥 פירעונות שהתקבלו</h3>
+    <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;">
+      <thead>
+        <tr style="background: #4caf50; color: white;">
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">#</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">מס' הלוואה</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">שם לווה</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">סכום</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">תאריך</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">מחזורי</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.repayments.map((rep, index) => {
+          const recurringInfo = rep.is_recurring && rep.recurring_repayment_number && rep.recurring_repayment_count && rep.recurring_repayment_count > 1
+            ? `🔄 ${rep.recurring_repayment_number}/${rep.recurring_repayment_count}`
+            : '-'
+          return `
+          <tr>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${rep.loan_number}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">${rep.borrower_name}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;"><strong>${formatCurrency(rep.amount)}</strong></td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${new Date(rep.payment_date).toLocaleDateString('he-IL')}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
+          </tr>
+        `}).join('')}
+        <tr style="background: #e8f5e9; font-weight: bold;">
+          <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right;">סה"כ</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(data.summary.totalRepaymentsAmount)}</td>
+          <td colspan="2" style="padding: 8px; border: 1px solid #ddd;"></td>
+        </tr>
+      </tbody>
+    </table>
+  ` : '<p style="color: #999;">אין פירעונות בתקופה זו.</p>'
+
+  // טבלת תרומות והפקדות
+  const donationsAndDepositsHtml = `
+    <h3 style="margin-top: 30px; color: #1976d2;">💰 תרומות והפקדות</h3>
+    ${data.donations.length > 0 ? `
+      <h4 style="margin: 15px 0 5px 0; font-size: 14px;">💝 תרומות</h4>
+      <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;">
+        <thead>
+          <tr style="background: #ff9800; color: white;">
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">#</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">שם תורם</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">סכום</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">תאריך</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.donations.map((don, index) => `
+            <tr>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">${don.donor_name}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;"><strong>${formatCurrency(don.amount)}</strong></td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${new Date(don.donation_date).toLocaleDateString('he-IL')}</td>
+            </tr>
+          `).join('')}
+          <tr style="background: #fff3e0; font-weight: bold;">
+            <td colspan="2" style="padding: 8px; border: 1px solid #ddd; text-align: right;">סה"כ</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(data.summary.totalDonationsAmount)}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;"></td>
+          </tr>
+        </tbody>
+      </table>
+    ` : '<p style="color: #999; margin: 10px 0;">אין תרומות בתקופה זו.</p>'}
+    
+    ${data.deposits.length > 0 ? `
+      <h4 style="margin: 15px 0 5px 0; font-size: 14px;">🏦 הפקדות</h4>
+      <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;">
+        <thead>
+          <tr style="background: #2196f3; color: white;">
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">#</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">שם מפקיד</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">סכום</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">תאריך</th>
+            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">מחזורי</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.deposits.map((dep, index) => {
+            const recurringInfo = dep.is_recurring && dep.recurring_deposit_number && dep.recurring_deposit_count && dep.recurring_deposit_count > 1
+              ? `🔄 ${dep.recurring_deposit_number}/${dep.recurring_deposit_count}`
+              : '-'
+            return `
+            <tr>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">${dep.depositor_name}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;"><strong>${formatCurrency(dep.amount)}</strong></td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${new Date(dep.deposit_date).toLocaleDateString('he-IL')}</td>
+              <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
+            </tr>
+          `}).join('')}
+          <tr style="background: #e3f2fd; font-weight: bold;">
+            <td colspan="2" style="padding: 8px; border: 1px solid #ddd; text-align: right;">סה"כ</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(data.summary.totalDepositsAmount)}</td>
+            <td colspan="2" style="padding: 8px; border: 1px solid #ddd;"></td>
+          </tr>
+        </tbody>
+      </table>
+    ` : '<p style="color: #999; margin: 10px 0;">אין הפקדות בתקופה זו.</p>'}
+  `
+
+  const htmlContent = `
+    <div style="text-align: center; padding: 15px; max-width: 900px; margin: 0 auto;">
+      ${logoHtml}
+      <h1 style="font-size: 24px; margin: 8px 0;">דוח תנועות תקופתי</h1>
+      <h2 style="font-size: 16px; color: #666; margin-bottom: 5px;">${data.gemachName}</h2>
+      <p style="font-size: 14px; color: #999; margin: 5px 0;">
+        תקופה: ${startDateDisplay} - ${endDateDisplay}
+      </p>
+      
+      <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
+      
+      ${summaryHtml}
+      
+      ${loansTableHtml}
+      
+      ${repaymentsTableHtml}
+      
+      ${donationsAndDepositsHtml}
+      
+      <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;" />
+      
+      <div style="text-align: right; font-size: 11px; color: #666;">
+        תאריך הפקת הדוח: ${today}
+      </div>
+    </div>
+  `
+
+  printHtml(htmlContent, `דוח תנועות ${startDateDisplay} - ${endDateDisplay}`)
+}

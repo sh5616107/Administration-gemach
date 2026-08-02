@@ -1626,5 +1626,151 @@ export const excelImportService = {
   executeFullImport,
   generateTemplate,
   generateFullTemplate,
-  exportToExcel
+  exportToExcel,
+  exportPeriodicTransactionsToExcel
+}
+
+/**
+ * ייצוא דוח תקופתי לאקסל
+ * מייצא 4 גליונות: הלוואות, פירעונות, תרומות, הפקדות
+ */
+export async function exportPeriodicTransactionsToExcel(data: {
+  startDate: string
+  endDate: string
+  loans: Array<{
+    loan_number: number
+    borrower_name: string
+    amount: number
+    loan_date: string
+    status: string
+    remaining: number
+    is_recurring?: number
+    recurring_loan_number?: number
+    recurring_loan_count?: number
+  }>
+  repayments: Array<{
+    loan_number: number
+    borrower_name: string
+    amount: number
+    payment_date: string
+    is_recurring?: number
+    recurring_repayment_number?: number
+    recurring_repayment_count?: number
+  }>
+  donations: Array<{
+    donor_name: string
+    amount: number
+    donation_date: string
+  }>
+  deposits: Array<{
+    depositor_name: string
+    amount: number
+    deposit_date: string
+    is_recurring?: number
+    recurring_deposit_number?: number
+    recurring_deposit_count?: number
+  }>
+  summary: {
+    totalLoansAmount: number
+    totalRepaymentsAmount: number
+    totalDonationsAmount: number
+    totalDepositsAmount: number
+    loansClosedInPeriod: number
+  }
+}): Promise<Blob> {
+  const wb = XLSX.utils.book_new()
+  
+  // גליון סיכום
+  const summaryData = [
+    { 'סוג תנועה': 'הלוואות שניתנו', 'מספר': data.loans.length, 'סכום': data.summary.totalLoansAmount },
+    { 'סוג תנועה': 'פירעונות שהתקבלו', 'מספר': data.repayments.length, 'סכום': data.summary.totalRepaymentsAmount },
+    { 'סוג תנועה': 'תרומות שהתקבלו', 'מספר': data.donations.length, 'סכום': data.summary.totalDonationsAmount },
+    { 'סוג תנועה': 'הפקדות שהתקבלו', 'מספר': data.deposits.length, 'סכום': data.summary.totalDepositsAmount },
+    { 'סוג תנועה': '', 'מספר': '', 'סכום': '' },
+    { 'סוג תנועה': 'הלוואות שנסגרו בתקופה', 'מספר': data.summary.loansClosedInPeriod, 'סכום': '' }
+  ]
+  const wsSummary = XLSX.utils.json_to_sheet(summaryData)
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'סיכום')
+  
+  // גליון הלוואות
+  if (data.loans.length > 0) {
+    const loansData = data.loans.map((loan, index) => {
+      // חישוב סטטוס אמיתי לפי יתרה
+      let displayStatus = 'פעילה'
+      if (loan.remaining === 0) {
+        displayStatus = 'נפרעה במלואה'
+      } else if (loan.status === 'completed') {
+        displayStatus = 'נפרעה'
+      } else if (loan.status === 'active') {
+        displayStatus = 'פעילה'
+      } else if (loan.status === 'planned') {
+        displayStatus = 'מתוכננת'
+      } else if (loan.status === 'transferred') {
+        displayStatus = 'הועברה לערב'
+      } else {
+        displayStatus = loan.status
+      }
+      
+      return {
+        '#': index + 1,
+        'מס\' הלוואה': loan.loan_number,
+        'שם לווה': loan.borrower_name,
+        'סכום': loan.amount,
+        'תאריך': formatDateForExcel(loan.loan_date),
+        'מחזורי': loan.is_recurring && loan.recurring_loan_number && loan.recurring_loan_count && loan.recurring_loan_count > 1
+          ? `🔄 ${loan.recurring_loan_number}/${loan.recurring_loan_count}`
+          : '-',
+        'יתרה': loan.remaining,
+        'סטטוס': displayStatus
+      }
+    })
+    const wsLoans = XLSX.utils.json_to_sheet(loansData)
+    XLSX.utils.book_append_sheet(wb, wsLoans, 'הלוואות')
+  }
+  
+  // גליון פירעונות
+  if (data.repayments.length > 0) {
+    const repaymentsData = data.repayments.map((rep, index) => ({
+      '#': index + 1,
+      'מס\' הלוואה': rep.loan_number,
+      'שם לווה': rep.borrower_name,
+      'סכום': rep.amount,
+      'תאריך': formatDateForExcel(rep.payment_date),
+      'מחזורי': rep.is_recurring && rep.recurring_repayment_number && rep.recurring_repayment_count && rep.recurring_repayment_count > 1
+        ? `🔄 ${rep.recurring_repayment_number}/${rep.recurring_repayment_count}`
+        : '-'
+    }))
+    const wsRepayments = XLSX.utils.json_to_sheet(repaymentsData)
+    XLSX.utils.book_append_sheet(wb, wsRepayments, 'פירעונות')
+  }
+  
+  // גליון תרומות
+  if (data.donations.length > 0) {
+    const donationsData = data.donations.map((don, index) => ({
+      '#': index + 1,
+      'שם תורם': don.donor_name,
+      'סכום': don.amount,
+      'תאריך': formatDateForExcel(don.donation_date)
+    }))
+    const wsDonations = XLSX.utils.json_to_sheet(donationsData)
+    XLSX.utils.book_append_sheet(wb, wsDonations, 'תרומות')
+  }
+  
+  // גליון הפקדות
+  if (data.deposits.length > 0) {
+    const depositsData = data.deposits.map((dep, index) => ({
+      '#': index + 1,
+      'שם מפקיד': dep.depositor_name,
+      'סכום': dep.amount,
+      'תאריך': formatDateForExcel(dep.deposit_date),
+      'מחזורי': dep.is_recurring && dep.recurring_deposit_number && dep.recurring_deposit_count && dep.recurring_deposit_count > 1
+        ? `🔄 ${dep.recurring_deposit_number}/${dep.recurring_deposit_count}`
+        : '-'
+    }))
+    const wsDeposits = XLSX.utils.json_to_sheet(depositsData)
+    XLSX.utils.book_append_sheet(wb, wsDeposits, 'הפקדות')
+  }
+  
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 }

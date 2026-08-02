@@ -57,13 +57,14 @@ import {
   Handshake as HandshakeIcon,
 } from '@mui/icons-material'
 import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService, blacklistService } from '../services/database'
-import { generateFullReport, generateBorrowerReport, generateExpenseReceipt } from '../services/documents'
+import { generateFullReport, generateBorrowerReport, generateExpenseReceipt, generatePeriodicTransactionsReport } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
 import PaymentMethodSelect from '../components/PaymentMethodSelect'
 import AmountInput from '../components/AmountInput'
 import ExcelImportDialog from '../components/ExcelImportDialog'
-import { exportToExcel } from '../services/excelImport'
+import { exportToExcel, exportPeriodicTransactionsToExcel } from '../services/excelImport'
+import { getTransactionsForPeriod, getMonthRange, getYearRange } from '../services/reportsService'
 
 interface OverdueLoan {
   id: string  // UUID
@@ -208,6 +209,15 @@ export default function AdvancedTools() {
   // Orphaned loans dialog
   const [orphanedLoansDialogOpen, setOrphanedLoansDialogOpen] = useState(false)
   const [orphanedLoansData, setOrphanedLoansData] = useState<{ count: number; totalAmount: number; loans: any[] } | null>(null)
+  
+  // Periodic transactions report dialog
+  const [periodicReportDialogOpen, setPeriodicReportDialogOpen] = useState(false)
+  const [periodicReportType, setPeriodicReportType] = useState<'month' | 'year' | 'custom'>('month')
+  const [periodicReportYear, setPeriodicReportYear] = useState(new Date().getFullYear())
+  const [periodicReportMonth, setPeriodicReportMonth] = useState(new Date().getMonth() + 1)
+  const [periodicReportStartDate, setPeriodicReportStartDate] = useState('')
+  const [periodicReportEndDate, setPeriodicReportEndDate] = useState('')
+  const [periodicReportData, setPeriodicReportData] = useState<any>(null)
 
   useEffect(() => {
     loadData()
@@ -877,6 +887,122 @@ export default function AdvancedTools() {
     }
   }
 
+  const handlePeriodicReport = async () => {
+    try {
+      let startDate: string
+      let endDate: string
+      
+      // חישוב טווח תאריכים לפי הסוג שנבחר
+      if (periodicReportType === 'month') {
+        const range = getMonthRange(periodicReportYear, periodicReportMonth)
+        startDate = range.startDate
+        endDate = range.endDate
+      } else if (periodicReportType === 'year') {
+        const range = getYearRange(periodicReportYear)
+        startDate = range.startDate
+        endDate = range.endDate
+      } else {
+        // custom
+        startDate = periodicReportStartDate
+        endDate = periodicReportEndDate
+      }
+      
+      if (!startDate || !endDate) {
+        setSnackbar({ open: true, message: 'נא למלא תאריכים', severity: 'error' })
+        return
+      }
+      
+      // שליפת הנתונים
+      const data = await getTransactionsForPeriod(startDate, endDate)
+      setPeriodicReportData(data)
+      
+      setSnackbar({ 
+        open: true, 
+        message: `נטענו ${data.loans.length} הלוואות, ${data.repayments.length} פירעונות, ${data.donations.length} תרומות, ${data.deposits.length} הפקדות`, 
+        severity: 'success' 
+      })
+    } catch (error) {
+      console.error('Error loading periodic report:', error)
+      setSnackbar({ open: true, message: 'שגיאה בטעינת הדוח', severity: 'error' })
+    }
+  }
+  
+  const handlePrintPeriodicReport = () => {
+    if (!periodicReportData) return
+    
+    let startDate: string
+    let endDate: string
+    
+    if (periodicReportType === 'month') {
+      const range = getMonthRange(periodicReportYear, periodicReportMonth)
+      startDate = range.startDate
+      endDate = range.endDate
+    } else if (periodicReportType === 'year') {
+      const range = getYearRange(periodicReportYear)
+      startDate = range.startDate
+      endDate = range.endDate
+    } else {
+      startDate = periodicReportStartDate
+      endDate = periodicReportEndDate
+    }
+    
+    generatePeriodicTransactionsReport({
+      gemachName: settings.gemach_name || 'גמ"ח שלי',
+      gemachLogo: settings.gemach_logo,
+      startDate,
+      endDate,
+      loans: periodicReportData.loans,
+      repayments: periodicReportData.repayments,
+      donations: periodicReportData.donations,
+      deposits: periodicReportData.deposits,
+      summary: periodicReportData.summary
+    })
+  }
+  
+  const handleExportPeriodicReportToExcel = async () => {
+    if (!periodicReportData) return
+    
+    try {
+      let startDate: string
+      let endDate: string
+      
+      if (periodicReportType === 'month') {
+        const range = getMonthRange(periodicReportYear, periodicReportMonth)
+        startDate = range.startDate
+        endDate = range.endDate
+      } else if (periodicReportType === 'year') {
+        const range = getYearRange(periodicReportYear)
+        startDate = range.startDate
+        endDate = range.endDate
+      } else {
+        startDate = periodicReportStartDate
+        endDate = periodicReportEndDate
+      }
+      
+      const blob = await exportPeriodicTransactionsToExcel({
+        startDate,
+        endDate,
+        loans: periodicReportData.loans,
+        repayments: periodicReportData.repayments,
+        donations: periodicReportData.donations,
+        deposits: periodicReportData.deposits,
+        summary: periodicReportData.summary
+      })
+      
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `דוח_תקופתי_${startDate}_${endDate}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      
+      setSnackbar({ open: true, message: 'הדוח יוצא לאקסל בהצלחה', severity: 'success' })
+    } catch (error) {
+      console.error('Error exporting periodic report to Excel:', error)
+      setSnackbar({ open: true, message: 'שגיאה בייצוא לאקסל', severity: 'error' })
+    }
+  }
+
   const handlePrintFullStats = () => {
     const printContent = document.getElementById('full-stats-content')
     if (!printContent) return
@@ -1188,6 +1314,9 @@ export default function AdvancedTools() {
                 </Button>
                 <Button variant="outlined" startIcon={<ReportIcon />} onClick={handleStatisticsReport}>
                   סטטיסטיקות
+                </Button>
+                <Button variant="outlined" startIcon={<AssignmentIcon />} onClick={() => setPeriodicReportDialogOpen(true)} color="primary">
+                  דוח תנועות תקופתי
                 </Button>
                 {settings.show_payment_method === 'yes' && (
                   <Button variant="outlined" startIcon={<PaymentIcon />} onClick={handleOpenPaymentStats} color="secondary">
@@ -2294,6 +2423,139 @@ export default function AdvancedTools() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOrphanedLoansDialogOpen(false)}>סגור</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Periodic Transactions Report Dialog */}
+      <Dialog open={periodicReportDialogOpen} onClose={() => setPeriodicReportDialogOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>דוח תנועות תקופתי</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* בחירת סוג תקופה */}
+            <FormControl fullWidth>
+              <InputLabel>סוג תקופה</InputLabel>
+              <Select
+                value={periodicReportType}
+                label="סוג תקופה"
+                onChange={(e) => setPeriodicReportType(e.target.value as 'month' | 'year' | 'custom')}
+              >
+                <MenuItem value="month">חודש ספציפי</MenuItem>
+                <MenuItem value="year">שנה שלמה</MenuItem>
+                <MenuItem value="custom">טווח תאריכים חופשי</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* בחירת חודש ושנה */}
+            {periodicReportType === 'month' && (
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel>חודש</InputLabel>
+                  <Select
+                    value={periodicReportMonth}
+                    label="חודש"
+                    onChange={(e) => setPeriodicReportMonth(Number(e.target.value))}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                      <MenuItem key={m} value={m}>
+                        {new Date(2000, m - 1, 1).toLocaleDateString('he-IL', { month: 'long' })}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="שנה"
+                  type="number"
+                  value={periodicReportYear}
+                  onChange={(e) => setPeriodicReportYear(Number(e.target.value))}
+                  fullWidth
+                />
+              </Box>
+            )}
+            
+            {/* בחירת שנה */}
+            {periodicReportType === 'year' && (
+              <TextField
+                label="שנה"
+                type="number"
+                value={periodicReportYear}
+                onChange={(e) => setPeriodicReportYear(Number(e.target.value))}
+                fullWidth
+              />
+            )}
+            
+            {/* בחירת טווח תאריכים חופשי */}
+            {periodicReportType === 'custom' && (
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="מתאריך"
+                  type="date"
+                  value={periodicReportStartDate}
+                  onChange={(e) => setPeriodicReportStartDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+                <TextField
+                  label="עד תאריך"
+                  type="date"
+                  value={periodicReportEndDate}
+                  onChange={(e) => setPeriodicReportEndDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+              </Box>
+            )}
+            
+            <Button variant="contained" onClick={handlePeriodicReport} startIcon={<AssignmentIcon />}>
+              טען נתונים
+            </Button>
+            
+            {/* הצגת נתונים */}
+            {periodicReportData && (
+              <Box sx={{ mt: 2 }}>
+                {/* סיכום */}
+                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
+                  <Typography variant="h6" gutterBottom>סיכום</Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">הלוואות שניתנו</Typography>
+                      <Typography variant="h6">{periodicReportData.loans.length}</Typography>
+                      <Typography variant="body2">{formatCurrency(periodicReportData.summary.totalLoansAmount)}</Typography>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">פירעונות שהתקבלו</Typography>
+                      <Typography variant="h6">{periodicReportData.repayments.length}</Typography>
+                      <Typography variant="body2">{formatCurrency(periodicReportData.summary.totalRepaymentsAmount)}</Typography>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">תרומות</Typography>
+                      <Typography variant="h6">{periodicReportData.donations.length}</Typography>
+                      <Typography variant="body2">{formatCurrency(periodicReportData.summary.totalDonationsAmount)}</Typography>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">הפקדות</Typography>
+                      <Typography variant="h6">{periodicReportData.deposits.length}</Typography>
+                      <Typography variant="body2">{formatCurrency(periodicReportData.summary.totalDepositsAmount)}</Typography>
+                    </Grid>
+                  </Grid>
+                  <Typography variant="body2" sx={{ mt: 2 }}>
+                    הלוואות שנסגרו בתקופה: <strong>{periodicReportData.summary.loansClosedInPeriod}</strong>
+                  </Typography>
+                </Paper>
+                
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Button variant="outlined" startIcon={<PrintIcon />} onClick={handlePrintPeriodicReport}>
+                    הדפס PDF
+                  </Button>
+                  <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExportPeriodicReportToExcel}>
+                    ייצא לאקסל
+                  </Button>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPeriodicReportDialogOpen(false)}>סגור</Button>
         </DialogActions>
       </Dialog>
 
