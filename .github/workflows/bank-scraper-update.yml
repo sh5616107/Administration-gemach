@@ -23,11 +23,15 @@ jobs:
         with:
           node-version: '22'
 
+      - name: התקנת dependencies
+        working-directory: ./sidecar
+        run: npm ci
+
       - name: בדיקת גרסה נוכחית
         id: current
         working-directory: ./sidecar
         run: |
-          CURRENT=$(npm list israeli-bank-scrapers --depth=0 --json | jq -r '.dependencies["israeli-bank-scrapers"].version')
+          CURRENT=$(node -p "require('./package.json').dependencies['israeli-bank-scrapers']" | sed 's/[\^~]//g')
           echo "version=$CURRENT" >> $GITHUB_OUTPUT
           echo "גרסה נוכחית: $CURRENT"
 
