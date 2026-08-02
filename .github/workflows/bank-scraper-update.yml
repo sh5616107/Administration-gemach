@@ -1,0 +1,88 @@
+name: עדכון אוטומטי israeli-bank-scrapers
+
+on:
+  schedule:
+    # כל יום בשעה 10:00 בבוקר
+    - cron: '0 10 * * *'
+  workflow_dispatch: # אפשרות ריצה ידנית
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: בדיקת גרסה נוכחית
+        id: current
+        working-directory: ./sidecar
+        run: |
+          CURRENT=$(npm list israeli-bank-scrapers --depth=0 --json | jq -r '.dependencies["israeli-bank-scrapers"].version')
+          echo "version=$CURRENT" >> $GITHUB_OUTPUT
+          echo "גרסה נוכחית: $CURRENT"
+
+      - name: בדיקת גרסה אחרונה
+        id: latest
+        working-directory: ./sidecar
+        run: |
+          LATEST=$(npm view israeli-bank-scrapers version)
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+          echo "גרסה אחרונה: $LATEST"
+
+      - name: עדכון אם יש גרסה חדשה
+        if: steps.current.outputs.version != steps.latest.outputs.version
+        working-directory: ./sidecar
+        run: |
+          npm install israeli-bank-scrapers@latest
+          npx puppeteer browsers install chrome
+
+      - name: יצירת Pull Request
+        if: steps.current.outputs.version != steps.latest.outputs.version
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(deps): עדכון israeli-bank-scrapers מ-${{ steps.current.outputs.version }} ל-${{ steps.latest.outputs.version }}"
+          title: "🏦 עדכון אוטומטי: israeli-bank-scrapers ${{ steps.latest.outputs.version }}"
+          body: |
+            ## עדכון אוטומטי של israeli-bank-scrapers
+            
+            **גרסה נוכחית:** `${{ steps.current.outputs.version }}`  
+            **גרסה חדשה:** `${{ steps.latest.outputs.version }}`
+            
+            ### שינויים
+            ראה [היסטוריית שינויים](https://github.com/eshaham/israeli-bank-scrapers/compare/v${{ steps.current.outputs.version }}...v${{ steps.latest.outputs.version }})
+            
+            ### בדיקות שבוצעו
+            - ✅ Chrome מותקן
+            - ✅ החבילה הותקנה בהצלחה
+            
+            **הערה:** PR זה נוצר אוטומטית. מומלץ לבדוק את השינויים לפני המיזוג.
+          branch: "auto-update/israeli-bank-scrapers-${{ steps.latest.outputs.version }}"
+          delete-branch: true
+          labels: |
+            dependencies
+            israeli-bank-scrapers
+            auto-created
+
+      - name: הודעת סיכום
+        run: |
+          if [ "${{ steps.current.outputs.version }}" != "${{ steps.latest.outputs.version }}" ]; then
+            echo "### 🎉 נמצא עדכון חדש!" >> $GITHUB_STEP_SUMMARY
+            echo "**גרסה נוכחית:** ${{ steps.current.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "**גרסה חדשה:** ${{ steps.latest.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "PR נוצר אוטומטית 🚀" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ israeli-bank-scrapers מעודכן" >> $GITHUB_STEP_SUMMARY
+            echo "**גרסה נוכחית:** ${{ steps.current.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          fi

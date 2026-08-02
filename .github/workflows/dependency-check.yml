@@ -1,0 +1,41 @@
+name: בדיקת עדכוני תלויות
+
+on:
+  schedule:
+    # כל יום ראשון בשעה 9:00 בבוקר
+    - cron: '0 9 * * 0'
+  workflow_dispatch: # ריצה ידנית
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: בדיקת עדכונים בתיקיית sidecar
+        working-directory: ./sidecar
+        run: |
+          npm outdated || true
+          echo "## עדכונים זמינים:" >> $GITHUB_STEP_SUMMARY
+          npm outdated --json > outdated.json || true
+          cat outdated.json >> $GITHUB_STEP_SUMMARY
+
+      - name: בדיקה ספציפית ל-israeli-bank-scrapers
+        working-directory: ./sidecar
+        run: |
+          CURRENT=$(npm list israeli-bank-scrapers --json | jq -r '.dependencies["israeli-bank-scrapers"].version')
+          LATEST=$(npm view israeli-bank-scrapers version)
+          echo "גרסה נוכחית: $CURRENT"
+          echo "גרסה אחרונה: $LATEST"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "⚠️ יש גרסה חדשה של israeli-bank-scrapers: $LATEST" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ israeli-bank-scrapers מעודכן" >> $GITHUB_STEP_SUMMARY
+          fi

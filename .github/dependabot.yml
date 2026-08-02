@@ -1,0 +1,43 @@
+version: 2
+updates:
+  # עדכונים עבור תיקיית sidecar
+  - package-ecosystem: "npm"
+    directory: "/sidecar"
+    schedule:
+      interval: "daily" # בדיקה יומית
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    versioning-strategy: increase
+    # קיבוץ עדכונים
+    groups:
+      israeli-bank:
+        patterns:
+          - "israeli-bank-*"
+        update-types:
+          - "minor"
+          - "patch"
+      puppeteer:
+        patterns:
+          - "puppeteer*"
+          - "@puppeteer/*"
+      security:
+        update-types:
+          - "security"
+    # עדכוני אבטחה מיידיים
+    labels:
+      - "dependencies"
+      - "automerge"
+
+  # עדכונים עבור הפרויקט הראשי
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    versioning-strategy: increase
+    labels:
+      - "dependencies"

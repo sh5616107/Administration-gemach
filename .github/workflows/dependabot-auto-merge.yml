@@ -1,0 +1,51 @@
+name: מיזוג אוטומטי של Dependabot
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: התקנה ובדיקה - sidecar
+        if: contains(github.event.pull_request.title, 'sidecar')
+        working-directory: ./sidecar
+        run: |
+          npm ci
+          npm audit --audit-level=high || true
+
+      - name: אישור אוטומטי של עדכוני patch ו-minor
+        if: |
+          contains(github.event.pull_request.labels.*.name, 'automerge') &&
+          (
+            contains(github.event.pull_request.title, 'patch') ||
+            contains(github.event.pull_request.title, 'minor')
+          )
+        run: |
+          gh pr review ${{ github.event.pull_request.number }} --approve
+          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: אישור מיידי של עדכוני אבטחה
+        if: contains(github.event.pull_request.labels.*.name, 'security')
+        run: |
+          gh pr review ${{ github.event.pull_request.number }} --approve
+          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
