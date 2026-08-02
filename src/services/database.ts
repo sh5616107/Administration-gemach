@@ -541,6 +541,21 @@ export const borrowersService = {
   async create(b: Omit<Borrower, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('borrowers'); setItem('borrowers', id, { ...b, id, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: string, d: Partial<Borrower>): Promise<void> { const e = await this.getById(id); if (e) setItem('borrowers', id, { ...e, ...d }) },
   async delete(id: string): Promise<void> { 
+    // בדיקה: האם ללווה יש הלוואה פעילה עם יתרה?
+    const loans = getAllItems<Loan>('loans').filter(l => !l.is_deleted && l.borrower_id === id)
+    const hasActiveLoan = loans.some(l => {
+      if (l.status !== 'active') return false
+      // total_repaid לא בהכרח מחושב כאן, לכן מחשבים ישירות מהתשלומים
+      const repayments = getAllItems<Repayment>('repayments').filter(r => r.loan_id === l.id && !r.is_deleted)
+      const totalRepaid = repayments.reduce((s, r) => s + r.amount, 0)
+      const remaining = l.amount - totalRepaid
+      return remaining > 0
+    })
+    
+    if (hasActiveLoan) {
+      throw new Error('לא ניתן למחוק לווה עם הלוואה פעילה. יש לסגור או להעביר את ההלוואה תחילה.')
+    }
+    
     // מחיקה מהרשימה השחורה אם קיים
     const blacklistItems = getAllItems<{ id: string; entity_type: string; entity_id: string }>('blacklist')
     const blacklistEntry = blacklistItems.find(b => b.entity_type === 'borrower' && b.entity_id === id)
@@ -664,6 +679,29 @@ export const loansService = {
   async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, ...d }) },
   async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
   async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
+  
+  /**
+   * פונקציה מרכזית לקבלת הלוואות פעילות ללווים קיימים בלבד
+   * זו הפונקציה היחידה שצריכה להשתמש בה כל מקום שרוצה לספור הלוואות פעילות
+   * כדי למנוע אי-עקביות בין תצוגות שונות
+   * 
+   * @returns רשימת הלוואות פעילות מסוננות ומ sorted
+   */
+  async getActiveLoansForExistingBorrowers(): Promise<Loan[]> {
+    const allLoans = await this.getAll()
+    const borrowers = await borrowersService.getAll()
+    const existingBorrowerIds = new Set(borrowers.map(b => b.id))
+    const today = new Date().toISOString().split('T')[0]
+    
+    return allLoans
+      .filter(l => 
+        l.status === 'active' && 
+        l.loan_date <= today &&
+        (l.remaining || 0) > 0 &&
+        existingBorrowerIds.has(l.borrower_id)
+      )
+      .sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
+  },
 }
 
 // Repayments Service
@@ -697,34 +735,21 @@ export const repaymentsService = {
 // Stats Service
 export const statsService = {
   async getDashboardStats() {
-    const loans = await loansService.getAll()
-    const t = new Date().toISOString().split('T')[0]
+    const today = new Date().toISOString().split('T')[0]
     
-    console.log('📊 getDashboardStats - Total loans:', loans.length)
-    console.log('📊 Recurring loans:', loans.filter(l => l.is_recurring === 1).length)
+    console.log('📊 getDashboardStats - Using centralized getActiveLoansForExistingBorrowers()')
     
-    // דוגמאות של הלוואות מחזוריות
-    const recurringExamples = loans.filter(l => l.is_recurring === 1).slice(0, 5)
-    console.log('📊 Recurring loan examples:', recurringExamples.map(l => ({
-      id: l.id?.substring(0, 8),
-      borrower: l.borrower_name,
-      number: l.recurring_loan_number,
-      isRecurring: l.is_recurring,
-    })))
-    
-    // הלוואות פעילות - כל ההלוואות עם יתרה (כולל מחזוריות)
-    const activeWithBalance = loans.filter(l => 
-      l.status === 'active' && 
-      l.loan_date <= t &&
-      (l.remaining || 0) > 0
-    )
+    // שימוש בפונקציה המרכזית
+    const activeWithBalance = await loansService.getActiveLoansForExistingBorrowers()
     
     console.log('✅ Active loans with balance:', activeWithBalance.length)
     
-    // הלוואות מתוכננות - כולל מחזוריות
-    const planned = loans.filter(l => 
-      (l.status === 'planned' || l.loan_date > t)
+    // הלוואות מתוכננות
+    const allLoans = await loansService.getAll()
+    const planned = allLoans.filter(l => 
+      (l.status === 'planned' || l.loan_date > today)
     )
+    
     const deps = getAllItems<{ id: number; amount: number; status: string; is_recurring?: number; recurring_deposit_number?: number; is_deleted?: boolean }>('deposits').filter(d => d.status === 'active' && !d.is_deleted)
     
     // חישוב סה"כ הפקדות (כולל מחזוריות, מפחיתים משיכות)
@@ -863,6 +888,39 @@ export const statsService = {
   async getTotalGemachExpenses() {
     const expenses = getAllItems<any>('expenses')
     return expenses.filter(e => e.paid_by === 'gemach').reduce((sum, e) => sum + (e.amount || 0), 0)
+  },
+  /**
+   * פונקציה לאיתור הלוואות "יתומות" - הלוואות פעילות ללווים שנמחקו
+   * @returns מערך של הלוואות יתומות עם פרטיהן
+   */
+  async findOrphanedLoans() {
+    const loans = await loansService.getAll()
+    const borrowers = await borrowersService.getAll()
+    const existingIds = new Set(borrowers.map(b => b.id))
+    
+    const orphaned = loans.filter(l =>
+      l.status === 'active' &&
+      (l.remaining || 0) > 0 &&
+      !existingIds.has(l.borrower_id)
+    )
+    
+    const totalAmount = orphaned.reduce((s, l) => s + (l.remaining || 0), 0)
+    
+    console.log('🔍 הלוואות יתומות נמצאו:', orphaned.length)
+    console.log('💰 סכום כולל:', totalAmount)
+    console.log('📋 פרטים:', orphaned.map(l => ({
+      id: l.id?.substring(0, 8),
+      borrower_id: l.borrower_id?.substring(0, 8),
+      amount: l.amount,
+      remaining: l.remaining,
+      loan_date: l.loan_date
+    })))
+    
+    return {
+      count: orphaned.length,
+      totalAmount,
+      loans: orphaned
+    }
   },
 }
 

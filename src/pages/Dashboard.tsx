@@ -215,13 +215,8 @@ export default function Dashboard() {
   const fetchActiveLoans = async () => {
     setDialogLoading(true)
     try {
-      const allLoans = await loansService.getAll() as any[]
-      const active = allLoans
-        .filter(l => 
-          l.status === 'active' && 
-          (l.remaining || 0) > 0
-        )
-        .sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
+      // שימוש בפונקציה המרכזית המשותפת
+      const active = await loansService.getActiveLoansForExistingBorrowers()
       
       console.log('📋 Active loans dialog:', active.length)
       setActiveLoans(active)
@@ -237,8 +232,14 @@ export default function Dashboard() {
     setDialogLoading(true)
     try {
       const allLoans = await loansService.getAll() as any[]
+      const borrowers = await borrowersService.getAll()
+      const existingBorrowerIds = new Set(borrowers.map(b => b.id))
+      
       const scheduled = allLoans
-        .filter(l => l.status === 'planned')
+        .filter(l => 
+          l.status === 'planned' &&
+          existingBorrowerIds.has(l.borrower_id)
+        )
         .sort((a, b) => new Date(a.loan_date).getTime() - new Date(b.loan_date).getTime())
       setScheduledLoans(scheduled)
     } catch (error) {

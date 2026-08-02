@@ -204,6 +204,10 @@ export default function AdvancedTools() {
   })
   const [expensePaymentData, setExpensePaymentData] = useState<{ payment_method: string; [key: string]: string }>({ payment_method: '' })
   const [borrowerOptions, setBorrowerOptions] = useState<{ id: string; name: string }[]>([])
+  
+  // Orphaned loans dialog
+  const [orphanedLoansDialogOpen, setOrphanedLoansDialogOpen] = useState(false)
+  const [orphanedLoansData, setOrphanedLoansData] = useState<{ count: number; totalAmount: number; loans: any[] } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -847,6 +851,31 @@ export default function AdvancedTools() {
       setSnackbar({ open: true, message: 'שגיאה בטעינת הסטטיסטיקות', severity: 'error' })
     }
   }
+  
+  const handleShowOrphanedLoans = async () => {
+    try {
+      const result = await statsService.findOrphanedLoans()
+      setOrphanedLoansData(result)
+      setOrphanedLoansDialogOpen(true)
+      
+      if (result.count > 0) {
+        setSnackbar({ 
+          open: true, 
+          message: `נמצאו ${result.count} הלוואות יתומות בסך ${formatCurrency(result.totalAmount)}`, 
+          severity: 'warning' 
+        })
+      } else {
+        setSnackbar({ 
+          open: true, 
+          message: 'לא נמצאו הלוואות יתומות - הכל תקין!', 
+          severity: 'success' 
+        })
+      }
+    } catch (error) {
+      console.error('Error finding orphaned loans:', error)
+      setSnackbar({ open: true, message: 'שגיאה באיתור הלוואות יתומות', severity: 'error' })
+    }
+  }
 
   const handlePrintFullStats = () => {
     const printContent = document.getElementById('full-stats-content')
@@ -1165,6 +1194,9 @@ export default function AdvancedTools() {
                     סטטיסטיקות אמצעי תשלום
                   </Button>
                 )}
+                <Button variant="outlined" startIcon={<WarningIcon />} onClick={handleShowOrphanedLoans} color="warning">
+                  איתור הלוואות יתומות
+                </Button>
               </Box>
             </CardContent>
           </Card>
@@ -2169,6 +2201,99 @@ export default function AdvancedTools() {
         <DialogActions>
           <Button onClick={handlePrintFullStats} startIcon={<PrintIcon />}>הדפסה</Button>
           <Button onClick={() => setFullStatsDialogOpen(false)}>סגור</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Orphaned Loans Dialog */}
+      <Dialog open={orphanedLoansDialogOpen} onClose={() => setOrphanedLoansDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningIcon color="warning" /> הלוואות יתומות - הלוואות ללווים שנמחקו
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {orphanedLoansData && (
+              <>
+                {orphanedLoansData.count === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography variant="h6" color="success.main">
+                      ✓ לא נמצאו הלוואות יתומות
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      כל ההלוואות משויכות ללווים קיימים במערכת
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    <Box sx={{ mb: 3, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+                      <Typography variant="h6" gutterBottom>
+                        סיכום
+                      </Typography>
+                      <Typography variant="body1">
+                        <strong>מספר הלוואות יתומות:</strong> {orphanedLoansData.count}
+                      </Typography>
+                      <Typography variant="body1">
+                        <strong>סכום כולל:</strong> {formatCurrency(orphanedLoansData.totalAmount)}
+                      </Typography>
+                    </Box>
+
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      הלוואות אלו משויכות למזהי לווים שכבר לא קיימים במערכת. 
+                      ייתכן שהלווה נמחק בטעות או שקיימת בעיה בנתונים.
+                    </Typography>
+
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: 'warning.light' }}>
+                            <TableCell>מזהה הלוואה</TableCell>
+                            <TableCell>מזהה לווה</TableCell>
+                            <TableCell align="center">סכום מקורי</TableCell>
+                            <TableCell align="center">יתרה</TableCell>
+                            <TableCell align="center">תאריך הלוואה</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {orphanedLoansData.loans.map((loan: any) => (
+                            <TableRow key={loan.id} hover>
+                              <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                                {loan.id.substring(0, 8)}...
+                              </TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                                {loan.borrower_id.substring(0, 8)}...
+                              </TableCell>
+                              <TableCell align="center">{formatCurrency(loan.amount)}</TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                                {formatCurrency(loan.remaining || 0)}
+                              </TableCell>
+                              <TableCell align="center">{formatDisplayDate(loan.loan_date)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    <Box sx={{ mt: 3, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        <strong>אפשרויות טיפול:</strong>
+                      </Typography>
+                      <Typography variant="body2" component="ul" sx={{ m: 0, pl: 3 }}>
+                        <li>שחזר את רשומת הלווה מגיבוי</li>
+                        <li>שייך מחדש את ההלוואה ללווה אחר קיים</li>
+                        <li>צור לווה חדש עם אותו מזהה (דורש גישה ישירה לנתונים)</li>
+                        <li>סמן את ההלוואה כנפרעה אם היא שולמה בפועל</li>
+                      </Typography>
+                      <Typography variant="body2" color="error.main" sx={{ mt: 2 }}>
+                        <strong>חשוב:</strong> אל תמחק את ההלוואות מבלי לתעד - הן מייצגות כסף אמיתי שיצא מהגמ"ח!
+                      </Typography>
+                    </Box>
+                  </>
+                )}
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOrphanedLoansDialogOpen(false)}>סגור</Button>
         </DialogActions>
       </Dialog>
 

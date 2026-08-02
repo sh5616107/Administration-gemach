@@ -274,7 +274,8 @@ export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
       setFormData(emptyBorrower)
     } catch (error) {
       console.error('Error deleting borrower:', error)
-      setSnackbar({ open: true, message: 'שגיאה במחיקה', severity: 'error' })
+      const errorMessage = error instanceof Error ? error.message : 'שגיאה במחיקה'
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' })
     }
   }
 
