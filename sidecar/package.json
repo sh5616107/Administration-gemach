@@ -10,8 +10,8 @@
     "build": "node build.js"
   },
   "dependencies": {
-    "israeli-bank-scrapers": "^6.7.8",
-    "puppeteer": "^22.0.0"
+    "israeli-bank-scrapers": "^6.9.0",
+    "puppeteer": "^25.4.0"
   },
   "devDependencies": {
     "@yao-pkg/pkg": "^5.12.0"
