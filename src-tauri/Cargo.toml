@@ -1,6 +1,6 @@
 [package]
 name = "gemach-manager"
-version = "4.2.5"
+version = "4.2.6"
 description = "מינהל הגמ\"ח - מערכת ניהול גמ\"ח כספים"
 authors = ["you"]
 edition = "2021"
