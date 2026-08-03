@@ -35,6 +35,7 @@ import { isProtectionEnabled, checkAuthenticated } from './services/protection'
 import { runPendingMigrations } from './services/migrations'
 import { runStartupChecks } from './services/scheduler'
 import localforage from 'localforage'
+import UpdateChecker from './components/UpdateChecker'
 
 const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
 
@@ -158,6 +159,7 @@ function App() {
 
   return (
     <BrowserRouter future={routerFutureConfig}>
+      <UpdateChecker />
       <Box sx={{ display: 'flex', minHeight: '100vh' }}>
         <Layout>
           <Suspense fallback={<PageLoader />}>
@@ -173,13 +175,13 @@ function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/help" element={<Help />} />
               
-              {/* Bank Integration Routes */}
-              <Route path="/bank" element={<Navigate to="/bank/accounts" replace />} />
+              {/* Bank Integration Routes - מוסתר מהמשתמשים עד להשלמת הפיתוח */}
+              {/* <Route path="/bank" element={<Navigate to="/bank/accounts" replace />} />
               <Route path="/bank/accounts" element={<BankAccountsPage />} />
               <Route path="/bank/sync" element={<BankSyncPage />} />
               <Route path="/bank/matching" element={<BankMatchingPage />} />
               <Route path="/bank/history" element={<BankHistoryPage />} />
-              <Route path="/bank/debug" element={<BankDebugPage />} />
+              <Route path="/bank/debug" element={<BankDebugPage />} /> */}
             </Routes>
           </Suspense>
         </Layout>

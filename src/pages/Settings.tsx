@@ -28,6 +28,11 @@ import {
   Paper,
   Switch,
   FormControlLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  LinearProgress,
 } from '@mui/material'
 import { 
   Save as SaveIcon, 
@@ -41,9 +46,12 @@ import {
   Edit as EditIcon,
   Description as DescriptionIcon,
   Info as InfoIcon,
+  SystemUpdate as UpdateIcon,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
 import { isProtectionEnabled, setProtectionEnabled, setUserPassword, getUserPassword, setCustomHint, getCustomHint } from '../services/protection'
+import { check } from '@tauri-apps/plugin-updater'
+import { relaunch } from '@tauri-apps/plugin-process'
 
 const defaultFieldLabels = {
   borrower_first_name: 'שם פרטי',
@@ -127,6 +135,11 @@ export default function Settings() {
   const [userPassword, setUserPasswordState] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [hasExistingPassword, setHasExistingPassword] = useState(false)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<any>(null)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
 
   useEffect(() => {
     loadProtectionSettings()
@@ -217,6 +230,52 @@ export default function Settings() {
       setLocalSettings({ ...localSettings, gemach_logo: base64 })
     }
     reader.readAsDataURL(file)
+  }
+
+  const handleCheckForUpdates = async () => {
+    setCheckingUpdate(true)
+    try {
+      const update = await check()
+      
+      if (update?.available) {
+        setUpdateInfo(update)
+        setUpdateDialogOpen(true)
+        console.log('✅ עדכון זמין:', update.version)
+      } else {
+        setSnackbar({ open: true, message: 'אין עדכונים זמינים. אתה משתמש בגרסה האחרונה!', severity: 'success' })
+      }
+    } catch (err: any) {
+      console.error('❌ שגיאה בבדיקת עדכונים:', err)
+      
+      // אם זו שגיאה של "לא נמצא JSON" - זה אומר שאין releases עדיין
+      if (err?.toString().includes('Could not fetch') || err?.toString().includes('valid release')) {
+        setSnackbar({ open: true, message: 'אין עדכונים זמינים. אתה משתמש בגרסה האחרונה!', severity: 'success' })
+      } else {
+        setSnackbar({ open: true, message: 'לא ניתן לבדוק עדכונים כרגע', severity: 'error' })
+      }
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
+  const handleInstallUpdate = async () => {
+    if (!updateInfo) return
+    
+    setDownloading(true)
+    try {
+      await updateInfo.downloadAndInstall((progress: any) => {
+        if (progress.event === 'Progress') {
+          const percent = Math.round((progress.chunkLength / progress.contentLength) * 100)
+          setDownloadProgress(percent)
+        }
+      })
+      
+      await relaunch()
+    } catch (err) {
+      console.error('❌ שגיאה בעדכון:', err)
+      setSnackbar({ open: true, message: 'שגיאה בהתקנת העדכון', severity: 'error' })
+      setDownloading(false)
+    }
   }
 
   return (
@@ -705,27 +764,103 @@ export default function Settings() {
           </Button>
         </Grid>
 
-        {/* About */}
+        {/* About & Updates */}
         <Grid item xs={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <InfoIcon /> {t('settings.about')}
+                <InfoIcon /> מידע על האפליקציה
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                מינהל הגמ"ח
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {t('settings.version')}
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
-              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    מינהל הגמ"ח
+                  </Typography>
+                  <Typography variant="h6" sx={{ mt: 1 }}>
+                    גרסה 4.2.5
+                  </Typography>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <UpdateIcon /> עדכונים אוטומטיים
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    startIcon={<UpdateIcon />}
+                    onClick={handleCheckForUpdates}
+                    disabled={checkingUpdate}
+                    sx={{ mb: 1 }}
+                  >
+                    {checkingUpdate ? 'בודק עדכונים...' : 'בדוק עדכונים'}
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" display="block" textAlign="center">
+                    האפליקציה בודקת עדכונים אוטומטית בכל הפעלה
+                  </Typography>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+
+      {/* Update Dialog */}
+      <Dialog open={updateDialogOpen} onClose={() => !downloading && setUpdateDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          עדכון חדש זמין! 🎉
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              גרסה {updateInfo?.version}
+            </Typography>
+            {updateInfo?.date && (
+              <Typography variant="body2" color="text.secondary">
+                תאריך פרסום: {new Date(updateInfo.date).toLocaleDateString('he-IL')}
+              </Typography>
+            )}
+          </Box>
+
+          {updateInfo?.body && (
+            <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                מה חדש:
+              </Typography>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                {updateInfo.body}
+              </Typography>
+            </Box>
+          )}
+
+          {downloading && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" gutterBottom>
+                מוריד עדכון... {downloadProgress}%
+              </Typography>
+              <LinearProgress variant="determinate" value={downloadProgress} />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUpdateDialogOpen(false)} disabled={downloading}>
+            אולי מאוחר יותר
+          </Button>
+          <Button 
+            onClick={handleInstallUpdate} 
+            variant="contained" 
+            color="primary"
+            disabled={downloading}
+          >
+            {downloading ? 'מוריד...' : 'עדכן עכשיו'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={snackbar.open}
