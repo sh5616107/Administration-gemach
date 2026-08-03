@@ -778,7 +778,7 @@ export default function Settings() {
                     מינהל הגמ"ח
                   </Typography>
                   <Typography variant="h6" sx={{ mt: 1 }}>
-                    גרסה 4.3.4
+                    גרסה 4.3.5
                   </Typography>
                   <Divider sx={{ my: 2 }} />
                   <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
