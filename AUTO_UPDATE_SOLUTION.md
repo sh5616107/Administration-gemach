@@ -1,43 +1,57 @@
-# פתרון בעיית העדכונים האוטומטיים
+# פתרון בעיית העדכונים האוטומטיים - הפתרון הסופי!
 
 ## הבעיה
 הקובץ `latest.json` לא נוצר ב-GitHub Releases, מה שמונע מה-updater לעבוד.
 
-## הסיבה
-1. השתמשנו בגרסה `tauri-apps/tauri-action@v0.5` שהיא ישנה
-2. **לא הוספנו את הפרמטר `uploadUpdaterJson: true`** ב-workflow
+## הסיבה המדויקת ⚠️
+**חסר `createUpdaterArtifacts: true` תחת `bundle` ב-`tauri.conf.json`!**
 
-## הפתרון
-על פי [הדיון הרשמי](https://github.com/orgs/tauri-apps/discussions/6385) ו[ה-changelog](https://github.com/tauri-apps/tauri-action/releases):
+זו הגדרה קריטית שגורמת ל-Tauri ליצור את קבצי ה-`.sig` ואת ה-metadata שממנו `tauri-action` בונה את `latest.json`. 
 
-- **tauri-action מגרסה 0.5 ומעלה** יכול ליצור את `latest.json`
-- **צריך להוסיף `uploadUpdaterJson: true`** ב-workflow (בגרסה 1.0.0 שינו את השם מ-`includeUpdaterJson`)
-- **עדכנו ל-`@v0`** שמצביע תמיד על הגרסה העדכנית ביותר (כרגע v1.0.0)
+**טעות נפוצה:** לשים את זה תחת `plugins.updater` במקום תחת `bundle`.
 
-## מה שונה
-1. הסרנו את השלב `Create update manifest` שניסה ליצור את `latest.json` ידנית
-2. עדכנו את הגרסה מ-`@v0.5` ל-`@v0` (אוטומטית הגרסה האחרונה)
-3. **הוספנו `uploadUpdaterJson: true`** ל-workflow
-4. עדכנו את מספר הגרסה ל-4.3.0
+## הפתרון הסופי
+1. **הוספת `createUpdaterArtifacts: true` תחת `bundle`** (לא תחת plugins!)
+2. הוספת `uploadUpdaterJson: true` ב-workflow
+3. שימוש ב-`tauri-apps/tauri-action@v0`
+
+## מבנה tauri.conf.json הנכון
+```json
+{
+  "version": "4.3.1",
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,  // ← זה חייב להיות כאן!
+    "targets": ["nsis"],
+    ...
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/sh5616107/Administration-gemach/releases/latest/download/latest.json"
+      ],
+      "pubkey": "..."
+    }
+  }
+}
+```
 
 ## איך זה עובד
-1. כשמפרסמים tag חדש (למשל `v4.3.0`), GitHub Actions מריץ את ה-workflow
-2. `tauri-action` בונה את האפליקציה ויוצר `.exe` + `.sig`
-3. **עם `uploadUpdaterJson: true`** האקשן יוצר את `latest.json` עם כל המידע הנדרש
-4. הקובץ מועלה ל-GitHub Release
-5. האפליקציה יכולה לבדוק עדכונים דרך הכתובת:
-   ```
-   https://github.com/sh5616107/Administration-gemach/releases/latest/download/latest.json
-   ```
+1. כשמפרסמים tag חדש, GitHub Actions מריץ את ה-workflow
+2. **`createUpdaterArtifacts: true`** גורם ל-Tauri build ליצור קובץ `.sig` ליד כל installer
+3. `tauri-action` רואה את קבצי ה-`.sig` ויוצר מהם את `latest.json`
+4. **`uploadUpdaterJson: true`** גורם ל-action להעלות את `latest.json` ל-release
+5. האפליקציה יכולה עכשיו לבדוק עדכונים!
 
 ## שלבים הבאים
-1. לעשות commit ו-push לשינויים
-2. ליצור tag חדש: `git tag v4.3.0 && git push origin v4.3.0`
-3. לחכות ש-GitHub Actions יסיים את הבנייה
-4. לבדוק שהקובץ `latest.json` קיים ב-release
-5. לבדוק בתוכנה שמותקנת בגרסה 4.2.6 שהיא מציגה עדכון זמין
+1. ✅ עשינו commit עם התיקון
+2. Push + יצירת tag v4.3.1
+3. המתן לסיום הבנייה
+4. בדוק בלוגים שנוצרים קבצי `.sig`
+5. בדוק שיש `latest.json` ב-release
+6. בדוק עדכונים בתוכנה!
 
 ## מקורות
 - [GitHub Discussion על latest.json](https://github.com/orgs/tauri-apps/discussions/6385)
 - [tauri-action Releases](https://github.com/tauri-apps/tauri-action/releases)
-- [tauri-action v1.0.0 Changelog](https://github.com/tauri-apps/tauri-action/releases/tag/action-v1.0.0) - שינוי שם ל-`uploadUpdaterJson`
+- [Tauri v2 Updater Documentation](https://v2.tauri.app/plugin/updater/)
