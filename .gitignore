@@ -76,3 +76,6 @@ WORK_SESSION_SUMMARY.md
 
 # Kiro specs folder
 .kiro/
+
+# BrowserCtl — local relay token (secret for controlling the browser)
+tools/bctl.token
