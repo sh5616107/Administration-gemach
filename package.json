@@ -1,6 +1,6 @@
 {
   "name": "gemach-manager",
-  "version": "4.3.3",
+  "version": "4.3.4",
   "description": "מינהל הגמ\"ח - מערכת ניהול גמ\"ח כספים",
   "type": "module",
   "scripts": {
