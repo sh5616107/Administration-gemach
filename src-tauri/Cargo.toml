@@ -1,6 +1,6 @@
 [package]
 name = "gemach-manager"
-version = "4.3.2"
+version = "4.3.3"
 description = "מינהל הגמ\"ח - מערכת ניהול גמ\"ח כספים"
 authors = ["you"]
 edition = "2021"
@@ -9,7 +9,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.9", features = ["devtools"] }
+tauri = { version = "2.9.6", features = ["devtools"] }
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-updater = "2"
