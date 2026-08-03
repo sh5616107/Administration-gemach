@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BrowserCtl — הגדרות</title>
+<link rel="stylesheet" href="options.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="logo">
+      <div class="logo-mark">🛰️</div>
+      <div>
+        <h1>BrowserCtl</h1>
+        <p>שליטה מלאה בדפדפן מהמחשב שלך — דרך פורט מקומי מאובטח</p>
+      </div>
+    </div>
+    <div class="ver" id="ver">…</div>
+  </header>
+
+  <main>
+    <!-- connection status -->
+    <section class="card">
+      <h2>סטטוס חיבור</h2>
+      <div class="status-row">
+        <span class="dot" id="dot"></span>
+        <div class="status-text">
+          <strong id="statusTitle">מתחבר…</strong>
+          <small id="statusHint">ממתין לתשובה מהשרת המקומי</small>
+        </div>
+        <button class="btn ghost" id="reconnect">חיבור מחדש</button>
+      </div>
+    </section>
+
+    <!-- server + token -->
+    <section class="card">
+      <h2>הגדרות שרת מקומי</h2>
+      <div class="field">
+        <label for="port">פורט</label>
+        <input id="port" type="number" min="1024" max="65535" value="9798" step="1">
+        <p class="hint">הפורט שבו רצים השרת המקומי והתוסף. חייבים להתאים.</p>
+      </div>
+      <div class="field">
+        <label for="token">טוקן חיבור</label>
+        <div class="token-row">
+          <input id="token" type="password" placeholder="טרם הוגדר" autocomplete="off">
+          <button class="btn ghost" id="genToken" title="יצירת טוקן אקראי">🎲 חדש</button>
+          <button class="btn ghost" id="copyToken" title="העתקת הטוקן">📋 העתק</button>
+        </div>
+        <p class="hint">הדבק כאן את הטוקן שמוצג בשרת (<code>node tools/control-server.js</code>) או צור חדש ושמור.</p>
+      </div>
+      <div class="field">
+        <label class="switch-line">
+          <input type="checkbox" id="enabled" checked>
+          <span class="switch"></span>
+          <span><strong>שליטה פעילה</strong> — כשמכובה, כל הפקודות נדחות</span>
+        </label>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="save">שמור הגדרות</button>
+        <span class="saved" id="saved">✓ נשמר</span>
+      </div>
+    </section>
+
+    <!-- audit log -->
+    <section class="card">
+      <h2>יומן פעילות <small id="logCount"></small></h2>
+      <div class="log" id="log"><p class="empty">אין עדיין פעילות.</p></div>
+    </section>
+
+    <!-- quick commands -->
+    <section class="card">
+      <h2>דוגמאות לפקודות</h2>
+      <p class="hint">הרץ מהטרמינל (בתיקיית הפרויקט):</p>
+      <pre class="code">node tools/bctl.js tabs.list
+node tools/bctl.js tabs.active
+node tools/bctl.js cookies.list '{"domain":"example.com"}'
+node tools/bctl.js tabs.js '{"id":1,"code":"return document.title;"}'
+node tools/bctl.js history.search '{"text":"youtube","max":5}'</pre>
+    </section>
+  </main>
+</div>
+<script src="options.js"></script>
+</body>
+</html>

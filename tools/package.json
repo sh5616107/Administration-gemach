@@ -1,0 +1,6 @@
+{
+  "name": "gemach-tools-bctl",
+  "private": true,
+  "type": "commonjs",
+  "description": "BrowserCtl relay + CLI (CommonJS) — used to control the user's Chrome via the BrowserCtl extension."
+}

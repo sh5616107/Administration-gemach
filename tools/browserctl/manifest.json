@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "BrowserCtl",
+  "version": "0.1.0",
+  "description": "שליטה מלאה בדפדפן מהמחשב שלך — טאבים, עוגיות, סקריפטים, הורדות ועוד, דרך פורט מקומי מאובטח.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "BrowserCtl"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "cookies",
+    "downloads",
+    "history",
+    "bookmarks",
+    "notifications",
+    "offscreen",
+    "activeTab",
+    "debugger"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "minimum_chrome_version": "116"
+}
