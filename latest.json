@@ -1,0 +1,15 @@
+{
+  "version": "4.3.9",
+  "notes": "## שינויים בגרסה זו\n\nעדכונים וטיוטים\n\n### הורדה\nהורד את הקובץ המתאים למערכת ההפעלה שלך מהקבצים למטה.",
+  "pub_date": "2026-08-04T11:28:49.202Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTFFUSHhLUVlZeldRN1dhV21tTjlhRllUaUFGZ1hmdEJHVTBXL2k4UHNONzlFeWE0K2dSZ2ROSHdmUG1ORW1TdW95QkRkTGYxbU9HZzl1U2U1UVNvSzhGQ2FKWXpsNWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1ODQyOTI3CWZpbGU6Z2VtYWNoLW1hbmFnZXJfNC4zLjlfeDY0LXNldHVwLmV4ZQpRdUtDWjNCWmMyR0cxQ3ZPQ3grQVEzdGdlaDZLZ3o5aUxlT0p6eGVKOHV1bEFYa2MrVnNTOWVpYU5qVnF4SXVlTmlNMHFLV1JFQnRZTUF2ZlZKMzhCZz09Cg==",
+      "url": "https://github.com/sh5616107/Administration-gemach/releases/download/v4.3.9/gemach-manager_4.3.9_x64-setup.exe"
+    },
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTFFUSHhLUVlZeldRN1dhV21tTjlhRllUaUFGZ1hmdEJHVTBXL2k4UHNONzlFeWE0K2dSZ2ROSHdmUG1ORW1TdW95QkRkTGYxbU9HZzl1U2U1UVNvSzhGQ2FKWXpsNWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1ODQyOTI3CWZpbGU6Z2VtYWNoLW1hbmFnZXJfNC4zLjlfeDY0LXNldHVwLmV4ZQpRdUtDWjNCWmMyR0cxQ3ZPQ3grQVEzdGdlaDZLZ3o5aUxlT0p6eGVKOHV1bEFYa2MrVnNTOWVpYU5qVnF4SXVlTmlNMHFLV1JFQnRZTUF2ZlZKMzhCZz09Cg==",
+      "url": "https://github.com/sh5616107/Administration-gemach/releases/download/v4.3.9/gemach-manager_4.3.9_x64-setup.exe"
+    }
+  }
+}

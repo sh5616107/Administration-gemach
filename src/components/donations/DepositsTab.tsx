@@ -120,6 +120,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
   const [selectedDepositForHistory, setSelectedDepositForHistory] = useState<Deposit | null>(null)
   const [withdrawalHistory, setWithdrawalHistory] = useState<DepositWithdrawal[]>([])
+  const [depositWithdrawalsHistory, setDepositWithdrawalsHistory] = useState<Record<number, DepositWithdrawal[]>>({})
 
   // Recurring items dialogs
   const [editRecurringDialogOpen, setEditRecurringDialogOpen] = useState(false)
@@ -198,9 +199,11 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
       `, [selectedDepositor.id]) as Deposit[]
       
       // חישוב סכום נמשך מההיסטוריה לכל הפקדה
+      const historyMap: Record<number, DepositWithdrawal[]> = {}
       const depositsWithWithdrawals = await Promise.all(
         data.map(async (deposit) => {
           const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+          historyMap[deposit.id] = withdrawals
           const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
           return {
             ...deposit,
@@ -210,6 +213,7 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
       )
       
       setDeposits(depositsWithWithdrawals)
+      setDepositWithdrawalsHistory(historyMap)
     } catch (error) {
       console.error('Error loading deposits:', error)
     }
@@ -787,13 +791,17 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
                   </TableRow>
                 ) : (
                   deposits.map((deposit) => {
-                    const withdrawn = deposit.withdrawn_amount || 0
                     // חישוב סכום בפועל להפקדה מחזורית
                     let depositAmount = deposit.amount
                     if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
                       depositAmount = deposit.amount * deposit.recurring_deposit_number
                     }
+                    
+                    // חישוב נכון של היתרה מההיסטוריה האמיתית
+                    const withdrawals = depositWithdrawalsHistory[deposit.id] || []
+                    const withdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
                     const remaining = depositAmount - withdrawn
+                    
                     return (
                     <TableRow 
                       key={deposit.id}
