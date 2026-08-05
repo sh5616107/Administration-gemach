@@ -1469,7 +1469,7 @@ export const depositWithdrawalsService = {
     return getItem<DepositWithdrawal>('depositWithdrawals', String(id))
   },
   
-  async getByDeposit(depositId: number): Promise<DepositWithdrawal[]> {
+  async getByDeposit(depositId: number | string): Promise<DepositWithdrawal[]> {
     return (await this.getAll()).filter(w => w.deposit_id === depositId)
   },
   
@@ -1487,7 +1487,7 @@ export const depositWithdrawalsService = {
     removeItem('depositWithdrawals', id)
   },
   
-  async getTotalWithdrawn(depositId: string): Promise<number> {
+  async getTotalWithdrawn(depositId: string | number): Promise<number> {
     const withdrawals = await this.getByDeposit(depositId)
     return withdrawals.reduce((sum, w) => sum + w.amount, 0)
   }
