@@ -245,7 +245,7 @@ export const db = {
       
       // פילטר לפי status
       if (sql.includes('status = ?') && params && params.length > 0) {
-        const statusParam = params[params.length - 1] // הפרמטר האחרון הוא בדרך כלל ה-status
+        const statusParam = params[params.length - 1]
         filtered = filtered.filter(d => d.status === statusParam)
       }
       
@@ -737,12 +737,8 @@ export const statsService = {
   async getDashboardStats() {
     const today = new Date().toISOString().split('T')[0]
     
-    console.log('📊 getDashboardStats - Using centralized getActiveLoansForExistingBorrowers()')
-    
     // שימוש בפונקציה המרכזית
     const activeWithBalance = await loansService.getActiveLoansForExistingBorrowers()
-    
-    console.log('✅ Active loans with balance:', activeWithBalance.length)
     
     // הלוואות מתוכננות
     const allLoans = await loansService.getAll()
@@ -750,7 +746,7 @@ export const statsService = {
       (l.status === 'planned' || l.loan_date > today)
     )
     
-    const deps = getAllItems<{ id: number; amount: number; status: string; is_recurring?: number; recurring_deposit_number?: number; is_deleted?: boolean }>('deposits').filter(d => d.status === 'active' && !d.is_deleted)
+    const deps = (await db.query('SELECT * FROM deposits', [])) as { id: number; amount: number; status?: string; is_recurring?: number; recurring_deposit_number?: number; is_deleted?: boolean }[]
     
     // חישוב סה"כ הפקדות (כולל מחזוריות, מפחיתים משיכות)
     let totalDeposits = 0
@@ -781,7 +777,6 @@ export const statsService = {
       gemachExpenses,
     }
     
-    console.log('🎯 FINAL - Count:', result.activeLoans.count, 'Total:', result.activeLoans.total)
     return result
   },
   async getActiveBorrowers() {
@@ -796,7 +791,7 @@ export const statsService = {
     const loans = getAllItems<any>('loans')
     const repayments = getAllItems<any>('repayments')
     const donations = getAllItems<any>('donations')
-    const deposits = getAllItems<any>('deposits').filter((d: any) => !d.is_deleted)
+    const deposits = (await db.query('SELECT * FROM deposits WHERE is_deleted IS NULL OR is_deleted = 0')) as any[]
     const expenses = getAllItems<any>('expenses')
     
     const methods = ['cash', 'credit', 'transfer', 'check', 'other']

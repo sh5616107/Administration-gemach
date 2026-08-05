@@ -386,6 +386,13 @@ export async function migrateDepositStatusAndRecurring(): Promise<{ migrated: nu
       let needsUpdate = false
       const updates: any = {}
       
+      // Add default status if missing
+      if (deposit.status === undefined || deposit.status === null) {
+        updates.status = 'active'
+        needsUpdate = true
+        console.log(`[MIGRATION v6] Deposit ${deposit.id}: added default status 'active'`)
+      }
+      
       // Fix status if it's a number
       if (typeof deposit.status === 'number') {
         updates.status = deposit.status === 1 ? 'active' : 'withdrawn'
