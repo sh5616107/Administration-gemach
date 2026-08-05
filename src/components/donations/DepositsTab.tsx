@@ -312,20 +312,25 @@ export default function DepositsTab({ selectedDepositor, onSelectDepositor, init
   }
 
   const handleWithdraw = async (deposit: Deposit) => {
-    // חישוב היתרה הזמינה למשיכה מההיסטוריה
-    const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
-    const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
-    const availableToWithdraw = deposit.amount - alreadyWithdrawn
-    
-    if (availableToWithdraw <= 0) {
-      setSnackbar({ open: true, message: 'כל הסכום כבר נמשך', severity: 'error' })
-      return
-    }
+    try {
+      // חישוב היתרה הזמינה למשיכה מההיסטוריה
+      const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
+      const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+      const availableToWithdraw = deposit.amount - alreadyWithdrawn
+      
+      if (availableToWithdraw <= 0) {
+        setSnackbar({ open: true, message: 'כל הסכום כבר נמשך', severity: 'error' })
+        return
+      }
 
-    setWithdrawingDeposit(deposit)
-    setWithdrawPaymentMethod({ payment_method: '' })
-    setWithdrawAmount(availableToWithdraw) // ברירת מחדל: כל היתרה
-    setWithdrawDialogOpen(true)
+      setWithdrawingDeposit(deposit)
+      setWithdrawPaymentMethod({ payment_method: '' })
+      setWithdrawAmount(availableToWithdraw)
+      setWithdrawDialogOpen(true)
+    } catch (error) {
+      console.error('❌ Error in handleWithdraw:', error)
+      setSnackbar({ open: true, message: 'שגיאה בטעינת נתוני משיכה', severity: 'error' })
+    }
   }
 
   const handleConfirmWithdraw = async () => {
