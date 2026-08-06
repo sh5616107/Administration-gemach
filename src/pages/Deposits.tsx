@@ -24,6 +24,12 @@ import {
   MenuItem,
   Collapse,
   Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -48,6 +54,8 @@ import { generateDepositorReport, openEmailWithDocument, createDepositorReportEm
 import { useSettings } from '../hooks/useSettings';
 import DepositorSidePanel from '../components/donations/DepositorSidePanel';
 import DepositSidePanel from '../components/donations/DepositSidePanel';
+import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
+import AmountInput from '../components/AmountInput';
 
 interface Depositor {
   id: number;
@@ -104,6 +112,17 @@ export default function Deposits() {
 
   // Depositor edit panel
   const [depositorPanelOpen, setDepositorPanelOpen] = useState(false);
+
+  // Withdraw dialog state
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [withdrawingDeposit, setWithdrawingDeposit] = useState<Deposit | null>(null);
+  const [withdrawPaymentMethod, setWithdrawPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
+
+  // Withdrawal history dialog state
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [selectedDepositForHistory, setSelectedDepositForHistory] = useState<Deposit | null>(null);
+  const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
 
   // Snackbar
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -365,6 +384,90 @@ export default function Deposits() {
       console.error('Error deleting deposit:', error);
       setSnackbar({ open: true, message: 'שגיאה במחיקה', severity: 'error' });
     }
+  };
+
+  const handleWithdraw = async (deposit: Deposit) => {
+    // חישוב היתרה הזמינה למשיכה מההיסטוריה
+    const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id);
+    const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+
+    // חישוב סכום הפקדה בפועל (כולל הפקדות מחזוריות) - עקבי עם תצוגת הכרטיס
+    let depositAmount = deposit.amount;
+    if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
+      depositAmount = deposit.amount * deposit.recurring_deposit_number;
+    }
+    const availableToWithdraw = depositAmount - alreadyWithdrawn;
+
+    if (availableToWithdraw <= 0) {
+      setSnackbar({ open: true, message: 'כל הסכום כבר נמשך', severity: 'error' });
+      return;
+    }
+
+    setWithdrawingDeposit({ ...deposit, amount: depositAmount, withdrawn_amount: alreadyWithdrawn });
+    setWithdrawPaymentMethod({ payment_method: '' });
+    setWithdrawAmount(availableToWithdraw); // ברירת מחדל: כל היתרה
+    setWithdrawDialogOpen(true);
+  };
+
+  const handleConfirmWithdraw = async () => {
+    if (!withdrawingDeposit) return;
+
+    // ולידציה - חישוב מחדש מההיסטוריה
+    const withdrawals = await depositWithdrawalsService.getByDeposit(withdrawingDeposit.id);
+    const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+    const availableToWithdraw = withdrawingDeposit.amount - alreadyWithdrawn;
+
+    if (withdrawAmount <= 0) {
+      setSnackbar({ open: true, message: 'נא להזין סכום למשיכה', severity: 'error' });
+      return;
+    }
+
+    if (withdrawAmount > availableToWithdraw) {
+      setSnackbar({ open: true, message: `לא ניתן למשוך יותר מ-${formatCurrency(availableToWithdraw)}`, severity: 'error' });
+      return;
+    }
+
+    try {
+      const withdrawalDate = new Date().toISOString().split('T')[0];
+
+      // יצירת רשומת משיכה חדשה
+      await depositWithdrawalsService.create({
+        deposit_id: withdrawingDeposit.id,
+        amount: withdrawAmount,
+        withdrawal_date: withdrawalDate,
+        payment_method: withdrawPaymentMethod.payment_method,
+        payment_details: JSON.stringify(withdrawPaymentMethod),
+        notes: ''
+      });
+
+      // עדכון סטטוס ההפקדה ופרטי המשיכה
+      const totalWithdrawn = alreadyWithdrawn + withdrawAmount;
+      const newStatus = totalWithdrawn >= withdrawingDeposit.amount ? 'withdrawn' : 'active';
+
+      await db.run(
+        'UPDATE deposits SET status = ?, withdrawal_date = ?, withdrawn_amount = ?, withdrawal_payment_method = ?, withdrawal_payment_details = ? WHERE id = ?',
+        [newStatus, withdrawalDate, totalWithdrawn, withdrawPaymentMethod.payment_method, JSON.stringify(withdrawPaymentMethod), withdrawingDeposit.id]
+      );
+
+      const message = newStatus === 'withdrawn'
+        ? 'המשיכה בוצעה - ההפקדה נסגרה'
+        : `נמשכו ${formatCurrency(withdrawAmount)} - נותרו ${formatCurrency(withdrawingDeposit.amount - totalWithdrawn)}`;
+
+      setSnackbar({ open: true, message, severity: 'success' });
+      setWithdrawDialogOpen(false);
+      setWithdrawingDeposit(null);
+      if (selectedDepositor) loadDepositsForDepositor(selectedDepositor.id);
+    } catch (error) {
+      console.error('Error withdrawing:', error);
+      setSnackbar({ open: true, message: 'שגיאה במשיכה', severity: 'error' });
+    }
+  };
+
+  const handleShowHistory = async (deposit: Deposit) => {
+    const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id);
+    setWithdrawalHistory(withdrawals);
+    setSelectedDepositForHistory(deposit);
+    setHistoryDialogOpen(true);
   };
 
   const formatCurrency = (amount: number) => `₪${amount.toLocaleString()}`;
@@ -711,7 +814,7 @@ export default function Deposits() {
                                   color="warning"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // TODO: Implement withdraw dialog
+                                    handleWithdraw(deposit);
                                   }}
                                   sx={{ '&:hover': { bgcolor: 'grey.200' } }}
                                 >
@@ -739,7 +842,7 @@ export default function Deposits() {
                                 color="secondary"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // TODO: Show withdrawal history
+                                  handleShowHistory(deposit);
                                 }}
                                 sx={{ '&:hover': { bgcolor: 'grey.200' } }}
                               >
@@ -990,6 +1093,131 @@ export default function Deposits() {
           </Typography>
         </Paper>
       )}
+
+      {/* Withdraw Dialog */}
+      <Dialog open={withdrawDialogOpen} onClose={() => setWithdrawDialogOpen(false)}>
+        <DialogTitle>משיכת הפקדה</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {withdrawingDeposit && (
+              <>
+                <Typography sx={{ mb: 1 }}>
+                  סכום הפקדה: {formatCurrency(withdrawingDeposit.amount)}
+                </Typography>
+                {(withdrawingDeposit.withdrawn_amount || 0) > 0 && (
+                  <Typography sx={{ mb: 1 }} color="warning.main">
+                    כבר נמשך: {formatCurrency(withdrawingDeposit.withdrawn_amount || 0)}
+                  </Typography>
+                )}
+                <Typography sx={{ mb: 2 }} color="success.main" fontWeight="bold">
+                  זמין למשיכה: {formatCurrency(withdrawingDeposit.amount - (withdrawingDeposit.withdrawn_amount || 0))}
+                </Typography>
+
+                <AmountInput
+                  fullWidth
+                  label="סכום למשיכה"
+                  value={withdrawAmount}
+                  onChange={(value) => setWithdrawAmount(Math.min(value, withdrawingDeposit.amount - (withdrawingDeposit.withdrawn_amount || 0)))}
+                  sx={{ mb: 2 }}
+                />
+
+                {settings.show_payment_method === 'yes' && (
+                  <PaymentMethodSelect
+                    value={withdrawPaymentMethod}
+                    onChange={setWithdrawPaymentMethod}
+                    label="אמצעי תשלום למשיכה"
+                  />
+                )}
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWithdrawDialogOpen(false)}>ביטול</Button>
+          <Button variant="contained" color="warning" onClick={handleConfirmWithdraw}>
+            בצע משיכה
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Withdrawal History Dialog */}
+      <Dialog 
+        open={historyDialogOpen} 
+        onClose={() => setHistoryDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          היסטוריית משיכות
+          {selectedDepositForHistory && (
+            <Typography variant="body2" color="text.secondary">
+              הפקדה מתאריך {new Date(selectedDepositForHistory.deposit_date).toLocaleDateString('he-IL')}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          {withdrawalHistory.length === 0 ? (
+            <Box sx={{ py: 4, textAlign: 'center' }}>
+              <Typography color="text.secondary">אין היסטוריית משיכות להפקדה זו</Typography>
+            </Box>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell align="right">תאריך משיכה</TableCell>
+                    <TableCell align="center">סכום</TableCell>
+                    <TableCell align="right">אמצעי תשלום</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {withdrawalHistory.map((withdrawal, index) => {
+                    let paymentMethodText = withdrawal.payment_method || '-';
+                    try {
+                      const details = JSON.parse(withdrawal.payment_details || '{}');
+                      if (details.payment_method === 'bank_transfer' && details.bank_name) {
+                        paymentMethodText = `העברה בנקאית - ${details.bank_name}`;
+                      } else if (details.payment_method === 'check' && details.check_number) {
+                        paymentMethodText = `צ'ק - ${details.check_number}`;
+                      } else if (details.payment_method === 'cash') {
+                        paymentMethodText = 'מזומן';
+                      }
+                    } catch (e) {
+                      // Keep original payment_method value
+                    }
+                    
+                    return (
+                      <TableRow key={index}>
+                        <TableCell align="right">
+                          {new Date(withdrawal.withdrawal_date).toLocaleDateString('he-IL')}
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                          {formatCurrency(withdrawal.amount)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {paymentMethodText}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableCell align="right">
+                      <strong>סה"כ נמשך</strong>
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                      {formatCurrency(withdrawalHistory.reduce((sum, w) => sum + w.amount, 0))}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryDialogOpen(false)}>סגור</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Depositor Edit Panel */}
       <DepositorSidePanel
