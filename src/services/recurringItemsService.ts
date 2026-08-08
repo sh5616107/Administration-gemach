@@ -216,8 +216,23 @@ async function identifySeriesItems(originalItem: any, itemType: ItemType): Promi
     }
     case 'repayment': {
       const allRepayments = getAllItems<Repayment>('repayments')
+      
+      // ✅ תיקון: זיהוי פירעונות על פני כל משפחת ההלוואות
+      // 1. מציאת ההלוואה
+      const loan = await loansService.getById(originalItem.loan_id)
+      if (!loan) {
+        items = []
+        break
+      }
+      
+      // 2. מציאת כל ההלוואות במשפחה
+      const { getLoanFamily } = await import('./recurringRepaymentsService')
+      const familyLoans = await getLoanFamily(loan)
+      const familyLoanIds = familyLoans.map(l => l.id)
+      
+      // 3. איסוף כל הפירעונות מכל ההלוואות במשפחה
       items = allRepayments.filter(r =>
-        r.loan_id === originalItem.loan_id &&
+        familyLoanIds.includes(r.loan_id) &&
         r.is_recurring === 1 &&
         !r.is_deleted
       )

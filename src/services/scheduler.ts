@@ -268,6 +268,19 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
     const totalCount = loan.recurring_loan_count || (loan.recurring_months ? loan.recurring_months + 1 : 1)
     const newLoanNumber = originalNumber + 1
     
+    // ✅ תיקון: אם להלוואה המקורית אין recurring_series_id, ליצור לה אחד
+    let seriesId = loan.recurring_series_id
+    if (!seriesId) {
+      // יצירת UUID חדש למשפחה
+      seriesId = crypto.randomUUID()
+      console.log(`[CREATE RECURRING] Creating new series_id for loan family: ${seriesId}`)
+      
+      // עדכון ההלוואה המקורית עם ה-series_id החדש
+      await loansService.update(originalLoanId, {
+        recurring_series_id: seriesId
+      })
+    }
+    
     await loansService.create({
       borrower_id: loan.borrower_id,
       amount: loan.amount,
@@ -281,6 +294,7 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
       recurring_day: loan.recurring_day,
       recurring_loan_number: newLoanNumber,
       recurring_loan_count: totalCount,
+      recurring_series_id: seriesId,  // ✅ העברת ה-series_id להלוואה החדשה
       auto_repayment: loan.auto_repayment,
       repayment_amount: loan.repayment_amount,
       repayment_day: loan.repayment_day,
@@ -335,13 +349,9 @@ export async function processAutoRepayment(loanId: string, amount: number): Prom
       return false
     }
     
-    const autoRepayments = existingRepayments.filter(r => r.notes?.includes('פירעון מחזורי'))
-    const repaymentNumber = autoRepayments.length + 1
-    
-    // Calculate total count based on loan amount and repayment amount
-    const totalCount = loan.repayment_amount > 0 
-      ? Math.ceil(loan.amount / loan.repayment_amount)
-      : undefined
+    // ✅ תיקון: שימוש בפונקציה המשותפת לחישוב מספור
+    const { calculateNextRepaymentNumber } = await import('./recurringRepaymentsService')
+    const { recurringRepaymentNumber, recurringRepaymentCount } = await calculateNextRepaymentNumber(loanId)
     
     await repaymentsService.create({
       loan_id: loanId,
@@ -349,8 +359,8 @@ export async function processAutoRepayment(loanId: string, amount: number): Prom
       payment_date: today,
       notes: 'פירעון מחזורי אוטומטי',
       is_recurring: 1,
-      recurring_repayment_number: repaymentNumber,
-      recurring_repayment_count: totalCount
+      recurring_repayment_number: recurringRepaymentNumber,
+      recurring_repayment_count: recurringRepaymentCount
     })
 
     return true
@@ -359,6 +369,7 @@ export async function processAutoRepayment(loanId: string, amount: number): Prom
     return false
   }
 }
+
 
 // Run all checks on app startup
 export async function runStartupChecks(): Promise<Alert[]> {
