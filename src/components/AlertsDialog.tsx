@@ -32,6 +32,7 @@ import { loansService, repaymentsService, db } from '../services/database'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
 import { createRecurringDeposit, createRecurringLoan, getMissedLoansAlerts } from '../services/scheduler'
+import { calculateNextRepaymentNumber } from '../services/recurringRepaymentsService'
 
 interface Alert {
   type: 'overdue' | 'recurring' | 'auto_repayment' | 'recurring_deposit' | 'info'
@@ -361,7 +362,6 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
         isRecurring = 1
         
         // ✅ תיקון: שימוש בפונקציה המשותפת לחישוב מספור
-        const { calculateNextRepaymentNumber } = await import('../services/recurringRepaymentsService')
         const result = await calculateNextRepaymentNumber(alert.loanId)
         recurringRepaymentNumber = result.recurringRepaymentNumber
         recurringRepaymentCount = result.recurringRepaymentCount

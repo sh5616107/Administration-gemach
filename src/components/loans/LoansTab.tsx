@@ -48,6 +48,7 @@ import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, Email
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
 import PaymentMethodSelect, { PaymentMethodData, getPaymentMethodLabel } from '../PaymentMethodSelect'
+import { calculateNextRepaymentNumber, isFirstLoanInFamily } from '../../services/recurringRepaymentsService'
 import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkGuarantorForLoan, checkBorrowerForLoan, type CrossCheckResult } from '../../services/crossCheck'
@@ -701,7 +702,6 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         isRecurring = 1
         
         // ✅ תיקון: שימוש בפונקציה המשותפת לחישוב מספור
-        const { calculateNextRepaymentNumber } = await import('../services/recurringRepaymentsService')
         const result = await calculateNextRepaymentNumber(selectedLoan.id)
         recurringRepaymentNumber = result.recurringRepaymentNumber
         recurringRepaymentCount = result.recurringRepaymentCount
@@ -1360,9 +1360,9 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                       const today = new Date()
                                       today.setHours(0, 0, 0, 0)
                                       const isFutureRepayment = repaymentDate >= today
-                                      const isFirstLoanInFamily = !loan.is_recurring || loan.recurring_loan_number === 1
+                                      const isFirstInFamily = !loan.is_recurring || loan.recurring_loan_number === 1
                                       
-                                      return isFirstRepayment && isFutureRepayment && isFirstLoanInFamily ? (
+                                      return isFirstRepayment && isFutureRepayment && isFirstInFamily ? (
                                         <IconButton 
                                           size="small" 
                                           color="primary" 
