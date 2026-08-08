@@ -639,8 +639,8 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                             </Tooltip>
                           )}
                           
-                          {/* Edit auto repayment - only for loans with auto repayment */}
-                          {loan.auto_repayment === 1 && loan.id && (
+                          {/* Edit auto repayment - only for loans with auto repayment, show on first loan in series */}
+                          {loan.auto_repayment === 1 && loan.id && (!loan.is_recurring || loan.recurring_loan_number === 1) && (
                             <Tooltip title={loanRecurringRepayments.has(loan.id) ? "נהל פירעון אוטומטי" : "ערוך הגדרות פירעון אוטומטי"}>
                               <IconButton
                                 size="small"

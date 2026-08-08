@@ -611,6 +611,7 @@ export interface Loan {
   recurring_day?: number; 
   recurring_loan_number?: number; 
   recurring_loan_count?: number; 
+  recurring_series_id?: string;  // UUID - מזהה משפחת הלוואות מחזוריות (שדה חדש)
   auto_repayment: number; 
   repayment_amount?: number; 
   repayment_day?: number; 

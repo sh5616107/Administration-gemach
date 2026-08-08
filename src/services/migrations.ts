@@ -4,7 +4,7 @@ import { guarantorLoansService, guarantorLoanRepaymentsService, loansService, ex
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 12 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 14 // Increment this when adding new migrations
 
 /**
  * Get the current migration version from storage
@@ -293,6 +293,7 @@ export async function migrateRecurringRepaymentNumbers(): Promise<{ migrated: nu
   
   try {
     const { repaymentsService, db } = await import('./database')
+    const { calculateNextRepaymentNumber } = await import('./recurringRepaymentsService')
     const allLoans = await loansService.getAll()
     
     for (const loan of allLoans) {
@@ -308,8 +309,9 @@ export async function migrateRecurringRepaymentNumbers(): Promise<{ migrated: nu
         new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()
       )
       
-      // חישוב סה"כ פירעונות צפויים
-      const totalCount = Math.ceil(loan.amount / loan.repayment_amount)
+      // ✅ תיקון: שימוש בלוגיקה המשותפת לחישוב הספירה
+      // זה מטפל נכון גם בהלוואות מחזוריות (loan family)
+      const { recurringRepaymentCount } = await calculateNextRepaymentNumber(loan.id)
       
       // עדכון כל פירעון עם המספר שלו
       for (let i = 0; i < sortedRepayments.length; i++) {
@@ -318,7 +320,7 @@ export async function migrateRecurringRepaymentNumbers(): Promise<{ migrated: nu
         if (!repayment.recurring_repayment_number) {
           await db.run(
             'UPDATE repayments SET is_recurring = ?, recurring_repayment_number = ?, recurring_repayment_count = ? WHERE id = ?',
-            [1, i + 1, totalCount, repayment.id]
+            [1, i + 1, recurringRepaymentCount, repayment.id]
           )
           migrated++
         } else {
@@ -1056,6 +1058,188 @@ export async function migrateDonationReceiptNumbers(): Promise<{ migrated: numbe
 }
 
 /**
+ * Migration v13: Add recurring_series_id to recurring loan families
+ * 
+ * מוסיף שדה recurring_series_id להלוואות מחזוריות קיימות.
+ * מקבץ הלוואות לפי borrower_id + recurring_day + הגדרות נוספות,
+ * ומקצה להן UUID משותף.
+ */
+export async function migrateRecurringSeriesId(): Promise<{ migrated: number }> {
+  console.log('🔄 Starting recurring_series_id migration...')
+  
+  let migrated = 0
+  
+  try {
+    const allData = await exportAllData()
+    const loans = allData.loans as any[]
+    
+    if (loans.length === 0) {
+      console.log('✅ Migration v13: No loans found')
+      return { migrated: 0 }
+    }
+    
+    // מיפוי הלוואות לקבוצות (כמו במיגרציה v3)
+    const recurringLoansByBorrower: { [key: string]: any[] } = {}
+    
+    for (const loan of loans) {
+      // רק הלוואות מחזוריות
+      if (loan.is_recurring !== 1 || loan.is_deleted) continue
+      
+      const key = `${loan.borrower_id}_${loan.recurring_day}_${loan.amount}_${loan.loan_type}`
+      
+      if (!recurringLoansByBorrower[key]) {
+        recurringLoansByBorrower[key] = []
+      }
+      recurringLoansByBorrower[key].push(loan)
+    }
+    
+    // עדכון כל קבוצה עם recurring_series_id משותף
+    for (const key in recurringLoansByBorrower) {
+      const group = recurringLoansByBorrower[key]
+      
+      // מיון לפי תאריך ההלוואה
+      group.sort((a: any, b: any) => 
+        new Date(a.loan_date).getTime() - new Date(b.loan_date).getTime()
+      )
+      
+      // בדיקה: האם כבר יש series_id באחת מההלוואות?
+      const existingSeriesId = group.find((l: any) => l.recurring_series_id)?.recurring_series_id
+      const seriesId = existingSeriesId || crypto.randomUUID()
+      
+      // עדכון כל ההלוואות בקבוצה
+      for (const loan of group) {
+        if (!loan.recurring_series_id) {
+          loan.recurring_series_id = seriesId
+          migrated++
+        }
+      }
+    }
+    
+    if (migrated > 0) {
+      await importAllData(allData)
+      console.log(`✅ Migration v13: Added recurring_series_id to ${migrated} loans`)
+    } else {
+      console.log('✅ Migration v13: All recurring loans already have series_id')
+    }
+    
+  } catch (error) {
+    console.error('Error in recurring_series_id migration:', error)
+  }
+  
+  return { migrated }
+}
+
+/**
+ * Migration v14: Fix recurring repayment numbers for loan families
+ * 
+ * מתקן מספור פירעונות מחזוריים שנפגעו מהבאג:
+ * כשהלוואה היא גם מחזורית וגם עם פירעון אוטומטי, 
+ * כל הפירעונות קיבלו מספר 1 במקום 1,2,3...
+ * 
+ * המיגרציה:
+ * 1. מזהה משפחות הלוואות (לפי recurring_series_id או borrower_id+recurring_day)
+ * 2. אוספת את כל הפירעונות מכל ההלוואות במשפחה
+ * 3. ממספרת אותם מחדש לפי סדר תאריכים (1,2,3...)
+ */
+export async function fixRecurringRepaymentNumbersForFamilies(): Promise<{ 
+  migrated: number; 
+  families: number 
+}> {
+  console.log('🔄 Starting recurring repayment numbers fix for loan families...')
+  
+  let migrated = 0
+  let families = 0
+  
+  try {
+    const allData = await exportAllData()
+    const loans = allData.loans as any[]
+    const repayments = allData.repayments as any[]
+    
+    if (loans.length === 0 || repayments.length === 0) {
+      console.log('✅ Migration v14: No loans/repayments found')
+      return { migrated: 0, families: 0 }
+    }
+    
+    // מיפוי הלוואות לפי משפחות
+    const loanFamilies: { [seriesId: string]: any[] } = {}
+    
+    for (const loan of loans) {
+      // רק הלוואות מחזוריות עם פירעון אוטומטי
+      if (loan.is_recurring !== 1 || loan.auto_repayment !== 1 || loan.is_deleted) continue
+      
+      // זיהוי משפחה
+      let familyKey: string
+      if (loan.recurring_series_id) {
+        familyKey = loan.recurring_series_id
+      } else {
+        // נופל חזרה לזיהוי לפי borrower+day (תואימות אחורה)
+        familyKey = `fallback_${loan.borrower_id}_${loan.recurring_day}_${loan.auto_repayment}`
+      }
+      
+      if (!loanFamilies[familyKey]) {
+        loanFamilies[familyKey] = []
+      }
+      loanFamilies[familyKey].push(loan)
+    }
+    
+    // עיבוד כל משפחה
+    for (const familyKey in loanFamilies) {
+      const family = loanFamilies[familyKey]
+      const familyLoanIds = family.map((l: any) => l.id)
+      
+      // איסוף כל הפירעונות של המשפחה
+      const familyRepayments = repayments.filter((r: any) =>
+        familyLoanIds.includes(r.loan_id) &&
+        r.is_recurring === 1 &&
+        !r.is_deleted
+      )
+      
+      if (familyRepayments.length === 0) continue
+      
+      // מיון לפי תאריך
+      familyRepayments.sort((a: any, b: any) =>
+        new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()
+      )
+      
+      // חישוב סה"כ פירעונות צפויים
+      const totalAmount = family.reduce((sum: number, l: any) => sum + l.amount, 0)
+      const repaymentAmount = family[0].repayment_amount
+      const totalCount = repaymentAmount > 0 ? Math.ceil(totalAmount / repaymentAmount) : undefined
+      
+      // עדכון מספור
+      let needsUpdate = false
+      familyRepayments.forEach((r: any, index: number) => {
+        const correctNumber = index + 1
+        if (r.recurring_repayment_number !== correctNumber || 
+            r.recurring_repayment_count !== totalCount) {
+          r.recurring_repayment_number = correctNumber
+          r.recurring_repayment_count = totalCount
+          needsUpdate = true
+          migrated++
+        }
+      })
+      
+      if (needsUpdate) {
+        families++
+        console.log(`[Migration v14] Fixed family ${familyKey}: ${familyRepayments.length} repayments`)
+      }
+    }
+    
+    if (migrated > 0) {
+      await importAllData(allData)
+      console.log(`✅ Migration v14: Fixed ${migrated} repayments across ${families} loan families`)
+    } else {
+      console.log('✅ Migration v14: All repayment numbers are correct')
+    }
+    
+  } catch (error) {
+    console.error('Error in recurring repayment numbers fix:', error)
+  }
+  
+  return { migrated, families }
+}
+
+/**
  * Run all pending migrations
  */
 export async function runPendingMigrations(): Promise<void> {
@@ -1162,6 +1346,20 @@ export async function runPendingMigrations(): Promise<void> {
     console.log('📋 Running migration v12: Add receipt numbers to donations')
     const result = await migrateDonationReceiptNumbers()
     console.log(`✅ Migration v12 complete: ${result.migrated} donations updated`)
+  }
+  
+  // Migration v13: Add recurring_series_id to recurring loans
+  if (currentVersion < 13) {
+    console.log('📋 Running migration v13: Add recurring_series_id to recurring loans')
+    const result = await migrateRecurringSeriesId()
+    console.log(`✅ Migration v13 complete: ${result.migrated} loans updated`)
+  }
+  
+  // Migration v14: Fix recurring repayment numbers for loan families
+  if (currentVersion < 14) {
+    console.log('📋 Running migration v14: Fix recurring repayment numbers for loan families')
+    const result = await fixRecurringRepaymentNumbersForFamilies()
+    console.log(`✅ Migration v14 complete: ${result.migrated} repayments fixed across ${result.families} families`)
   }
   
   // Update migration version

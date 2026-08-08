@@ -360,22 +360,11 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
       if (loan && loan.auto_repayment === 1 && loan.repayment_amount && loan.repayment_amount > 0) {
         isRecurring = 1
         
-        // מחשבים כמה פירעונות כבר היו
-        const existingRepayments = await repaymentsService.getByLoan(alert.loanId)
-        recurringRepaymentNumber = existingRepayments.length + 1
-        
-        // אם יש כבר פירעון קודם עם מספר מחזורי - משתמשים באותו ספירה
-        const firstRecurringRepayment = existingRepayments.find(r => r.recurring_repayment_count && r.recurring_repayment_count > 0)
-        
-        if (firstRecurringRepayment && firstRecurringRepayment.recurring_repayment_count) {
-          // משתמשים בספירה מהפירעון הקיים (שכבר עודכנה אם שינו את הסכום)
-          recurringRepaymentCount = firstRecurringRepayment.recurring_repayment_count
-          console.log(`[ALERT] Using existing count from repayments: ${recurringRepaymentCount}`)
-        } else {
-          // זה הפירעון הראשון - מחשבים את הספירה
-          recurringRepaymentCount = Math.ceil(loan.amount / loan.repayment_amount)
-          console.log(`[ALERT] First recurring repayment, calculated count: ${recurringRepaymentCount}`)
-        }
+        // ✅ תיקון: שימוש בפונקציה המשותפת לחישוב מספור
+        const { calculateNextRepaymentNumber } = await import('../services/recurringRepaymentsService')
+        const result = await calculateNextRepaymentNumber(alert.loanId)
+        recurringRepaymentNumber = result.recurringRepaymentNumber
+        recurringRepaymentCount = result.recurringRepaymentCount
         
         console.log(`[ALERT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
       }

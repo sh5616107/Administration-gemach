@@ -697,25 +697,14 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       let recurringRepaymentCount: number | undefined
       
       if (selectedLoan.auto_repayment === 1 && selectedLoan.repayment_amount && selectedLoan.repayment_amount > 0) {
-        // זה פירעון מחזורי
+        // זה פירעון מחזורי - שימוש בפונקציה המשותפת
         isRecurring = 1
         
-        // מחשבים כמה פירעונות כבר היו (כולל אלה שלא מסומנים)
-        const existingRepayments = await repaymentsService.getByLoan(selectedLoan.id)
-        recurringRepaymentNumber = existingRepayments.length + 1
-        
-        // אם יש כבר פירעון קודם עם מספר מחזורי - משתמשים באותו ספירה
-        const firstRecurringRepayment = existingRepayments.find(r => r.recurring_repayment_count && r.recurring_repayment_count > 0)
-        
-        if (firstRecurringRepayment && firstRecurringRepayment.recurring_repayment_count) {
-          // משתמשים בספירה מהפירעון הקיים (שכבר עודכנה אם שינו את הסכום)
-          recurringRepaymentCount = firstRecurringRepayment.recurring_repayment_count
-          console.log(`[REPAYMENT] Using existing count from repayments: ${recurringRepaymentCount}`)
-        } else {
-          // זה הפירעון הראשון - מחשבים את הספירה
-          recurringRepaymentCount = Math.ceil(selectedLoan.amount / selectedLoan.repayment_amount)
-          console.log(`[REPAYMENT] First recurring repayment, calculated count: ${recurringRepaymentCount}`)
-        }
+        // ✅ תיקון: שימוש בפונקציה המשותפת לחישוב מספור
+        const { calculateNextRepaymentNumber } = await import('../services/recurringRepaymentsService')
+        const result = await calculateNextRepaymentNumber(selectedLoan.id)
+        recurringRepaymentNumber = result.recurringRepaymentNumber
+        recurringRepaymentCount = result.recurringRepaymentCount
         
         console.log(`[REPAYMENT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
       }
@@ -1363,7 +1352,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                       size="small" 
                                       title={`פירעון מחזורי מספר ${loanRecurringRepayments.get(loan.id)!.recurring_repayment_number} מתוך ${loanRecurringRepayments.get(loan.id)!.recurring_repayment_count}`}
                                     />
-                                    {/* כפתור עריכה רק אם זה הפירעון הראשון והוא עדיין לא עבר */}
+                                    {/* כפתור עריכה רק על ההלוואה הראשונה במשפחה (אם מחזורית) */}
                                     {(() => {
                                       const firstRepayment = loanRecurringRepayments.get(loan.id)!
                                       const isFirstRepayment = firstRepayment.recurring_repayment_number === 1
@@ -1371,8 +1360,9 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                       const today = new Date()
                                       today.setHours(0, 0, 0, 0)
                                       const isFutureRepayment = repaymentDate >= today
+                                      const isFirstLoanInFamily = !loan.is_recurring || loan.recurring_loan_number === 1
                                       
-                                      return isFirstRepayment && isFutureRepayment ? (
+                                      return isFirstRepayment && isFutureRepayment && isFirstLoanInFamily ? (
                                         <IconButton 
                                           size="small" 
                                           color="primary" 
