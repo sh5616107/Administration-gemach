@@ -477,12 +477,14 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       const currentRecurringNumber = loan.recurring_loan_number || 1
       const nextRecurringNumber = currentRecurringNumber + 1
       
+      // ✅ תיקון באג 4: סינון !l.is_deleted כדי למנוע תקיעה אם האחרונה נמחקה
       const newerLoanExists = allLoansIncludingDeleted.find((l: any) => 
         l.borrower_id === loan.borrower_id && 
         l.amount === loan.amount && 
         l.id !== loan.id &&
         l.is_recurring === 1 &&
-        l.recurring_loan_number > currentRecurringNumber // ← הלוואה עם מספר גבוה יותר (בכל חודש)
+        l.recurring_loan_number > currentRecurringNumber && // ← הלוואה עם מספר גבוה יותר (בכל חודש)
+        !l.is_deleted // ← רק הלוואות שלא נמחקו
       )
       
       if (newerLoanExists) {
@@ -607,6 +609,12 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
       const amount = latestDeposit.amount
       const recurringMonths = latestDeposit.recurring_months
       
+      // ✅ בדיקה: אם אין יותר הפקדות ליצור, לא יוצרים
+      if (!recurringMonths || recurringMonths <= 0) {
+        console.log(`[AUTO-CREATE] Deposit #${deposit.id} has no more recurring months (${recurringMonths}), skipping`)
+        continue
+      }
+      
       const effectiveRecurringDay = Math.min(recurringDay, lastDayOfMonth)
       
       // Check if we should create a deposit:
@@ -626,12 +634,14 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
       
       // ✅ CRITICAL FIX #1 (מקביל לתיקון בהלוואות): רק ההפקדה האחרונה בסדרה יוצרת את הבאה
       // מונע כפילויות כאשר כל הפקדה בסדרה מנסה ליצור את "הבאה שלה"
+      // ✅ תיקון באג 4: סינון !d.is_deleted כדי למנוע תקיעה אם האחרונה נמחקה
       const newerDepositExists = allDepositsIncludingDeleted.find((d: any) =>
         d.depositor_id === deposit.depositor_id &&
         d.amount === amount &&
         d.id !== deposit.id &&
         d.is_recurring === 1 &&
-        d.recurring_deposit_number > currentRecurringNumber
+        d.recurring_deposit_number > currentRecurringNumber &&
+        !d.is_deleted // ← רק הפקדות שלא נמחקו
       )
       
       if (newerDepositExists) {
@@ -867,16 +877,30 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     const deposit = deposits[0]
     const today = new Date().toISOString().split('T')[0]
     
-    // חישוב מספר ההפקדה המחזורית
-    const originalNumber = deposit.recurring_deposit_number || 1
-    const totalCount = deposit.recurring_deposit_count || (deposit.recurring_months ? deposit.recurring_months + 1 : 1)
+    // ✅ תיקון באג 3: מציאת ההפקדה האחרונה במשפחה (לפי recurring_deposit_number הגבוה ביותר)
+    // כדי לחשב נכון את המספר הבא
+    const allDeposits = await db.query(
+      'SELECT * FROM deposits WHERE depositor_id = ? AND is_recurring = 1',
+      [deposit.depositor_id]
+    ) as any[]
+    
+    const latestDeposit = allDeposits.reduce((latest, current) => {
+      const latestNum = latest.recurring_deposit_number || 1
+      const currentNum = current.recurring_deposit_number || 1
+      return currentNum > latestNum ? current : latest
+    }, allDeposits[0])
+    
+    // חישוב מספר ההפקדה המחזורית מההפקדה האחרונה
+    const originalNumber = latestDeposit.recurring_deposit_number || 1
+    const totalCount = latestDeposit.recurring_deposit_count || (latestDeposit.recurring_months ? latestDeposit.recurring_months + 1 : 1)
     const newDepositNumber = originalNumber + 1
     
-    // ✅ בדיקה: האם כבר קיימת הפקדה עם המספר הבא?
-    const allDeposits = getAllItems<any>('deposits')
-    const existingDeposit = allDeposits.find(d =>
+    console.log(`[CREATE-RECURRING] Creating deposit #${newDepositNumber} from latest #${originalNumber} (original deposit id: ${originalDepositId})`)
+    
+    // ✅ תיקון באג 3: בדיקה מדויקת - האם כבר קיימת הפקדה עם המספר הבא?
+    const allDepositsIncludingDeleted = getAllItems<any>('deposits')
+    const existingDeposit = allDepositsIncludingDeleted.find(d =>
       d.depositor_id === deposit.depositor_id &&
-      d.amount === deposit.amount &&
       d.is_recurring === 1 &&
       d.recurring_deposit_number === newDepositNumber &&
       !d.is_deleted
@@ -890,28 +914,28 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     await db.run(
       'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
-        deposit.depositor_id, 
-        deposit.amount, 
+        latestDeposit.depositor_id, 
+        latestDeposit.amount, 
         today, 
-        deposit.period_type, 
-        deposit.due_date, 
-        deposit.is_recurring, 
-        deposit.recurring_day,
-        deposit.recurring_months ? deposit.recurring_months - 1 : 0,
+        latestDeposit.period_type, 
+        latestDeposit.due_date, 
+        latestDeposit.is_recurring, 
+        latestDeposit.recurring_day,
+        latestDeposit.recurring_months ? latestDeposit.recurring_months - 1 : 0,
         newDepositNumber,
         totalCount,
         `הפקדה מחזורית מהפקדה #${originalDepositId} (${newDepositNumber}/${totalCount})`, 
         'active', 
-        deposit.payment_method || '', 
-        deposit.payment_details || ''
+        latestDeposit.payment_method || '', 
+        latestDeposit.payment_details || ''
       ]
     )
     
-    // עדכון ההפקדה המקורית להפחית את recurring_months
-    if (deposit.recurring_months) {
+    // עדכון ההפקדה האחרונה להפחית את recurring_months
+    if (latestDeposit.recurring_months) {
       await db.run(
         'UPDATE deposits SET recurring_months = ? WHERE id = ?',
-        [deposit.recurring_months - 1, originalDepositId]
+        [latestDeposit.recurring_months - 1, latestDeposit.id]
       )
     }
 

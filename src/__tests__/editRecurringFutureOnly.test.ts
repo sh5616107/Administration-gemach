@@ -100,13 +100,21 @@ describe('Edit Recurring - Future Only', () => {
     
     expect(seriesLoansAfter.length).toBe(4)
 
-    // Past loans should NOT change (all 4 are past in this test)
-    for (const seriesLoan of seriesLoansAfter) {
-      expect(seriesLoan.amount).toBe(1000) // Original amount, not changed to 1500
+    // ✅ תיקון באג 1: ההלוואה האחרונה בסדרה (לפי recurring_loan_number) צריכה להשתנות
+    // כי היא זו שממנה המתזמן יקרא בפעם הבאה
+    const latestLoan = seriesLoansAfter.reduce((latest, current) => 
+      (current.recurring_loan_number || 1) > (latest.recurring_loan_number || 1) ? current : latest
+    , seriesLoansAfter[0])
+
+    // Past loans (except the latest) should NOT change
+    const nonLatestLoans = seriesLoansAfter.filter(l => l.id !== latestLoan.id)
+    for (const seriesLoan of nonLatestLoans) {
+      expect(seriesLoan.amount).toBe(1000) // Original amount, not changed
     }
 
-    // Note: In this test all are past, so none should change
-    // In a real scenario with future loans, only those would change
+    // The latest loan should change to the new amount
+    expect(latestLoan.amount).toBe(1500) // Updated amount
+    expect(latestLoan.recurring_months).toBe(3) // Updated months
   })
 
   it('should update only future items in mixed past/future series', async () => {
@@ -181,16 +189,23 @@ describe('Edit Recurring - Future Only', () => {
 
     expect(result.success).toBe(true)
 
-    // Verify: past loans unchanged, future loans updated
+    // Verify: past loans unchanged, future loans + latest updated
     const allLoans = await loansService.getAll()
     const seriesLoans = allLoans.filter(l => l.recurring_series_id === seriesId)
 
-    // Past loans (index 0, 1) - should remain 2000
+    // ✅ תיקון באג 1: מציאת ההלוואה האחרונה בסדרה
+    const latestLoan = seriesLoans.reduce((latest, current) => 
+      (current.recurring_loan_number || 1) > (latest.recurring_loan_number || 1) ? current : latest
+    , seriesLoans[0])
+
+    // Past loans (index 0, 1) - לא עתידיות ולא האחרונה - should remain 2000
     expect(seriesLoans.find(l => l.id === loans[0])!.amount).toBe(2000)
     expect(seriesLoans.find(l => l.id === loans[1])!.amount).toBe(2000)
 
     // Future loans (index 2, 3) - should be 2500
+    // שתיהן עתידיות (ספטמבר ואוקטובר 2026), וגם loan 3 היא האחרונה
     expect(seriesLoans.find(l => l.id === loans[2])!.amount).toBe(2500)
     expect(seriesLoans.find(l => l.id === loans[3])!.amount).toBe(2500)
+    expect(latestLoan.id).toBe(loans[3]) // וידוא שהאחרונה היא אכן #4
   })
 })

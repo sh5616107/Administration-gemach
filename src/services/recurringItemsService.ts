@@ -564,15 +564,28 @@ export async function updateSeriesItems(
     // 3. Get all items in series (BEFORE updating, to use original parameters)
     const seriesItems = await getSeriesItems(itemId, itemType)
     
-    // 4. ✅ שלב 3: עדכון רק פריטים עתידיים (לא עבר)
+    // 4. ✅ תיקון באג 1: עדכון פריטים עתידיים + הפריט האחרון בסדרה
+    // הפריט האחרון (לפי מספר) מייצג את ההגדרות שהמתזמן יקרא בפעם הבאה
     const today = new Date().toISOString().split('T')[0]
     const futureItems = seriesItems.filter(item => item.date > today)
     
-    // 5. Update only future items
+    // מציאת הפריט האחרון בסדרה (לפי item_number הגבוה ביותר)
+    const latestItem = seriesItems.reduce((latest, current) => 
+      current.item_number > latest.item_number ? current : latest
+    , seriesItems[0])
+    
+    // רשימת פריטים לעדכון: כל העתידיים + הפריט האחרון (אם הוא לא כבר ברשימה)
+    const itemsToUpdate = [...futureItems]
+    if (!futureItems.find(item => item.id === latestItem.id)) {
+      itemsToUpdate.push(latestItem)
+      console.log(`[UPDATE-SERIES] Adding latest item #${latestItem.item_number} to update list (date: ${latestItem.date})`)
+    }
+    
+    // 5. Update items (future + latest)
     let updatedCount = 0
     const updatedIds: string[] = []
     
-    for (const item of futureItems) {
+    for (const item of itemsToUpdate) {
       try {
         await updateSingleItem(item.id, itemType, updates)
         updatedCount++
@@ -652,9 +665,17 @@ export async function getUpdateSummary(
   const originalItem = seriesItems[0]
   const today = new Date().toISOString().split('T')[0]
 
-  // ✅ שלב 3: ספירה רק של פריטים עתידיים שישתנו
+  // ✅ תיקון באג 1: ספירה של פריטים עתידיים + הפריט האחרון
   const pastItems = seriesItems.filter(item => item.date <= today).length
-  const futureItems = seriesItems.filter(item => item.date > today).length
+  const futureItems = seriesItems.filter(item => item.date > today)
+  
+  // הפריט האחרון תמיד ישתנה (אם הוא לא כבר ב-futureItems)
+  const latestItem = seriesItems.reduce((latest, current) => 
+    current.item_number > latest.item_number ? current : latest
+  , seriesItems[0])
+  
+  const willUpdateLatest = !futureItems.find(item => item.id === latestItem.id)
+  const futureCount = futureItems.length + (willUpdateLatest ? 1 : 0)
 
   const changes = []
 
@@ -684,8 +705,8 @@ export async function getUpdateSummary(
 
   return {
     totalItems: seriesItems.length,
-    pastItems, // פריטים שכבר עברו - לא ישתנו
-    futureItems, // רק אלה ישתנו
+    pastItems, // פריטים שכבר עברו - רובם לא ישתנו (מלבד האחרון)
+    futureItems: futureCount, // פריטים עתידיים + האחרון (אם הוא עבר)
     changes
   }
 }
