@@ -43,6 +43,7 @@ import {
 import { borrowersService, loansService, guarantorLoansService, repaymentsService, type Borrower, type Loan, type Guarantor } from '../services/database';
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
+import { getLoanFamily } from '../services/recurringRepaymentsService';
 import LoanCard from '../components/loans/LoanCard';
 import LoanSidePanel from '../components/loans/LoanSidePanel';
 import BorrowerSidePanel from '../components/loans/BorrowerSidePanel';
@@ -88,6 +89,9 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
   const [selectedRecurringLoanId, setSelectedRecurringLoanId] = useState<string | null>(null);
   const [editAutoRepaymentDialogOpen, setEditAutoRepaymentDialogOpen] = useState(false);
   const [selectedAutoRepaymentLoanId, setSelectedAutoRepaymentLoanId] = useState<string | null>(null);
+
+  // Loan families expansion state (tracks which recurring_series_id are expanded)
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
 
   // Snackbar
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -621,8 +625,8 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                             boxShadow: 2,
                           }}
                         >
-                          {/* Edit recurring loan - only for recurring loans, show on first loan in series */}
-                          {loan.is_recurring === 1 && loan.recurring_loan_number === 1 && (
+                          {/* Edit recurring loan - show on all recurring loans */}
+                          {loan.is_recurring === 1 && (
                             <Tooltip title="נהל הלוואה מחזורית">
                               <IconButton
                                 size="small"
@@ -639,8 +643,8 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                             </Tooltip>
                           )}
                           
-                          {/* Edit auto repayment - only for loans with auto repayment, show on first loan in series */}
-                          {loan.auto_repayment === 1 && loan.id && (!loan.is_recurring || loan.recurring_loan_number === 1) && (
+                          {/* Edit auto repayment - show on all loans with auto repayment */}
+                          {loan.auto_repayment === 1 && loan.id && (
                             <Tooltip title={loanRecurringRepayments.has(loan.id) ? "נהל פירעון אוטומטי" : "ערוך הגדרות פירעון אוטומטי"}>
                               <IconButton
                                 size="small"

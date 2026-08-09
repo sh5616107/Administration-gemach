@@ -197,7 +197,7 @@ async function getOriginalItem(itemId: string, itemType: ItemType): Promise<any>
  * For repayments: loan_id, is_recurring
  * For deposits: depositor_id, amount, recurring_day, is_recurring
  */
-async function identifySeriesItems(originalItem: any, itemType: ItemType): Promise<any[]> {
+export async function identifySeriesItems(itemType: ItemType, originalItem: any): Promise<any[]> {
   let items: any[] = []
 
   switch (itemType) {
@@ -320,7 +320,7 @@ export async function getSeriesItems(
   }
 
   // 2. Identify items in series
-  const seriesItems = await identifySeriesItems(originalItem, itemType)
+  const seriesItems = await identifySeriesItems(itemType, originalItem)
 
   // 3. Sort by item number
   const itemNumberField = getItemNumberField(itemType)

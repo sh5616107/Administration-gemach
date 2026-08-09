@@ -576,7 +576,7 @@ export async function autoCreateRecurringLoans(): Promise<void> {
 }
 
 // Auto-create recurring deposits that are due today
-async function autoCreateRecurringDeposits(): Promise<void> {
+export async function autoCreateRecurringDeposits(): Promise<void> {
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
   const day = today.getDate()
@@ -623,6 +623,21 @@ async function autoCreateRecurringDeposits(): Promise<void> {
       // Check if deposit already created this month - check by recurring number
       const currentRecurringNumber = deposit.recurring_deposit_number || 1
       const nextRecurringNumber = currentRecurringNumber + 1
+      
+      // ✅ CRITICAL FIX #1 (מקביל לתיקון בהלוואות): רק ההפקדה האחרונה בסדרה יוצרת את הבאה
+      // מונע כפילויות כאשר כל הפקדה בסדרה מנסה ליצור את "הבאה שלה"
+      const newerDepositExists = allDepositsIncludingDeleted.find((d: any) =>
+        d.depositor_id === deposit.depositor_id &&
+        d.amount === amount &&
+        d.id !== deposit.id &&
+        d.is_recurring === 1 &&
+        d.recurring_deposit_number > currentRecurringNumber
+      )
+      
+      if (newerDepositExists) {
+        console.log(`[AUTO-CREATE] Skipping deposit #${deposit.id} (number ${currentRecurringNumber}) - newer deposit #${newerDepositExists.id} exists`)
+        continue
+      }
       
       // Check in ALL deposits (including deleted) to see if deposit was created and then deleted
       const existingDepositThisMonth = allDepositsIncludingDeleted.find((d: any) => 
@@ -856,6 +871,21 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     const originalNumber = deposit.recurring_deposit_number || 1
     const totalCount = deposit.recurring_deposit_count || (deposit.recurring_months ? deposit.recurring_months + 1 : 1)
     const newDepositNumber = originalNumber + 1
+    
+    // ✅ בדיקה: האם כבר קיימת הפקדה עם המספר הבא?
+    const allDeposits = getAllItems<any>('deposits')
+    const existingDeposit = allDeposits.find(d =>
+      d.depositor_id === deposit.depositor_id &&
+      d.amount === deposit.amount &&
+      d.is_recurring === 1 &&
+      d.recurring_deposit_number === newDepositNumber &&
+      !d.is_deleted
+    )
+    
+    if (existingDeposit) {
+      console.log(`[CREATE-RECURRING] Deposit #${newDepositNumber} already exists (${existingDeposit.id}), skipping`)
+      return false
+    }
     
     await db.run(
       'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',

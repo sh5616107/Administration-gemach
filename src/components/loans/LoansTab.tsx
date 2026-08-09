@@ -439,6 +439,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           ...formData,
           recurring_loan_number: recurringLoanNumber,
           recurring_loan_count: recurringLoanCount,
+          recurring_series_id: formData.is_recurring === 1 ? crypto.randomUUID() : undefined,
           payment_method: loanPaymentMethod.payment_method,
           payment_details: JSON.stringify(loanPaymentMethod),
         })
@@ -1308,35 +1309,19 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                   size="small" 
                                   title={`הלוואה מחזורית מספר ${loan.recurring_loan_number} מתוך ${loan.recurring_loan_count}`}
                                 />
-                                {/* כפתור עריכה - מופיע על ההלוואה עם המספר הנמוך ביותר שלא נמחקה */}
-                                {(() => {
-                                  // מצא את כל ההלוואות בסדרה (אותו לווה, אותו יום מחזורי)
-                                  const seriesLoans = borrowerLoans.filter(l => 
-                                    l.borrower_id === loan.borrower_id &&
-                                    l.recurring_day === loan.recurring_day &&
-                                    l.is_recurring === 1 &&
-                                    l.recurring_loan_number
-                                  )
-                                  
-                                  // מצא את ההלוואה עם המספר הנמוך ביותר
-                                  const minLoanNumber = Math.min(...seriesLoans.map(l => l.recurring_loan_number || Infinity))
-                                  const isFirstInSeries = loan.recurring_loan_number === minLoanNumber
-                                  
-                                  return isFirstInSeries ? (
-                                    <IconButton 
-                                      size="small" 
-                                      color="primary" 
-                                      onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        setSelectedRecurringLoanId(loan.id!);
-                                        setEditRecurringLoanDialogOpen(true);
-                                      }} 
-                                      title="נהל הלוואה מחזורית"
-                                    >
-                                      <EditNoteIcon fontSize="small" />
-                                    </IconButton>
-                                  ) : null
-                                })()}
+                                {/* כפתור עריכה - מופיע על כל הלוואה מחזורית */}
+                                <IconButton 
+                                  size="small" 
+                                  color="primary" 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setSelectedRecurringLoanId(loan.id!);
+                                    setEditRecurringLoanDialogOpen(true);
+                                  }} 
+                                  title="נהל הלוואה מחזורית"
+                                >
+                                  <EditNoteIcon fontSize="small" />
+                                </IconButton>
                               </Box>
                             ) : null}
                             
@@ -1352,31 +1337,19 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                                       size="small" 
                                       title={`פירעון מחזורי מספר ${loanRecurringRepayments.get(loan.id)!.recurring_repayment_number} מתוך ${loanRecurringRepayments.get(loan.id)!.recurring_repayment_count}`}
                                     />
-                                    {/* כפתור עריכה רק על ההלוואה הראשונה במשפחה (אם מחזורית) */}
-                                    {(() => {
-                                      const firstRepayment = loanRecurringRepayments.get(loan.id)!
-                                      const isFirstRepayment = firstRepayment.recurring_repayment_number === 1
-                                      const repaymentDate = new Date(firstRepayment.payment_date)
-                                      const today = new Date()
-                                      today.setHours(0, 0, 0, 0)
-                                      const isFutureRepayment = repaymentDate >= today
-                                      const isFirstInFamily = !loan.is_recurring || loan.recurring_loan_number === 1
-                                      
-                                      return isFirstRepayment && isFutureRepayment && isFirstInFamily ? (
-                                        <IconButton 
-                                          size="small" 
-                                          color="primary" 
-                                          onClick={(e) => { 
-                                            e.stopPropagation();
-                                            setSelectedAutoRepaymentLoanId(loan.id!);
-                                            setEditAutoRepaymentDialogOpen(true);
-                                          }} 
-                                          title="נהל פירעון אוטומטי"
-                                        >
-                                          <EditNoteIcon fontSize="small" />
-                                        </IconButton>
-                                      ) : null
-                                    })()}
+                                    {/* כפתור עריכה - מופיע על כל הלוואה עם פירעון אוטומטי שיש לה פירעונות */}
+                                    <IconButton 
+                                      size="small" 
+                                      color="primary" 
+                                      onClick={(e) => { 
+                                        e.stopPropagation();
+                                        setSelectedAutoRepaymentLoanId(loan.id!);
+                                        setEditAutoRepaymentDialogOpen(true);
+                                      }} 
+                                      title="נהל פירעון אוטומטי"
+                                    >
+                                      <EditNoteIcon fontSize="small" />
+                                    </IconButton>
                                   </>
                                 ) : (
                                   <>

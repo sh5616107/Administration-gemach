@@ -304,4 +304,124 @@ describe('הלוואה מחזורית + פירעון אוטומטי', () => {
     expect(family.every(l => l.borrower_id === borrowerId)).toBe(true)
     expect(family.every(l => l.recurring_day === 5)).toBe(true)
   })
+
+  it('✅ FIX: שתי הלוואות נפרדות עם recurring_series_id שונה לא מתערבבות', async () => {
+    // תרחיש מהחיים: לווה לוקח שתי הלוואות שונות, שתיהן מחזוריות עם פירעון אוטומטי,
+    // אותו recurring_day אבל סכומים שונים לחלוטין
+    
+    // הלוואה 1: ₪500 - עם recurring_series_id
+    const seriesId1 = crypto.randomUUID()
+    const loan1Result = await loansService.create({
+      borrower_id: borrowerId,
+      amount: 500,
+      loan_date: '2024-01-05',
+      loan_type: 'רגילה',
+      is_recurring: 1,
+      recurring_months: 11,
+      recurring_day: 5,
+      recurring_loan_number: 1,
+      recurring_loan_count: 12,
+      recurring_series_id: seriesId1, // ✅ נוצר ביצירת ההלוואה
+      auto_repayment: 1,
+      repayment_amount: 50,
+      repayment_day: 15
+    })
+    const loan1Id = loan1Result.lastInsertRowid
+
+    // הלוואה 2: ₪2000 - הלוואה נפרדת לגמרי עם recurring_series_id שונה!
+    const seriesId2 = crypto.randomUUID()
+    const loan2Result = await loansService.create({
+      borrower_id: borrowerId,
+      amount: 2000,
+      loan_date: '2024-01-05',
+      loan_type: 'רגילה',
+      is_recurring: 1,
+      recurring_months: 5,
+      recurring_day: 5, // אותו יום
+      recurring_loan_number: 1,
+      recurring_loan_count: 6,
+      recurring_series_id: seriesId2, // ✅ נוצר ביצירת ההלוואה
+      auto_repayment: 1,
+      repayment_amount: 200,
+      repayment_day: 15
+    })
+    const loan2Id = loan2Result.lastInsertRowid
+
+    // ✅ התיקון: כל משפחה נפרדת!
+    const loan1 = await loansService.getById(loan1Id)
+    const family1 = await getLoanFamily(loan1!)
+
+    const loan2 = await loansService.getById(loan2Id)
+    const family2 = await getLoanFamily(loan2!)
+
+    console.log(`[FIX] משפחת הלוואה 1 (₪500): ${family1.length} הלוואות`)
+    console.log(`[FIX] משפחת הלוואה 2 (₪2000): ${family2.length} הלוואות`)
+
+    // ✅ כעת כל הלוואה במשפחה נפרדת
+    expect(family1.length).toBe(1)
+    expect(family2.length).toBe(1)
+    expect(family1[0].recurring_series_id).toBe(seriesId1)
+    expect(family2[0].recurring_series_id).toBe(seriesId2)
+  })
+
+  it('🐛 BUG: שתי הלוואות נפרדות של אותו לווה באותו יום מתערבבות ללא recurring_series_id', async () => {
+    // תרחיש מהחיים: לווה לוקח שתי הלוואות שונות, שתיהן מחזוריות עם פירעון אוטומטי,
+    // אותו recurring_day אבל סכומים שונים לחלוטין
+    
+    // הלוואה 1: ₪500
+    const loan1Result = await loansService.create({
+      borrower_id: borrowerId,
+      amount: 500,
+      loan_date: '2024-01-05',
+      loan_type: 'רגילה',
+      is_recurring: 1,
+      recurring_months: 11,
+      recurring_day: 5,
+      recurring_loan_number: 1,
+      recurring_loan_count: 12,
+      // ❌ אין recurring_series_id כי זו הלוואה ראשונה שנוצרת דרך UI
+      auto_repayment: 1,
+      repayment_amount: 50,
+      repayment_day: 15
+    })
+    const loan1Id = loan1Result.lastInsertRowid
+
+    // הלוואה 2: ₪2000 - הלוואה נפרדת לגמרי!
+    const loan2Result = await loansService.create({
+      borrower_id: borrowerId,
+      amount: 2000,
+      loan_date: '2024-01-05',
+      loan_type: 'רגילה',
+      is_recurring: 1,
+      recurring_months: 5,
+      recurring_day: 5, // אותו יום
+      recurring_loan_number: 1,
+      recurring_loan_count: 6,
+      // ❌ אין recurring_series_id כי זו הלוואה ראשונה שנוצרת דרך UI
+      auto_repayment: 1,
+      repayment_amount: 200,
+      repayment_day: 15
+    })
+    const loan2Id = loan2Result.lastInsertRowid
+
+    // 🐛 הבעיה: getLoanFamily מערבב את שתיהן!
+    const loan1 = await loansService.getById(loan1Id)
+    const family1 = await getLoanFamily(loan1!)
+
+    const loan2 = await loansService.getById(loan2Id)
+    const family2 = await getLoanFamily(loan2!)
+
+    console.log(`[BUG] משפחת הלוואה 1 (₪500): ${family1.length} הלוואות`)
+    console.log(`[BUG] משפחת הלוואה 2 (₪2000): ${family2.length} הלוואות`)
+
+    // ❌ הבאג: שתיהן מחזירות 2 הלוואות במקום 1
+    // הזיהוי לפי borrower_id + recurring_day + auto_repayment לא מספיק!
+    expect(family1.length).toBe(2) // ⚠️ שגוי! צריך להיות 1
+    expect(family2.length).toBe(2) // ⚠️ שגוי! צריך להיות 1
+
+    // ✅ אחרי התיקון, כל הלוואה תקבל recurring_series_id משלה ביצירה,
+    // והמשפחות יהיו נפרדות:
+    // expect(family1.length).toBe(1)
+    // expect(family2.length).toBe(1)
+  })
 })
