@@ -409,11 +409,8 @@ export async function canEditRecurringItem(itemId: string, itemType: ItemType): 
     throw new Error('הפריט אינו מחזורי')
   }
 
-  // Only original item can be edited (item_number = 1)
-  const itemNumber = getItemNumber(item, itemType)
-  if (itemNumber !== 1) {
-    throw new Error('ניתן לערוך רק את הפריט המקורי בסדרה')
-  }
+  // ✅ שלב 1: לאפשר עריכה מכל פריט במשפחה (לא רק הראשון)
+  // הפונקציה identifySeriesItems תזהה את כל המשפחה בכל מקרה
 
   return true
 }
@@ -567,11 +564,15 @@ export async function updateSeriesItems(
     // 3. Get all items in series (BEFORE updating, to use original parameters)
     const seriesItems = await getSeriesItems(itemId, itemType)
     
-    // 4. Update all items in the series
+    // 4. ✅ שלב 3: עדכון רק פריטים עתידיים (לא עבר)
+    const today = new Date().toISOString().split('T')[0]
+    const futureItems = seriesItems.filter(item => item.date > today)
+    
+    // 5. Update only future items
     let updatedCount = 0
     const updatedIds: string[] = []
     
-    for (const item of seriesItems) {
+    for (const item of futureItems) {
       try {
         await updateSingleItem(item.id, itemType, updates)
         updatedCount++
@@ -583,10 +584,10 @@ export async function updateSeriesItems(
       }
     }
 
-    // 5. Audit log
+    // 6. Audit log
     await logSeriesUpdate(itemId, itemType, updates, updatedIds)
 
-    // 6. Clear cache
+    // 7. Clear cache
     invalidateSeriesCache(itemId, itemType)
 
     return {
@@ -651,6 +652,7 @@ export async function getUpdateSummary(
   const originalItem = seriesItems[0]
   const today = new Date().toISOString().split('T')[0]
 
+  // ✅ שלב 3: ספירה רק של פריטים עתידיים שישתנו
   const pastItems = seriesItems.filter(item => item.date <= today).length
   const futureItems = seriesItems.filter(item => item.date > today).length
 
@@ -682,8 +684,8 @@ export async function getUpdateSummary(
 
   return {
     totalItems: seriesItems.length,
-    pastItems,
-    futureItems,
+    pastItems, // פריטים שכבר עברו - לא ישתנו
+    futureItems, // רק אלה ישתנו
     changes
   }
 }
