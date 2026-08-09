@@ -235,6 +235,40 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
   const hasActiveFilters = filters.dateFrom || filters.dateTo || filters.amountFrom || filters.amountTo || 
     filters.status !== 'all' || filters.loanType !== 'all' || filters.isRecurring !== 'all';
 
+  // Group loans into families for display
+  const loanFamilies = useMemo(() => {
+    const familiesMap = new Map<string, Loan[]>();
+    const standaloneLoans: Loan[] = [];
+
+    filteredLoans.forEach(loan => {
+      if (loan.is_recurring === 1 && loan.recurring_series_id) {
+        // Recurring loan with series_id - group by family
+        const familyKey = loan.recurring_series_id;
+        if (!familiesMap.has(familyKey)) {
+          familiesMap.set(familyKey, []);
+        }
+        familiesMap.get(familyKey)!.push(loan);
+      } else {
+        // Standalone loan (not recurring or no series_id)
+        standaloneLoans.push(loan);
+      }
+    });
+
+    // Convert map to array of families, each sorted by loan number
+    const families = Array.from(familiesMap.values()).map(family => {
+      return family.sort((a, b) => (a.recurring_loan_number || 0) - (b.recurring_loan_number || 0));
+    });
+
+    // Sort families by first loan date
+    families.sort((a, b) => {
+      const dateA = new Date(a[0].loan_date).getTime();
+      const dateB = new Date(b[0].loan_date).getTime();
+      return dateB - dateA; // newest first
+    });
+
+    return { families, standaloneLoans };
+  }, [filteredLoans]);
+
   const clearFilters = () => {
     setFilters({
       dateFrom: '',
@@ -596,7 +630,163 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                 </Box>
               ) : (
                 <Grid container spacing={2}>
-                  {filteredLoans.map((loan) => (
+                  {/* Render loan families (recurring loans grouped) */}
+                  {loanFamilies.families.map((family) => {
+                    const firstLoan = family[0];
+                    const familyKey = firstLoan.recurring_series_id!;
+                    const isExpanded = expandedFamilies.has(familyKey);
+                    
+                    // Calculate family summary
+                    const totalAmount = family.reduce((sum, l) => sum + l.amount, 0);
+                    const totalRepaid = family.reduce((sum, l) => sum + (l.total_repaid ?? 0), 0);
+                    const balance = totalAmount - totalRepaid;
+                    const progress = totalAmount > 0 ? (totalRepaid / totalAmount) * 100 : 0;
+                    
+                    return (
+                      <Grid item xs={12} key={familyKey}>
+                        {/* Family summary card */}
+                        <Paper
+                          sx={{
+                            p: 2,
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: 'action.hover' },
+                            borderRight: 4,
+                            borderColor: 'primary.main',
+                          }}
+                          onClick={() => {
+                            setExpandedFamilies(prev => {
+                              const next = new Set(prev);
+                              if (next.has(familyKey)) {
+                                next.delete(familyKey);
+                              } else {
+                                next.add(familyKey);
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <IconButton size="small">
+                              {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            </IconButton>
+                            
+                            <AutorenewIcon color="primary" />
+                            
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="h6">
+                                הלוואה מחזורית - {firstLoan.recurring_loan_count} תשלומים
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                התקדמות: {family.length} מתוך {firstLoan.recurring_loan_count} | 
+                                סכום כולל: ₪{totalAmount.toLocaleString()}
+                              </Typography>
+                            </Box>
+                            
+                            <Box sx={{ textAlign: 'left', minWidth: 120 }}>
+                              <Typography variant="body2" color={balance > 0 ? 'error' : 'success'}>
+                                יתרה: ₪{balance.toLocaleString()}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {progress.toFixed(0)}% שולם
+                              </Typography>
+                            </Box>
+                            
+                            {/* Action buttons */}
+                            <Stack direction="row" spacing={0.5} onClick={(e) => e.stopPropagation()}>
+                              <Tooltip title="נהל הלוואה מחזורית">
+                                <IconButton
+                                  size="small"
+                                  color="info"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRecurringLoanId(firstLoan.id!);
+                                    setEditRecurringLoanDialogOpen(true);
+                                  }}
+                                >
+                                  <AutorenewIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              
+                              {firstLoan.auto_repayment === 1 && firstLoan.id && (
+                                <Tooltip title="נהל פירעון אוטומטי">
+                                  <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const firstRepayment = loanRecurringRepayments.get(firstLoan.id!);
+                                      if (firstRepayment?.id) {
+                                        setSelectedAutoRepaymentLoanId(firstRepayment.id);
+                                        setEditAutoRepaymentDialogOpen(true);
+                                      } else {
+                                        handleOpenLoan(firstLoan);
+                                      }
+                                    }}
+                                  >
+                                    <EditNoteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Stack>
+                          </Box>
+                        </Paper>
+                        
+                        {/* Expanded family loans */}
+                        <Collapse in={isExpanded}>
+                          <Grid container spacing={2} sx={{ mt: 0, pl: 4 }}>
+                            {family.map((loan) => (
+                              <Grid item xs={12} sm={6} key={loan.id}>
+                                <Box 
+                                  sx={{ 
+                                    position: 'relative',
+                                    '&:hover .action-buttons': {
+                                      opacity: 1,
+                                    }
+                                  }}
+                                >
+                                  <LoanCard loan={loan} onClick={() => handleOpenLoan(loan)} />
+                                  {/* Action buttons overlay */}
+                                  <Stack
+                                    className="action-buttons"
+                                    direction="row"
+                                    spacing={0.5}
+                                    sx={{
+                                      position: 'absolute',
+                                      top: 8,
+                                      right: 8,
+                                      zIndex: 10,
+                                      opacity: 0,
+                                      transition: 'opacity 0.2s',
+                                      bgcolor: 'rgba(255, 255, 255, 0.95)',
+                                      borderRadius: 1,
+                                      padding: 0.5,
+                                      boxShadow: 2,
+                                    }}
+                                  >
+                                    <Tooltip title="עריכה">
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenLoan(loan);
+                                        }}
+                                        sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                                      >
+                                        <EditIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Stack>
+                                </Box>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </Collapse>
+                      </Grid>
+                    );
+                  })}
+                  
+                  {/* Render standalone loans (not in families) */}
+                  {loanFamilies.standaloneLoans.map((loan) => (
                     <Grid item xs={12} sm={6} key={loan.id}>
                       <Box 
                         sx={{ 
