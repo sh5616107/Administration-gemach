@@ -11,8 +11,8 @@
  * Feature: recurring-items-management
  */
 
-import { loansService, repaymentsService, Loan, Repayment } from './database'
-import { db, getAllItems, depositorsService } from './database'
+import { loansService, repaymentsService, db, getAllItems, depositorsService } from './database'
+import { getLoanFamily, getAllFamilyRepayments } from './recurringRepaymentsService'
 
 // ============================================================================
 // Interfaces
@@ -521,16 +521,23 @@ export async function updateSeriesItems(
       if (updates.recurring_day !== undefined) updateData.repayment_day = updates.recurring_day
       if (updates.recurring_amount !== undefined) updateData.repayment_amount = updates.recurring_amount
 
-      await loansService.update(itemId, updateData)
+      // ✅ תיקון באג 5: עדכון כל ההלוואות במשפחה, לא רק את itemId
+      // כדי שהמתזמן (שקורא מ-getLatestLoanInSeries) יקבל את הערך החדש
+      const family = await getLoanFamily(loan)
+      for (const familyLoan of family) {
+        await loansService.update(familyLoan.id!, updateData)
+      }
 
-      // Update existing repayments if any
-      const repayments = await repaymentsService.getByLoan(itemId)
-      const recurringRepayments = repayments.filter(r => r.is_recurring === 1)
+      // ✅ תיקון באג 5: חישוב recurring_repayment_count על כל פירעוני המשפחה
+      const familyRepayments = await getAllFamilyRepayments(loan)
+      const recurringRepayments = familyRepayments.filter(r => r.is_recurring === 1)
       
       if (recurringRepayments.length > 0 && updates.recurring_amount !== undefined) {
         // Recalculate count
         const totalRepaid = recurringRepayments.reduce((sum, r) => sum + r.amount, 0)
-        const remaining = loan.amount - totalRepaid
+        // ✅ סכום כולל של המשפחה, לא רק loan.amount הבודד
+        const totalFamilyAmount = family.reduce((sum, l) => sum + l.amount, 0)
+        const remaining = totalFamilyAmount - totalRepaid
         const newCount = Math.ceil(remaining / updates.recurring_amount)
         
         // Update all recurring repayments
@@ -543,7 +550,7 @@ export async function updateSeriesItems(
 
       return {
         success: true,
-        updatedCount: 1
+        updatedCount: family.length
       }
     }
 
