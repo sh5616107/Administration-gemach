@@ -279,203 +279,20 @@ export default function WaitlistTab() {
 
   const calculateExpectedFunds = async () => {
     try {
-      const { loansService, repaymentsService, db } = await import('../../services/database')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const oneWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-      const oneMonth = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
-      const threeMonths = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
+      const { loansService, db } = await import('../../services/database')
+      const { calculateExpectedFunds: calculate } = await import('../../services/expectedFundsCalculator')
       
+      // טעינת נתונים
       const allLoans = await loansService.getAll()
-      const activeLoans = allLoans.filter(l => l.status === 'active')
-      
-      let weekFunds = 0
-      let monthFunds = 0
-      let threeMonthsFunds = 0
-      
-      // חישוב כסף מהלוואות פעילות
-      for (const loan of activeLoans) {
-        const remaining = loan.remaining || 0
-        if (remaining <= 0) continue
-        
-        // רק הלוואות עם פירעון מחזורי או תאריך פירעון קבוע
-        if (loan.auto_repayment === 1 && loan.repayment_amount && loan.repayment_day) {
-          // הלוואות עם פירעון מחזורי
-          const monthlyAmount = loan.repayment_amount
-          
-          // בדיקת תקינות
-          if (monthlyAmount <= 0) {
-            console.warn(`Invalid repayment_amount for loan ${loan.id}: ${monthlyAmount}`)
-            continue
-          }
-          
-          // חישוב כמה פירעונים צפויים בכל תקופה
-          const paymentsInWeek = Math.min(1, Math.ceil(7 / 30)) // בערך 0-1 פירעונים
-          const paymentsInMonth = 1 // פירעון אחד בחודש
-          const paymentsInThreeMonths = 3 // 3 פירעונים ב-3 חודשים
-          
-          weekFunds += Math.min(paymentsInWeek * monthlyAmount, remaining)
-          monthFunds += Math.min(paymentsInMonth * monthlyAmount, remaining)
-          threeMonthsFunds += Math.min(paymentsInThreeMonths * monthlyAmount, remaining)
-        }
-        else if (loan.due_date) {
-          // הלוואות עם תאריך פירעון קבוע
-          const dueDate = new Date(loan.due_date)
-          
-          // בדיקת תקינות תאריך
-          if (isNaN(dueDate.getTime())) {
-            console.warn(`Invalid due_date for loan ${loan.id}: ${loan.due_date}`)
-            continue
-          }
-          
-          dueDate.setHours(0, 0, 0, 0)
-          
-          // רק אם תאריך הפירעון בטווח הזמן - נוסיף את כל היתרה
-          if (dueDate <= threeMonths) {
-            threeMonthsFunds += remaining
-            if (dueDate <= oneMonth) {
-              monthFunds += remaining
-              if (dueDate <= oneWeek) {
-                weekFunds += remaining
-              }
-            }
-          }
-        }
-        // הלוואות גמישות - לא מחשבים כי אין ודאות מתי יפרעו
-      }
-      
-      // חישוב כסף מהפקדות מחזוריות (כולל מתוכננות)
       const recurringDeposits = await db.query(
         'SELECT * FROM deposits WHERE is_recurring = 1 AND status IN (?, ?)', 
         ['active', 'planned']
       ) as any[]
       
-      for (const deposit of recurringDeposits) {
-        const amount = deposit.amount || 0
-        const recurringDay = deposit.recurring_day || 1
-        const recurringMonths = deposit.recurring_months || 1
-        
-        // בדיקות תקינות
-        if (amount <= 0) {
-          console.warn(`Invalid amount for deposit ${deposit.id}: ${amount}`)
-          continue
-        }
-        
-        if (recurringMonths <= 0) {
-          console.warn(`Invalid recurring_months for deposit ${deposit.id}: ${recurringMonths}`)
-          continue
-        }
-        
-        // חישוב תאריכי הפקדות עתידיות
-        const nextDeposits: Date[] = []
-        let currentDate = new Date(deposit.deposit_date || today)
-        
-        // בדיקת תקינות תאריך
-        if (isNaN(currentDate.getTime())) {
-          console.warn(`Invalid deposit_date for deposit ${deposit.id}: ${deposit.deposit_date}`)
-          continue
-        }
-        
-        // מצא את ההפקדה הבאה
-        let iterations = 0
-        while (currentDate <= today && iterations < 100) {
-          currentDate.setMonth(currentDate.getMonth() + recurringMonths)
-          iterations++
-        }
-        
-        if (iterations >= 100) {
-          console.warn(`Too many iterations for deposit ${deposit.id}, skipping`)
-          continue
-        }
-        
-        // צור רשימה של הפקדות עתידיות עד 3 חודשים
-        while (currentDate <= threeMonths && nextDeposits.length < 10) {
-          nextDeposits.push(new Date(currentDate))
-          currentDate.setMonth(currentDate.getMonth() + recurringMonths)
-        }
-        
-        // חשב כמה הפקדות בכל טווח
-        for (const depositDate of nextDeposits) {
-          if (depositDate <= oneWeek) {
-            weekFunds += amount
-          }
-          if (depositDate <= oneMonth) {
-            monthFunds += amount
-          }
-          if (depositDate <= threeMonths) {
-            threeMonthsFunds += amount
-          }
-        }
-      }
+      // חישוב באמצעות הפונקציה המרכזית
+      const result = calculate(allLoans as any[], recurringDeposits as any[])
       
-      // גריעת הלוואות מחזוריות קיימות שטרם נוצרו
-      // (הלוואות מחזוריות שמחויבות לעתיד אבל עדיין לא נוצרו במערכת)
-      const recurringLoans = allLoans.filter(l => 
-        l.is_recurring === 1 && 
-        l.recurring_loan_number && 
-        l.recurring_loan_count &&
-        l.recurring_loan_number < l.recurring_loan_count
-      )
-      
-      for (const loan of recurringLoans) {
-        const currentNumber = loan.recurring_loan_number || 0
-        const totalCount = loan.recurring_loan_count || 0
-        const remainingLoans = totalCount - currentNumber
-        const loanAmount = loan.amount
-        
-        // בדיקות תקינות
-        if (loanAmount <= 0) {
-          console.warn(`Invalid amount for recurring loan ${loan.id}: ${loanAmount}`)
-          continue
-        }
-        
-        if (remainingLoans <= 0) {
-          console.warn(`Invalid remaining loans for loan ${loan.id}: ${remainingLoans}`)
-          continue
-        }
-        
-        // חישוב מתי ההלוואות הבאות צפויות להיווצר
-        if (loan.recurring_day && loan.recurring_months) {
-          const recurringMonths = loan.recurring_months || 1
-          
-          if (recurringMonths <= 0) {
-            console.warn(`Invalid recurring_months for loan ${loan.id}: ${recurringMonths}`)
-            continue
-          }
-          
-          // התחל מתאריך ההלוואה הנוכחית, לא מההלוואה הראשונה
-          let futureDate = new Date(loan.loan_date)
-          
-          // בדיקת תקינות תאריך
-          if (isNaN(futureDate.getTime())) {
-            console.warn(`Invalid loan_date for loan ${loan.id}: ${loan.loan_date}`)
-            continue
-          }
-          
-          // קפוץ קדימה לפי מספר ההלוואות שכבר נוצרו
-          for (let i = 0; i < currentNumber; i++) {
-            futureDate.setMonth(futureDate.getMonth() + recurringMonths)
-          }
-          
-          // עכשיו חשב את ההלוואות העתידיות
-          for (let i = 1; i <= remainingLoans; i++) {
-            futureDate = new Date(futureDate)
-            futureDate.setMonth(futureDate.getMonth() + recurringMonths)
-            
-            if (futureDate <= threeMonths) {
-              threeMonthsFunds -= loanAmount
-              if (futureDate <= oneMonth) {
-                monthFunds -= loanAmount
-                if (futureDate <= oneWeek) {
-                  weekFunds -= loanAmount
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      setExpectedFunds({ week: weekFunds, month: monthFunds, threeMonths: threeMonthsFunds })
+      setExpectedFunds(result)
     } catch (error) {
       console.error('Error calculating expected funds:', error)
     }

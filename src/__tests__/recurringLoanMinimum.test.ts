@@ -64,7 +64,8 @@ describe('הלוואה מחזורית - ולידציה מינימלית', () => 
       notes: 'הלוואה מחזורית תקינה'
     })
 
-    expect(loan.lastInsertRowid).toBeGreaterThan(0)
+    expect(loan.lastInsertRowid).toBeDefined()
+    expect(typeof loan.lastInsertRowid).toBe('string')
 
     const loans = await loansService.getAll()
     expect(loans).toHaveLength(1)
@@ -97,7 +98,8 @@ describe('הלוואה מחזורית - ולידציה מינימלית', () => 
       notes: 'הלוואה מחזורית ל-12 חודשים'
     })
 
-    expect(loan.lastInsertRowid).toBeGreaterThan(0)
+    expect(loan.lastInsertRowid).toBeDefined()
+    expect(typeof loan.lastInsertRowid).toBe('string')
 
     const loans = await loansService.getAll()
     expect(loans).toHaveLength(1)

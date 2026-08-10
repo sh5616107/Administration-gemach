@@ -21,7 +21,8 @@ describe('Deposit Withdrawals Service', () => {
         notes: 'משיכה ראשונה'
       })
 
-      expect(result.id).toBeGreaterThan(0)
+      expect(result.id).toBeDefined()
+      expect(typeof result.id).toBe('string')
 
       const withdrawal = await depositWithdrawalsService.getById(result.id)
       expect(withdrawal).toBeDefined()

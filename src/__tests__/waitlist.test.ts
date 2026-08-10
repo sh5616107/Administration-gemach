@@ -39,7 +39,8 @@ describe('Waitlist Service', () => {
         status: 'waiting',
       })
 
-      expect(entry.id).toBeGreaterThan(0)
+      expect(entry.id).toBeDefined()
+      expect(typeof entry.id).toBe('string')
 
       const retrieved = await waitlistService.getById(entry.id)
       expect(retrieved).toBeTruthy()

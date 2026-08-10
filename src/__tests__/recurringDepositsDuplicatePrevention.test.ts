@@ -20,7 +20,7 @@ describe('מניעת כפילות בהפקדות מחזוריות', () => {
       'INSERT INTO depositors (first_name, last_name, phone, id_number, address, email, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ['יוסף', 'לוי', '0507654321', '', '', '', '']
     )
-    depositorId = depositorResult.lastInsertRowid
+    depositorId = String(depositorResult.lastInsertRowid)
   })
 
   it('🔍 בדיקה: הרצה כפולה של createRecurringDeposit לא צריכה ליצור כפילויות', async () => {
@@ -29,7 +29,7 @@ describe('מניעת כפילות בהפקדות מחזוריות', () => {
       'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [depositorId, 1000, '2024-01-05', 'indefinite', null, 1, 5, 11, 1, 12, '', 'active', '', '']
     )
-    const originalDepositId = depositResult.lastInsertRowid
+    const originalDepositId = String(depositResult.lastInsertRowid)
 
     console.log('[TEST] הפקדה מקורית נוצרה:', originalDepositId)
 
