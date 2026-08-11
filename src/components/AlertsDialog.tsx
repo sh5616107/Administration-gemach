@@ -28,11 +28,11 @@ import {
   Celebration as CelebrationIcon,
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
-import { loansService, repaymentsService, db } from '../services/database'
+import { loansService, db } from '../services/database'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
 import { createRecurringDeposit, createRecurringLoan, getMissedLoansAlerts } from '../services/scheduler'
-import { calculateNextRepaymentNumber } from '../services/recurringRepaymentsService'
+import { createRepaymentWithNumbering } from '../services/repaymentHelpers'
 
 interface Alert {
   type: 'overdue' | 'recurring' | 'auto_repayment' | 'recurring_deposit' | 'info'
@@ -351,32 +351,10 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
     if (!confirm(`האם לאשר פירעון של ₪${alert.amount.toLocaleString()}?`)) return
     
     try {
-      // קבלת פרטי ההלוואה לחישוב מספרים מחזוריים
-      const loan = await loansService.getById(alert.loanId) as any
-      
-      let isRecurring = 0
-      let recurringRepaymentNumber: number | undefined
-      let recurringRepaymentCount: number | undefined
-      
-      if (loan && loan.auto_repayment === 1 && loan.repayment_amount && loan.repayment_amount > 0) {
-        isRecurring = 1
-        
-        // ✅ תיקון: שימוש בפונקציה המשותפת לחישוב מספור
-        const result = await calculateNextRepaymentNumber(alert.loanId)
-        recurringRepaymentNumber = result.recurringRepaymentNumber
-        recurringRepaymentCount = result.recurringRepaymentCount
-        
-        console.log(`[ALERT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
-      }
-      
-      await repaymentsService.create({
-        loan_id: alert.loanId,
+      await createRepaymentWithNumbering({
+        loanId: alert.loanId,
         amount: alert.amount,
-        payment_date: new Date().toISOString().split('T')[0],
         notes: 'פירעון מחזורי אוטומטי',
-        is_recurring: isRecurring,
-        recurring_repayment_number: recurringRepaymentNumber,
-        recurring_repayment_count: recurringRepaymentCount,
       })
       
       // סימון הפירעון כמאושר (לא מסמנים כנקרא!)

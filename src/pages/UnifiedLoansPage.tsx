@@ -43,7 +43,8 @@ import {
 import { borrowersService, loansService, guarantorLoansService, repaymentsService, type Borrower, type Loan, type Guarantor } from '../services/database';
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
-import { getLoanFamily } from '../services/recurringRepaymentsService';
+import { getLoanFamily, calculateNextRepaymentNumber } from '../services/recurringRepaymentsService';
+import { createRepaymentWithNumbering } from '../services/repaymentHelpers';
 import LoanCard from '../components/loans/LoanCard';
 import LoanSidePanel from '../components/loans/LoanSidePanel';
 import BorrowerSidePanel from '../components/loans/BorrowerSidePanel';
@@ -62,6 +63,34 @@ import { EditRecurringDialog } from '../components/recurring/EditRecurringDialog
  * - Borrower card here shows the full profile (stats, blacklist warning) instead
  *   of three plain fields.
  */
+
+// helper: חישוב תאריך פירעון הבא מיום בחודש
+function calculateNextDueDate(repaymentDay?: number): string | undefined {
+  if (!repaymentDay) return undefined;
+  
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  
+  // בדיקת יום אחרון בחודש הנוכחי
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  const effectiveDay = Math.min(repaymentDay, lastDayOfMonth);
+  
+  // אם היום עדיין לא חלף החודש
+  if (today.getDate() <= effectiveDay) {
+    return new Date(year, month, effectiveDay).toISOString().split('T')[0];
+  }
+  
+  // התאריך כבר עבר החודש - עובר לחודש הבא
+  const nextMonth = month + 1;
+  const nextYear = nextMonth > 11 ? year + 1 : year;
+  const actualNextMonth = nextMonth > 11 ? 0 : nextMonth;
+  const lastDayOfNextMonth = new Date(nextYear, actualNextMonth + 1, 0).getDate();
+  const effectiveDayNextMonth = Math.min(repaymentDay, lastDayOfNextMonth);
+  
+  return new Date(nextYear, actualNextMonth, effectiveDayNextMonth).toISOString().split('T')[0];
+}
+
 export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowerId?: string } = {}) {
   const { settings } = useSettings();
   const [borrowers, setBorrowers] = useState<Borrower[]>([]);
@@ -89,6 +118,13 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
   const [selectedRecurringLoanId, setSelectedRecurringLoanId] = useState<string | null>(null);
   const [editAutoRepaymentDialogOpen, setEditAutoRepaymentDialogOpen] = useState(false);
   const [selectedAutoRepaymentLoanId, setSelectedAutoRepaymentLoanId] = useState<string | null>(null);
+
+  // Manual repayment dialog (for recording ad-hoc repayments on recurring loans)
+  const [manualRepaymentDialogOpen, setManualRepaymentDialogOpen] = useState(false);
+  const [manualRepaymentLoanId, setManualRepaymentLoanId] = useState<string | null>(null);
+  const [manualRepaymentAmount, setManualRepaymentAmount] = useState(0);
+  const [manualRepaymentDate, setManualRepaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [manualRepaymentMethod, setManualRepaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
 
   // Loan families expansion state (tracks which recurring_series_id are expanded)
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
@@ -411,12 +447,18 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
         const loanRemaining = loan.remaining || 0;
         const paymentAmount = Math.min(remainingAmount, loanRemaining);
         
+        // חישוב מספור מחזורי אם יש פירעון אוטומטי
+        const numberInfo = await calculateNextRepaymentNumber(loan.id);
+        
         await repaymentsService.create({
           loan_id: loan.id,
           amount: paymentAmount,
           payment_date: today,
           payment_method: multiRepaymentPaymentMethod.payment_method,
           payment_details: JSON.stringify(multiRepaymentPaymentMethod),
+          is_recurring: numberInfo.recurringRepaymentNumber > 1 || numberInfo.recurringRepaymentCount ? 1 : 0,
+          recurring_repayment_number: numberInfo.recurringRepaymentNumber,
+          recurring_repayment_count: numberInfo.recurringRepaymentCount,
         });
         
         remainingAmount -= paymentAmount;
@@ -430,6 +472,32 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
     } catch (error) {
       console.error('Error in multi repayment:', error);
       setSnackbar({ open: true, message: 'שגיאה בפירעון מרובה', severity: 'error' });
+    }
+  };
+
+  const handleManualRepayment = async () => {
+    if (!manualRepaymentLoanId || manualRepaymentAmount <= 0) return;
+    
+    try {
+      await createRepaymentWithNumbering({
+        loanId: manualRepaymentLoanId,
+        amount: manualRepaymentAmount,
+        paymentDate: manualRepaymentDate,
+        paymentMethod: manualRepaymentMethod.payment_method,
+        paymentDetails: JSON.stringify(manualRepaymentMethod),
+        notes: 'פירעון חריג ידני',
+      });
+      
+      setSnackbar({ open: true, message: 'פירעון נרשם בהצלחה', severity: 'success' });
+      setManualRepaymentDialogOpen(false);
+      setManualRepaymentLoanId(null);
+      setManualRepaymentAmount(0);
+      setManualRepaymentDate(new Date().toISOString().split('T')[0]);
+      setManualRepaymentMethod({ payment_method: '' });
+      if (selectedBorrower) loadLoansForBorrower(selectedBorrower.id);
+    } catch (error) {
+      console.error('Error in manual repayment:', error);
+      setSnackbar({ open: true, message: 'שגיאה ברישום פירעון', severity: 'error' });
     }
   };
 
@@ -744,7 +812,19 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                                     }
                                   }}
                                 >
-                                  <LoanCard loan={loan} onClick={() => handleOpenLoan(loan)} />
+                                  <LoanCard 
+                                    loan={loan} 
+                                    onClick={() => handleOpenLoan(loan)}
+                                    recurringRepaymentInfo={
+                                      loan.auto_repayment === 1 && loanRecurringRepayments.has(loan.id!)
+                                        ? {
+                                            number: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_number!,
+                                            count: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_count!,
+                                            nextDueDate: calculateNextDueDate(loan.repayment_day),
+                                          }
+                                        : undefined
+                                    }
+                                  />
                                   {/* Action buttons overlay */}
                                   <Stack
                                     className="action-buttons"
@@ -796,7 +876,19 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                           }
                         }}
                       >
-                        <LoanCard loan={loan} onClick={() => handleOpenLoan(loan)} />
+                        <LoanCard 
+                          loan={loan} 
+                          onClick={() => handleOpenLoan(loan)}
+                          recurringRepaymentInfo={
+                            loan.auto_repayment === 1 && loanRecurringRepayments.has(loan.id!)
+                              ? {
+                                  number: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_number!,
+                                  count: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_count!,
+                                  nextDueDate: calculateNextDueDate(loan.repayment_day),
+                                }
+                              : undefined
+                          }
+                        />
                         {/* Action buttons overlay - shown on hover */}
                         <Stack
                           className="action-buttons"
@@ -835,27 +927,43 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                           
                           {/* Edit auto repayment - show on all loans with auto repayment */}
                           {loan.auto_repayment === 1 && loan.id && (
-                            <Tooltip title={loanRecurringRepayments.has(loan.id) ? "נהל פירעון אוטומטי" : "ערוך הגדרות פירעון אוטומטי"}>
-                              <IconButton
-                                size="small"
-                                color="success"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const firstRepayment = loanRecurringRepayments.get(loan.id!);
-                                  if (firstRepayment?.id) {
-                                    // Has existing repayments - open recurring repayment manager
-                                    setSelectedAutoRepaymentLoanId(firstRepayment.id);
-                                    setEditAutoRepaymentDialogOpen(true);
-                                  } else {
-                                    // No repayments yet - open loan edit form to modify settings
-                                    handleOpenLoan(loan);
-                                  }
-                                }}
-                                sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                              >
-                                <EditNoteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            <>
+                              <Tooltip title={loanRecurringRepayments.has(loan.id) ? "נהל פירעון אוטומטי" : "ערוך הגדרות פירעון אוטומטי"}>
+                                <IconButton
+                                  size="small"
+                                  color="success"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const firstRepayment = loanRecurringRepayments.get(loan.id!);
+                                    if (firstRepayment?.id) {
+                                      // Has existing repayments - open recurring repayment manager
+                                      setSelectedAutoRepaymentLoanId(firstRepayment.id);
+                                      setEditAutoRepaymentDialogOpen(true);
+                                    } else {
+                                      // No repayments yet - open loan edit form to modify settings
+                                      handleOpenLoan(loan);
+                                    }
+                                  }}
+                                  sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                                >
+                                  <EditNoteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="רשום פירעון חריג">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setManualRepaymentLoanId(loan.id!);
+                                    setManualRepaymentDialogOpen(true);
+                                  }}
+                                  sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                                >
+                                  <PaymentIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
                           )}
 
                           <Tooltip title="עריכה">
@@ -1129,6 +1237,47 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
           }}
         />
       )}
+
+      {/* Manual Repayment Dialog */}
+      <Dialog open={manualRepaymentDialogOpen} onClose={() => setManualRepaymentDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>רישום פירעון חריג</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            רשום פירעון עם מספור אוטומטי נכון (מוקדם/מאוחר/חלקי)
+          </Typography>
+          <Stack spacing={2}>
+            <AmountInput
+              label="סכום"
+              value={manualRepaymentAmount}
+              onChange={setManualRepaymentAmount}
+              fullWidth
+              autoFocus
+            />
+            <TextField
+              label="תאריך פירעון"
+              type="date"
+              value={manualRepaymentDate}
+              onChange={(e) => setManualRepaymentDate(e.target.value)}
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
+            <PaymentMethodSelect
+              value={manualRepaymentMethod}
+              onChange={setManualRepaymentMethod}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setManualRepaymentDialogOpen(false)}>ביטול</Button>
+          <Button
+            variant="contained"
+            onClick={handleManualRepayment}
+            disabled={manualRepaymentAmount <= 0 || !manualRepaymentMethod.payment_method}
+          >
+            רשום פירעון
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar */}
       <Snackbar

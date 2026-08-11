@@ -4,19 +4,37 @@ import type { Loan } from '../../services/database';
 interface LoanCardProps {
   loan: Loan;
   onClick: () => void;
+  recurringRepaymentInfo?: {
+    number: number;
+    count: number;
+    nextDueDate?: string; // ISO date string
+  };
 }
 
-/**
- * Minimal LoanCard so UnifiedLoansPage compiles and renders something
- * reasonable today. This still needs the full treatment from the design
- * doc / feedback: status background colors (overdue/due-soon/paid),
- * recurring badge, and the 4 hover action buttons (repay / receipt /
- * email / edit). Wire those in here once LoanCardService exists.
- */
-export default function LoanCard({ loan, onClick }: LoanCardProps) {
+type DueStatus = 'overdue' | 'due-soon' | 'ok' | null;
+
+function getDueStatus(nextDueDate?: string): DueStatus {
+  if (!nextDueDate) return null;
+  const due = new Date(nextDueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return 'overdue';
+  if (diffDays <= 3) return 'due-soon';
+  return 'ok';
+}
+
+export default function LoanCard({ loan, onClick, recurringRepaymentInfo }: LoanCardProps) {
   const balance = loan.amount - (loan.total_repaid ?? 0);
   const isPaid = balance <= 0;
-
+  const dueStatus = getDueStatus(recurringRepaymentInfo?.nextDueDate);
+  
+  const borderColor =
+    dueStatus === 'overdue' ? 'error.main' :
+    dueStatus === 'due-soon' ? 'warning.main' :
+    undefined;
+  
   return (
     <Card
       variant="outlined"
@@ -24,6 +42,8 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
       sx={{
         cursor: 'pointer',
         transition: 'box-shadow 0.15s, transform 0.15s',
+        borderColor,
+        borderWidth: borderColor ? 2 : 1,
         '&:hover': { boxShadow: 4, transform: 'translateY(-2px)' },
       }}
     >
@@ -32,7 +52,16 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
           <Typography variant="body2" color="text.secondary">
             הלוואה #{loan.loan_number} • {new Date(loan.loan_date).toLocaleDateString('he-IL')}
           </Typography>
-          {loan.is_recurring ? <Chip label="מחזורית" color="info" size="small" /> : null}
+          <Stack direction="row" spacing={0.5}>
+            {loan.is_recurring ? <Chip label="מחזורית" color="info" size="small" /> : null}
+            {recurringRepaymentInfo && (
+              <Chip
+                label={`${recurringRepaymentInfo.number}/${recurringRepaymentInfo.count}`}
+                color={dueStatus === 'overdue' ? 'error' : dueStatus === 'due-soon' ? 'warning' : 'success'}
+                size="small"
+              />
+            )}
+          </Stack>
         </Stack>
 
         <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
