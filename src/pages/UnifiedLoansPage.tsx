@@ -212,11 +212,15 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
         if (loan.auto_repayment === 1 && loan.id) {
           try {
             const repayments = await repaymentsService.getByLoan(loan.id);
-            const firstRecurringRepayment = repayments.find(
-              (r: any) => r.is_recurring === 1 && r.recurring_repayment_number === 1
-            );
-            if (firstRecurringRepayment) {
-              recurringRepaymentsMap.set(loan.id, firstRecurringRepayment);
+            const recurringRepayments = repayments.filter((r: any) => r.is_recurring === 1);
+            
+            if (recurringRepayments.length > 0) {
+              // מיון לפי מספר פירעון ולקיחת האחרון
+              const sortedRepayments = recurringRepayments.sort(
+                (a: any, b: any) => (b.recurring_repayment_number || 0) - (a.recurring_repayment_number || 0)
+              );
+              const latestRecurringRepayment = sortedRepayments[0];
+              recurringRepaymentsMap.set(loan.id, latestRecurringRepayment);
             }
           } catch (error) {
             console.error(`Error loading repayments for loan ${loan.id}:`, error);
