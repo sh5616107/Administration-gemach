@@ -10,6 +10,7 @@ import {
   Autocomplete,
   FormControl,
   FormControlLabel,
+  FormHelperText,
   Checkbox,
   Select,
   MenuItem,
@@ -1520,26 +1521,31 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   </Grid>
                   
                   <Grid item xs={12} md={3}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={formData.is_recurring === 1}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked
-                            if (isChecked && !selectedLoan) {
-                              // כשמפעילים הלוואה מחזורית חדשה, מאתחלים את recurring_day ליום הנוכחי
-                              const today = new Date()
-                              const currentDay = today.getDate()
-                              const firstLoanDate = calculateFirstRecurringLoanDate(currentDay)
-                              setFormData({ ...formData, is_recurring: 1, recurring_day: currentDay, loan_date: firstLoanDate })
-                            } else {
-                              setFormData({ ...formData, is_recurring: isChecked ? 1 : 0 })
-                            }
-                          }}
-                        />
-                      }
-                      label="הלוואה מחזורית"
-                    />
+                    <Box>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.is_recurring === 1}
+                            onChange={(e) => {
+                              const isChecked = e.target.checked
+                              if (isChecked && !selectedLoan) {
+                                // כשמפעילים הלוואה מחזורית חדשה, מאתחלים את recurring_day ליום הנוכחי
+                                const today = new Date()
+                                const currentDay = today.getDate()
+                                const firstLoanDate = calculateFirstRecurringLoanDate(currentDay)
+                                setFormData({ ...formData, is_recurring: 1, recurring_day: currentDay, loan_date: firstLoanDate })
+                              } else {
+                                setFormData({ ...formData, is_recurring: isChecked ? 1 : 0 })
+                              }
+                            }}
+                          />
+                        }
+                        label="הלוואה מחזורית"
+                      />
+                      <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
+                        כל חודש תיווצר הלוואה חדשה ונפרדת — לא מתאים להחזר הלוואה קיימת בתשלומים
+                      </FormHelperText>
+                    </Box>
                   </Grid>
                   
                   {formData.is_recurring === 1 && (
@@ -1617,23 +1623,28 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   </Grid>
                   
                   <Grid item xs={12} md={3}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={formData.auto_repayment === 1}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked
-                            // כשמפעילים פירעון מחזורי, מנקים את תאריך הפירעון הקבוע
-                            if (isChecked) {
-                              setFormData({ ...formData, auto_repayment: 1, due_date: undefined })
-                            } else {
-                              setFormData({ ...formData, auto_repayment: 0 })
-                            }
-                          }}
-                        />
-                      }
-                      label="פירעון מחזורי"
-                    />
+                    <Box>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.auto_repayment === 1}
+                            onChange={(e) => {
+                              const isChecked = e.target.checked
+                              // כשמפעילים פירעון מחזורי, מנקים את תאריך הפירעון הקבוע
+                              if (isChecked) {
+                                setFormData({ ...formData, auto_repayment: 1, due_date: undefined })
+                              } else {
+                                setFormData({ ...formData, auto_repayment: 0 })
+                              }
+                            }}
+                          />
+                        }
+                        label="פירעון מחזורי"
+                      />
+                      <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
+                        הלוואה אחת שמוחזרת בכמה תשלומים חודשיים — זה מה שרוב המקרים צריכים
+                      </FormHelperText>
+                    </Box>
                   </Grid>
                   
                   {formData.auto_repayment === 1 && (
