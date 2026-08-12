@@ -318,10 +318,12 @@ export async function migrateRecurringRepaymentNumbers(): Promise<{ migrated: nu
         const repayment = sortedRepayments[i]
         
         if (!repayment.recurring_repayment_number) {
-          await db.run(
-            'UPDATE repayments SET is_recurring = ?, recurring_repayment_number = ?, recurring_repayment_count = ? WHERE id = ?',
-            [1, i + 1, recurringRepaymentCount, repayment.id]
-          )
+          // ✅ שימוש ב-repaymentsService.update במקום db.run שלא מזוהה
+          await repaymentsService.update(repayment.id, {
+            is_recurring: 1,
+            recurring_repayment_number: i + 1,
+            recurring_repayment_count: recurringRepaymentCount,
+          })
           migrated++
         } else {
           skipped++

@@ -509,6 +509,9 @@ export const db = {
     }
     if (sql.includes('DELETE FROM donations WHERE id') && params) { removeItem('donations', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     if (sql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    
+    // ⚠️ אזהרה: SQL לא מזוהה - עלול לגרום לנתונים לא להישמר
+    console.warn(`[DB] ⚠️ Unrecognized SQL command (fallback): ${sql.substring(0, 100)}`)
     return { lastInsertRowid: 1, changes: 1 }
   },
 
