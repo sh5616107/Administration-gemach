@@ -79,3 +79,6 @@ WORK_SESSION_SUMMARY.md
 
 # BrowserCtl — local relay token (secret for controlling the browser)
 tools/bctl.token
+
+# AI/Dev tools local databases
+.freebuff/
