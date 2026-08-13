@@ -48,7 +48,7 @@ const openUrl = async (url: string) => {
 }
 
 // Download HTML content as PDF
-const downloadPdf = async (htmlContent: string, filename: string): Promise<string | null> => {
+const downloadPdf = async (htmlContent: string, filename: string, frameImageBase64?: string): Promise<string | null> => {
   return new Promise((resolve) => {
     // Create a temporary container
     const container = document.createElement('div')
@@ -84,6 +84,9 @@ const downloadPdf = async (htmlContent: string, filename: string): Promise<strin
         let position = 0
         
         // Add first page
+        if (frameImageBase64) {
+          pdf.addImage(frameImageBase64, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
+        }
         pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST')
         heightLeft -= pageHeight
         
@@ -91,6 +94,9 @@ const downloadPdf = async (htmlContent: string, filename: string): Promise<strin
         while (heightLeft > 0) {
           position -= pageHeight
           pdf.addPage()
+          if (frameImageBase64) {
+            pdf.addImage(frameImageBase64, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
+          }
           pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
           heightLeft -= pageHeight
         }
@@ -130,14 +136,13 @@ const printHtml = (htmlContent: string, title: string) => {
           <title>${title}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700&display=swap');
+            @page { size: A4; margin: 0; }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             body { 
               font-family: 'Heebo', Arial, sans-serif; 
               direction: rtl; 
-              padding: 40px;
               margin: 0;
-            }
-            @media print { 
-              body { padding: 20px; }
+              padding: 0;
             }
             table { page-break-inside: auto; }
             tr { page-break-inside: avoid; }
@@ -164,14 +169,13 @@ const printHtml = (htmlContent: string, title: string) => {
       <title>${title}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700&display=swap');
+        @page { size: A4; margin: 0; }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { 
           font-family: 'Heebo', Arial, sans-serif; 
           direction: rtl; 
-          padding: 40px;
           margin: 0;
-        }
-        @media print { 
-          body { padding: 20px; }
+          padding: 0;
         }
         table { page-break-inside: auto; }
         tr { page-break-inside: avoid; }
@@ -189,6 +193,7 @@ const printHtml = (htmlContent: string, title: string) => {
             cursor: pointer;
             font-size: 16px;
             font-family: 'Heebo', Arial, sans-serif;
+            z-index: 1000;
           }
           .print-btn:hover { background: #1565c0; }
         }
@@ -258,15 +263,11 @@ function applyDocumentBranding(
   logoHtmlIfNoFrame: string
 ): string {
   if (branding.gemachDocumentFrame) {
-    // מצב מסגרת: תמונה מוחלטת כרקע + תוכן עם ריווח פנימי
+    // מצב מסגרת: img tag עם position:fixed
     return `
-      <div style="position: relative; width: 100%; min-height: 1000px;">
-        <img src="${branding.gemachDocumentFrame}" 
-             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: -1;" 
-             alt="frame" />
-        <div style="position: relative; padding: 140px 60px 100px 60px; box-sizing: border-box; min-height: 1000px;">
-          ${innerHtml}
-        </div>
+      <img src="${branding.gemachDocumentFrame}" style="position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; object-fit: fill; z-index: -1; -webkit-print-color-adjust: exact; print-color-adjust: exact;" alt="" />
+      <div style="padding: 30mm 20mm 25mm 20mm; box-sizing: border-box; position: relative; z-index: 1;">
+        ${innerHtml}
       </div>
     `
   }
