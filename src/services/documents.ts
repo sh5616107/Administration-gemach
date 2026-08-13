@@ -870,141 +870,6 @@ export function generateBorrowerReport(data: {
     <img src="${data.gemachLogo}" class="decorative-logo-bottom-left" alt="logo" />
   ` : ''
 
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="he">
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: Arial, sans-serif; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .summary-box { 
-          background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%); 
-          padding: 20px; 
-          border-radius: 10px; 
-          margin: 20px 0; 
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .summary-table { width: 100%; border-collapse: collapse; }
-        .summary-table td { padding: 10px; border-bottom: 1px solid #ddd; }
-        .summary-table tr:last-child td { border-bottom: none; }
-        .debt-amount { font-size: 20px; font-weight: bold; }
-        .section-title { 
-          margin-top: 30px; 
-          padding-bottom: 8px; 
-          border-bottom: 2px solid #1976d2; 
-          color: #1976d2;
-          font-size: 18px;
-        }
-        .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .data-table th { 
-          padding: 12px; 
-          border: 1px solid #ddd; 
-          font-weight: bold;
-          font-size: 14px;
-        }
-        .data-table td { 
-          padding: 10px; 
-          border: 1px solid #ddd; 
-          text-align: center;
-          font-size: 13px;
-        }
-        .loans-header { background: #e3f2fd; }
-        .repayments-header { background: #e8f5e9; }
-        .expenses-header { background: #fff3e0; }
-        .multi-repayment-row { background: #e3f2fd; }
-        .total-row { font-weight: bold; }
-        .multi-badge { 
-          color: #1976d2; 
-          font-weight: bold; 
-          background: white;
-          padding: 2px 8px;
-          border-radius: 4px;
-          display: inline-block;
-        }
-        .recurring-badge {
-          color: #2e7d32;
-          font-weight: bold;
-        }
-        @media print {
-          .summary-box { box-shadow: none; border: 1px solid #ddd; }
-          ${pageBorderStyles}
-        }
-      </style>
-    </head>
-    <body>
-    ${pageBorderElements}
-    <div style="padding: 20px;">
-      <div class="header">
-        ${logoHtml}
-        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח לווה</h1>
-        <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
-      </div>
-      
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
-      
-      <div style="text-align: right; font-size: 15px; margin-bottom: 20px;">
-        <p style="margin: 5px 0;"><strong>שם הלווה:</strong> ${data.borrowerName}</p>
-        <p style="margin: 5px 0;"><strong>תאריך הפקה:</strong> ${today}</p>
-      </div>
-
-      <!-- סיכום כללי -->
-      <div class="summary-box">
-        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
-        <table class="summary-table">
-          <tr>
-            <td style="width: 25%;"><strong>הלוואות פעילות:</strong></td>
-            <td style="width: 25%; text-align: left; color: #1976d2; font-size: 16px;"><strong>${activeLoansCount}</strong></td>
-            <td style="width: 25%;"><strong>הלוואות שנפרעו:</strong></td>
-            <td style="width: 25%; text-align: left; color: #2e7d32; font-size: 16px;"><strong>${completedLoansCount}</strong></td>
-          </tr>
-          <tr>
-            <td><strong>סה"כ הלוואות:</strong></td>
-            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalLoansAmount)}</td>
-            <td><strong>סה"כ פרעונות:</strong></td>
-            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalRepayments)}</td>
-          </tr>
-          <tr style="background: ${data.totalDebt > 0 ? '#ffebee' : '#e8f5e9'};">
-            <td colspan="2"><strong style="font-size: 16px;">יתרת חוב נוכחית:</strong></td>
-            <td colspan="2" style="text-align: left;">
-              <span class="debt-amount" style="color: ${data.totalDebt > 0 ? '#d32f2f' : '#2e7d32'};">
-                ${formatCurrency(data.totalDebt)}
-              </span>
-            </td>
-          </tr>
-        </table>
-      </div>
-      
-      <h3 class="section-title">💰 פירוט הלוואות</h3>
-      
-      <table class="data-table">
-        <thead>
-          <tr class="loans-header">
-            <th style="width: 8%;">מס'</th>
-            <th style="width: 15%;">תאריך</th>
-            <th style="width: 15%;">סכום הלוואה</th>
-            <th style="width: 15%;">נפרע</th>
-            <th style="width: 15%;">יתרה</th>
-            <th style="width: 17%;">מחזורית</th>
-            <th style="width: 15%;">סטטוס</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${loansHtml || '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #999;">אין הלוואות</td></tr>'}
-        </tbody>
-      </table>
-      
-      ${repaymentsHtml}
-      ${expensesHtml}
-      
-      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
-        <p>דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
-      </div>
-    </div>
-    </body>
-    </html>
-  `
-
   const innerContent = `
     <div style="padding: 20px;">
       <div class="header">
@@ -1313,6 +1178,7 @@ export function generateFullReport(data: {
 export function generateDepositorReport(data: {
   gemachName: string
   gemachLogo?: string
+  gemachDocumentFrame?: string
   depositorName: string
   depositorPhone?: string
   depositorIdNumber?: string
@@ -1408,7 +1274,6 @@ export function generateDepositorReport(data: {
   const htmlContent = `
     <div style="padding: 20px;">
       <div style="text-align: center;">
-        ${logoHtml}
         <h1 style="font-size: 24px; margin: 10px 0;">דוח מפקיד</h1>
         <h2 style="font-size: 16px; color: #666;">${data.gemachName}</h2>
       </div>
@@ -1459,7 +1324,8 @@ export function generateDepositorReport(data: {
     </div>
   `
 
-  printHtml(htmlContent, `דוח מפקיד - ${data.depositorName}`)
+  const finalContent = applyDocumentBranding(htmlContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)
+  printHtml(finalContent, `דוח מפקיד - ${data.depositorName}`)
 }
 
 
@@ -2237,73 +2103,43 @@ export function generateGuarantorStatement(data: GuarantorStatementData): void {
     </div>
   ` : ''
 
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="he">
-    <head>
-      <meta charset="UTF-8">
-      <title>דוח ערב - ${data.guarantorName}</title>
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap');
-        body { 
-          font-family: 'Heebo', Arial, sans-serif; 
-          margin: 0;
-          padding: 20px;
-          background: white;
-          color: #212121;
-        }
-        .page-container {
-          max-width: 750px;
-          margin: 0 auto;
-          padding: 25px;
-          background: white;
-        }
-        @media print {
-          body { padding: 10px; }
-          .page-container { padding: 15px; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="page-container">
-        <div style="text-align: center; margin-bottom: 25px;">
-          ${logoHtml}
-          <h1 style="font-size: 24px; margin: 8px 0; color: #212121; font-weight: 600;">${data.gemachName}</h1>
-          <h2 style="font-size: 16px; margin: 4px 0; color: #757575; font-weight: 400;">דוח ערב מפורט</h2>
-        </div>
+  const innerContent = `
+    <div style="text-align: center; margin-bottom: 25px;">
+      <h1 style="font-size: 24px; margin: 8px 0; color: #212121; font-weight: 600;">${data.gemachName}</h1>
+      <h2 style="font-size: 16px; margin: 4px 0; color: #757575; font-weight: 400;">דוח ערב מפורט</h2>
+    </div>
 
-        <div style="background: #fafafa; padding: 15px; margin-bottom: 20px; border-left: 3px solid #424242;">
-          <p style="margin: 0 0 6px 0; font-size: 14px; color: #212121; font-weight: 600;">פרטי הערב</p>
-          <table style="width: 100%; font-size: 12px;">
-            <tr>
-              <td style="padding: 3px 0; color: #757575; width: 30%;">שם:</td>
-              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorName}</td>
-            </tr>
-            ${data.guarantorPhone ? `
-            <tr>
-              <td style="padding: 3px 0; color: #757575;">טלפון:</td>
-              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorPhone}</td>
-            </tr>` : ''}
-            ${data.guarantorEmail ? `
-            <tr>
-              <td style="padding: 3px 0; color: #757575;">אימייל:</td>
-              <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorEmail}</td>
-            </tr>` : ''}
-            <tr>
-              <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">תאריך הפקה:</td>
-              <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">${today}</td>
-            </tr>
-          </table>
-        </div>
+    <div style="background: #fafafa; padding: 15px; margin-bottom: 20px; border-left: 3px solid #424242;">
+      <p style="margin: 0 0 6px 0; font-size: 14px; color: #212121; font-weight: 600;">פרטי הערב</p>
+      <table style="width: 100%; font-size: 12px;">
+        <tr>
+          <td style="padding: 3px 0; color: #757575; width: 30%;">שם:</td>
+          <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorName}</td>
+        </tr>
+        ${data.guarantorPhone ? `
+        <tr>
+          <td style="padding: 3px 0; color: #757575;">טלפון:</td>
+          <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorPhone}</td>
+        </tr>` : ''}
+        ${data.guarantorEmail ? `
+        <tr>
+          <td style="padding: 3px 0; color: #757575;">אימייל:</td>
+          <td style="padding: 3px 0; font-weight: 600; color: #424242;">${data.guarantorEmail}</td>
+        </tr>` : ''}
+        <tr>
+          <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">תאריך הפקה:</td>
+          <td style="padding: 3px 0; color: #9e9e9e; font-size: 10px;">${today}</td>
+        </tr>
+      </table>
+    </div>
 
-        ${guarantorLoansHtml}
-        
-        ${regularLoansHtml}
+    ${guarantorLoansHtml}
+    
+    ${regularLoansHtml}
 
-        <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; text-align: center;">
-          <p style="margin: 0; font-size: 10px; color: #9e9e9e;">דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
-        </div>
-      </div>
+    <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; text-align: center;">
+      <p style="margin: 0; font-size: 10px; color: #9e9e9e;">דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
+    </div>
   `
 
   const fullDocument = `
@@ -2335,7 +2171,7 @@ export function generateGuarantorStatement(data: GuarantorStatementData): void {
     </head>
     <body>
       <div class="page-container">
-        ${applyDocumentBranding(htmlContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)}
+        ${applyDocumentBranding(innerContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)}
       </div>
     </body>
     </html>

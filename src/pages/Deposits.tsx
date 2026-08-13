@@ -1053,6 +1053,7 @@ export default function Deposits() {
                         generateDepositorReport({
                           gemachName: settings.gemach_name || 'גמ"ח',
                           gemachLogo: settings.gemach_logo,
+                          gemachDocumentFrame: settings.gemach_document_frame,
                           depositorName: `${selectedDepositor.first_name} ${selectedDepositor.last_name}`,
                           depositorPhone: selectedDepositor.phone,
                           depositorIdNumber: selectedDepositor.id_number,
