@@ -229,7 +229,9 @@ export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
         gemachLogo: settings.gemach_logo,
         borrowerName: `${borrower.first_name} ${borrower.last_name}`,
         loans: loansWithRepayments,
-        totalDebt
+        totalDebt,
+        repaymentsOrder: settings.report_repayments_order,
+        showPageBorder: settings.report_page_border,
       })
 
       setSnackbar({ open: true, message: 'הדוח הופק בהצלחה', severity: 'success' })

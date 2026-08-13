@@ -654,6 +654,8 @@ export function generateBorrowerReport(data: {
     category: string
   }>
   totalDebt: number
+  repaymentsOrder?: 'newest_first' | 'oldest_first'
+  showPageBorder?: 'yes' | 'no'
 }) {
   const today = new Date().toLocaleDateString('he-IL')
 
@@ -692,12 +694,14 @@ export function generateBorrowerReport(data: {
   `}).join('')
 
   // טבלת פרעונות - נפרדת וברורה
+  // חישוב פירעונות - מיון לפי ההגדרה
+  const sortMultiplier = (data.repaymentsOrder || 'newest_first') === 'oldest_first' ? 1 : -1
   const allRepayments = data.loans.flatMap(loan => 
     (loan.repayments || []).map(r => ({
       ...r,
       loanId: loan.id
     }))
-  ).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
+  ).sort((a, b) => sortMultiplier * (new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()))
 
   // זיהוי פרעונות מרובים - פרעונות באותו תאריך עם הערה "פירעון מרובה"
   const multiRepaymentDates = new Set(
@@ -785,6 +789,47 @@ export function generateBorrowerReport(data: {
     </table>
   ` : ''
 
+  // מסגרת דקורטיבית - רק אם מופעל בהגדרות
+  const pageBorderStyles = (data.showPageBorder === 'yes' && data.gemachLogo) ? `
+    .decorative-border {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border: 8px solid #1976d2;
+      border-radius: 20px;
+      pointer-events: none;
+      z-index: -1;
+    }
+    .decorative-logo-top-right {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      width: 60px;
+      height: 60px;
+      opacity: 0.3;
+      pointer-events: none;
+      z-index: -1;
+    }
+    .decorative-logo-bottom-left {
+      position: fixed;
+      bottom: 15px;
+      left: 15px;
+      width: 60px;
+      height: 60px;
+      opacity: 0.3;
+      pointer-events: none;
+      z-index: -1;
+    }
+  ` : ''
+
+  const pageBorderElements = (data.showPageBorder === 'yes' && data.gemachLogo) ? `
+    <div class="decorative-border"></div>
+    <img src="${data.gemachLogo}" class="decorative-logo-top-right" alt="logo" />
+    <img src="${data.gemachLogo}" class="decorative-logo-bottom-left" alt="logo" />
+  ` : ''
+
   const htmlContent = `
     <!DOCTYPE html>
     <html dir="rtl" lang="he">
@@ -843,10 +888,12 @@ export function generateBorrowerReport(data: {
         }
         @media print {
           .summary-box { box-shadow: none; border: 1px solid #ddd; }
+          ${pageBorderStyles}
         }
       </style>
     </head>
     <body>
+    ${pageBorderElements}
     <div style="padding: 20px;">
       <div class="header">
         ${logoHtml}

@@ -91,6 +91,8 @@ export default function Settings() {
     email_provider: settings.email_provider || 'gmail',
     loan_document_text: isOldTemplate(settings.loan_document_text) ? '' : (settings.loan_document_text || ''),
     deposit_document_text: isOldTemplate(settings.deposit_document_text) ? '' : (settings.deposit_document_text || ''),
+    report_repayments_order: settings.report_repayments_order || 'newest_first',
+    report_page_border: settings.report_page_border || 'no',
   })
   
   // Update local settings when settings change (e.g., after refresh)
@@ -112,6 +114,8 @@ export default function Settings() {
       email_provider: settings.email_provider || 'gmail',
       loan_document_text: isOldTemplate(settings.loan_document_text) ? '' : (settings.loan_document_text || ''),
       deposit_document_text: isOldTemplate(settings.deposit_document_text) ? '' : (settings.deposit_document_text || ''),
+      report_repayments_order: settings.report_repayments_order || 'newest_first',
+      report_page_border: settings.report_page_border || 'no',
     })
   }, [settings])
   const [fieldLabels, setFieldLabels] = useState<Record<string, string>>(
@@ -204,6 +208,8 @@ export default function Settings() {
       await updateSetting('loan_document_text', localSettings.loan_document_text)
       await updateSetting('deposit_document_text', localSettings.deposit_document_text)
       await updateSetting('language', i18n.language)
+      await updateSetting('report_repayments_order', localSettings.report_repayments_order)
+      await updateSetting('report_page_border', localSettings.report_page_border)
       if (localSettings.gemach_logo !== settings.gemach_logo) {
         await updateSetting('gemach_logo', localSettings.gemach_logo)
       }
@@ -479,6 +485,38 @@ export default function Settings() {
                   </MenuItem>
                 </Select>
               </FormControl>
+
+              <Divider sx={{ my: 3 }} />
+              
+              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+                הגדרות דוחות
+              </Typography>
+
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel>סדר תאריכים בטבלת פרעונות בדוח לווה</InputLabel>
+                <Select
+                  value={localSettings.report_repayments_order}
+                  label="סדר תאריכים בטבלת פרעונות בדוח לווה"
+                  onChange={(e) => setLocalSettings({ ...localSettings, report_repayments_order: e.target.value as 'newest_first' | 'oldest_first' })}
+                >
+                  <MenuItem value="newest_first">החדש ביותר למעלה</MenuItem>
+                  <MenuItem value="oldest_first">הישן ביותר למעלה</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={localSettings.report_page_border === 'yes'}
+                    onChange={(e) => setLocalSettings({ ...localSettings, report_page_border: e.target.checked ? 'yes' : 'no' })}
+                  />
+                }
+                label="הצג מסגרת דקורטיבית עם לוגו בדוחות מודפסים"
+                sx={{ mb: 1 }}
+              />
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 3 }}>
+                מסגרת נאה עם הלוגו שתחזור על כל עמוד בעת הדפסה
+              </Typography>
             </CardContent>
           </Card>
         </Grid>

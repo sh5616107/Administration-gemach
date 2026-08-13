@@ -11,7 +11,7 @@
  * Feature: recurring-items-management
  */
 
-import { loansService, repaymentsService, db, getAllItems, depositorsService } from './database'
+import { loansService, repaymentsService, db, getAllItems, depositorsService, type Repayment, type Loan } from './database'
 import { getLoanFamily, getAllFamilyRepayments } from './recurringRepaymentsService'
 
 // ============================================================================

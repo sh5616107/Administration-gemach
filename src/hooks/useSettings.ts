@@ -22,6 +22,8 @@ interface Settings {
   loan_document_text: string
   deposit_document_text: string
   language: string
+  report_repayments_order: 'newest_first' | 'oldest_first'
+  report_page_border: 'yes' | 'no'
 }
 
 const defaultSettings: Settings = {
@@ -43,6 +45,8 @@ const defaultSettings: Settings = {
   loan_document_text: 'מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע.',
   deposit_document_text: 'ואני מתחייב להחזיר את הסכום בתנאים שנקבעו.',
   language: 'he',
+  report_repayments_order: 'newest_first',
+  report_page_border: 'no',
 }
 
 // Custom event for settings changes
@@ -54,14 +58,16 @@ export function useSettings() {
 
   const loadSettings = useCallback(async () => {
     try {
-      const loadedSettings: Partial<Settings> = {}
+      const loadedSettings = { ...defaultSettings } as Settings
       
       for (const key of Object.keys(defaultSettings) as (keyof Settings)[]) {
         const value = await settingsStore.getItem<string>(key)
-        loadedSettings[key] = value || defaultSettings[key]
+        if (value !== null) {
+          (loadedSettings as any)[key] = value
+        }
       }
       
-      setSettings(loadedSettings as Settings)
+      setSettings(loadedSettings)
     } catch (error) {
       console.error('Error loading settings:', error)
     } finally {

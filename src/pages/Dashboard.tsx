@@ -192,6 +192,7 @@ export default function Dashboard() {
       const borrowerExpenses = await statsService.getExpensesByBorrower(borrower.id)
       
       generateBorrowerReport({
+        gemachLogo: settings.gemach_logo,
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         borrowerName: `${borrower.first_name} ${borrower.last_name}`,
         loans: loansWithRepayments,
@@ -202,7 +203,9 @@ export default function Dashboard() {
           expense_date: e.expense_date,
           category: e.category
         })),
-        totalDebt: borrower.total_debt
+        totalDebt: borrower.total_debt,
+        repaymentsOrder: settings.report_repayments_order,
+        showPageBorder: settings.report_page_border,
       })
       setSnackbar({ open: true, message: 'הדו"ח הופק בהצלחה', severity: 'success' })
     } catch (error) {
