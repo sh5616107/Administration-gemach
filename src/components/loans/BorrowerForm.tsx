@@ -232,7 +232,6 @@ export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
         loans: loansWithRepayments,
         totalDebt,
         repaymentsOrder: settings.report_repayments_order,
-        showPageBorder: settings.report_page_border,
       })
 
       setSnackbar({ open: true, message: 'הדוח הופק בהצלחה', severity: 'success' })

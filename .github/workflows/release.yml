@@ -38,12 +38,25 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'גרסה __VERSION__'
           releaseBody: |
-            ## שינויים בגרסה זו
+            ## שינויים בגרסה __VERSION__
             
-            עדכונים וטיוטים
+            ### ✨ תכונות חדשות
+            - מערכת עדכונים אוטומטיים - בדיקה אוטומטית + כפתור ידני בהגדרות
+            - Dialog משופר עם "מה חדש" ו-progress bar להורדה
+            - תמיכה בחתימה דיגיטלית לאבטחת עדכונים
             
-            ### הורדה
+            ### 🔧 שיפורים
+            - שילוב בנקים הוסתר זמנית עד להשלמת הפיתוח
+            - עדכון תלויות ותצורות
+            
+            ### 📚 תיעוד
+            - `AUTO_UPDATE_SETUP.md` - הוראות הגדרה מפורטות
+            - `QUICK_UPDATE_GUIDE.md` - מדריך מהיר
+            
+            ### 📥 הורדה והתקנה
             הורד את הקובץ המתאים למערכת ההפעלה שלך מהקבצים למטה.
+            
+            לפרטים נוספים ראה [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

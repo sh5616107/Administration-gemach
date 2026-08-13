@@ -206,7 +206,6 @@ export default function Dashboard() {
         })),
         totalDebt: borrower.total_debt,
         repaymentsOrder: settings.report_repayments_order,
-        showPageBorder: settings.report_page_border,
       })
       setSnackbar({ open: true, message: 'הדו"ח הופק בהצלחה', severity: 'success' })
     } catch (error) {

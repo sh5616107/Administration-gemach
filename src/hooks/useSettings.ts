@@ -24,7 +24,6 @@ interface Settings {
   deposit_document_text: string
   language: string
   report_repayments_order: 'newest_first' | 'oldest_first'
-  report_page_border: 'yes' | 'no'
 }
 
 const defaultSettings: Settings = {
@@ -48,7 +47,6 @@ const defaultSettings: Settings = {
   deposit_document_text: 'ואני מתחייב להחזיר את הסכום בתנאים שנקבעו.',
   language: 'he',
   report_repayments_order: 'newest_first',
-  report_page_border: 'no',
 }
 
 // Custom event for settings changes

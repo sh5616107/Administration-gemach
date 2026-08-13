@@ -204,6 +204,7 @@ export default function DepositorForm({ depositor, onSaved }: DepositorFormProps
       generateDepositorReport({
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
         depositorName: `${depositor.first_name} ${depositor.last_name}`,
         depositorPhone: depositor.phone,
         depositorIdNumber: depositor.id_number,

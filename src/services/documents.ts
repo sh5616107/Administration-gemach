@@ -258,19 +258,15 @@ function applyDocumentBranding(
   logoHtmlIfNoFrame: string
 ): string {
   if (branding.gemachDocumentFrame) {
-    // מצב מסגרת: רקע מלא, ללא לוגו נפרד, עם ריווח פנימי מספק לתוכן
+    // מצב מסגרת: תמונה מוחלטת כרקע + תוכן עם ריווח פנימי
     return `
-      <div style="
-        position: relative;
-        background-image: url('${branding.gemachDocumentFrame}');
-        background-size: 100% 100%;
-        background-repeat: no-repeat;
-        background-position: top center;
-        min-height: 1000px;
-        padding: 140px 60px 100px 60px;
-        box-sizing: border-box;
-      ">
-        ${innerHtml}
+      <div style="position: relative; width: 100%; min-height: 1000px;">
+        <img src="${branding.gemachDocumentFrame}" 
+             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: -1;" 
+             alt="frame" />
+        <div style="position: relative; padding: 140px 60px 100px 60px; box-sizing: border-box; min-height: 1000px;">
+          ${innerHtml}
+        </div>
       </div>
     `
   }
@@ -695,7 +691,6 @@ export function generateBorrowerReport(data: {
   }>
   totalDebt: number
   repaymentsOrder?: 'newest_first' | 'oldest_first'
-  showPageBorder?: 'yes' | 'no'
 }) {
   const today = new Date().toLocaleDateString('he-IL')
 
@@ -829,47 +824,6 @@ export function generateBorrowerReport(data: {
     </table>
   ` : ''
 
-  // מסגרת דקורטיבית - רק אם מופעל בהגדרות
-  const pageBorderStyles = (data.showPageBorder === 'yes' && data.gemachLogo) ? `
-    .decorative-border {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      border: 8px solid #1976d2;
-      border-radius: 20px;
-      pointer-events: none;
-      z-index: -1;
-    }
-    .decorative-logo-top-right {
-      position: fixed;
-      top: 15px;
-      right: 15px;
-      width: 60px;
-      height: 60px;
-      opacity: 0.3;
-      pointer-events: none;
-      z-index: -1;
-    }
-    .decorative-logo-bottom-left {
-      position: fixed;
-      bottom: 15px;
-      left: 15px;
-      width: 60px;
-      height: 60px;
-      opacity: 0.3;
-      pointer-events: none;
-      z-index: -1;
-    }
-  ` : ''
-
-  const pageBorderElements = (data.showPageBorder === 'yes' && data.gemachLogo) ? `
-    <div class="decorative-border"></div>
-    <img src="${data.gemachLogo}" class="decorative-logo-top-right" alt="logo" />
-    <img src="${data.gemachLogo}" class="decorative-logo-bottom-left" alt="logo" />
-  ` : ''
-
   const innerContent = `
     <div style="padding: 20px;">
       <div class="header">
@@ -997,12 +951,10 @@ export function generateBorrowerReport(data: {
         }
         @media print {
           .summary-box { box-shadow: none; border: 1px solid #ddd; }
-          ${pageBorderStyles}
         }
       </style>
     </head>
     <body>
-    ${pageBorderElements}
     ${applyDocumentBranding(innerContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)}
     </body>
     </html>
@@ -2177,7 +2129,7 @@ export function generateGuarantorStatement(data: GuarantorStatementData): void {
     </html>
   `
 
-  downloadPdf(fullDocument, `דוח-ערב-${data.guarantorName}`)
+  printHtml(fullDocument, `דוח ערב - ${data.guarantorName}`)
 }
 
 
