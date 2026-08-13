@@ -277,10 +277,13 @@ function applyDocumentBranding(
     const right = branding.frameMarginRight ?? 20
     const left = branding.frameMarginLeft ?? 20
     
-    // מצב מסגרת: img tag עם position:fixed
+    // מצב מסגרת: שימוש ב-@page margin במקום padding כדי ששוליים יישמרו בכל עמוד פיזי
     return `
+      <style>
+        @page { size: A4; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm; }
+      </style>
       <img src="${branding.gemachDocumentFrame}" style="position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; object-fit: fill; z-index: -1; -webkit-print-color-adjust: exact; print-color-adjust: exact;" alt="" />
-      <div style="padding: ${top}mm ${right}mm ${bottom}mm ${left}mm; box-sizing: border-box; position: relative; z-index: 1;">
+      <div style="position: relative; z-index: 1;">
         ${innerHtml}
       </div>
     `
