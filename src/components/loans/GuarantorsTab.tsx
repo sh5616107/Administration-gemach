@@ -386,6 +386,10 @@ export default function GuarantorsTab() {
       monthlyPayments: gl.monthly_payments,
       gemachLogo: settings.gemach_logo,
       gemachDocumentFrame: settings.gemach_document_frame,
+      frameMarginTop: settings.gemach_frame_margin_top,
+      frameMarginBottom: settings.gemach_frame_margin_bottom,
+      frameMarginRight: settings.gemach_frame_margin_right,
+      frameMarginLeft: settings.gemach_frame_margin_left,
       dateFormat: settings.date_format
     })
 
@@ -467,6 +471,10 @@ export default function GuarantorsTab() {
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
         gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
         guarantorName: `${guarantor.first_name} ${guarantor.last_name}`,
         guarantorPhone: guarantor.phone,
         guarantorEmail: guarantor.email,

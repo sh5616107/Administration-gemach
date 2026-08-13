@@ -215,6 +215,10 @@ interface LoanDocumentData {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   borrowerName: string
   borrowerId?: string
   amount: number
@@ -250,6 +254,10 @@ function formatCurrency(amount: number): string {
 interface DocumentBrandingOptions {
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
 }
 
 /**
@@ -263,10 +271,16 @@ function applyDocumentBranding(
   logoHtmlIfNoFrame: string
 ): string {
   if (branding.gemachDocumentFrame) {
+    // שימוש בשוליים מהפרמטרים עם נפילה לערכי ברירת מחדל
+    const top = branding.frameMarginTop ?? 35
+    const bottom = branding.frameMarginBottom ?? 48
+    const right = branding.frameMarginRight ?? 20
+    const left = branding.frameMarginLeft ?? 20
+    
     // מצב מסגרת: img tag עם position:fixed
     return `
       <img src="${branding.gemachDocumentFrame}" style="position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; object-fit: fill; z-index: -1; -webkit-print-color-adjust: exact; print-color-adjust: exact;" alt="" />
-      <div style="padding: 30mm 20mm 25mm 20mm; box-sizing: border-box; position: relative; z-index: 1;">
+      <div style="padding: ${top}mm ${right}mm ${bottom}mm ${left}mm; box-sizing: border-box; position: relative; z-index: 1;">
         ${innerHtml}
       </div>
     `
@@ -426,12 +440,27 @@ export function generateLoanDocument(data: LoanDocumentData) {
     </div>
   `
 
-  const finalContent = applyDocumentBranding(htmlContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo: data.gemachLogo, 
+    gemachDocumentFrame: data.gemachDocumentFrame,
+    frameMarginTop: data.frameMarginTop,
+    frameMarginBottom: data.frameMarginBottom,
+    frameMarginRight: data.frameMarginRight,
+    frameMarginLeft: data.frameMarginLeft
+  }, logoHtml)
   printHtml(finalContent, `שטר הלוואה - ${data.borrowerName}`)
 }
 
 
-export function generateEmptyLoanDocument(gemachName: string, gemachLogo?: string, gemachDocumentFrame?: string) {
+export function generateEmptyLoanDocument(
+  gemachName: string, 
+  gemachLogo?: string, 
+  gemachDocumentFrame?: string,
+  frameMarginTop?: number,
+  frameMarginBottom?: number,
+  frameMarginRight?: number,
+  frameMarginLeft?: number
+) {
   const today = new Date().toLocaleDateString('he-IL')
   
   const logoHtml = gemachLogo 
@@ -478,7 +507,14 @@ export function generateEmptyLoanDocument(gemachName: string, gemachLogo?: strin
     </div>
   `
 
-  const finalContent = applyDocumentBranding(htmlContent, { gemachLogo, gemachDocumentFrame }, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo, 
+    gemachDocumentFrame,
+    frameMarginTop,
+    frameMarginBottom,
+    frameMarginRight,
+    frameMarginLeft
+  }, logoHtml)
   printHtml(finalContent, 'שטר הלוואה ריק')
 }
 
@@ -486,6 +522,10 @@ export function generateDonationReceipt(data: {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   donorName: string
   amount: number
   donationDate: string
@@ -529,7 +569,14 @@ export function generateDonationReceipt(data: {
     </div>
   `
 
-  const finalContent = applyDocumentBranding(htmlContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo: data.gemachLogo, 
+    gemachDocumentFrame: data.gemachDocumentFrame,
+    frameMarginTop: data.frameMarginTop,
+    frameMarginBottom: data.frameMarginBottom,
+    frameMarginRight: data.frameMarginRight,
+    frameMarginLeft: data.frameMarginLeft
+  }, logoHtml)
   printHtml(finalContent, `קבלה ${data.receiptNumber}`)
 }
 
@@ -537,6 +584,10 @@ export function generateDepositDocument(data: {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   depositorName: string
   amount: number
   depositDate: string
@@ -655,7 +706,14 @@ export function generateDepositDocument(data: {
     </div>
   `
 
-  const finalContent = applyDocumentBranding(htmlContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo: data.gemachLogo, 
+    gemachDocumentFrame: data.gemachDocumentFrame,
+    frameMarginTop: data.frameMarginTop,
+    frameMarginBottom: data.frameMarginBottom,
+    frameMarginRight: data.frameMarginRight,
+    frameMarginLeft: data.frameMarginLeft
+  }, logoHtml)
   printHtml(finalContent, `שטר הפקדה - ${data.depositorName}`)
 }
 
@@ -664,6 +722,10 @@ export function generateBorrowerReport(data: {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   borrowerName: string
   loans: Array<{
     id: number
@@ -956,7 +1018,14 @@ export function generateBorrowerReport(data: {
       </style>
     </head>
     <body>
-    ${applyDocumentBranding(innerContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)}
+    ${applyDocumentBranding(innerContent, { 
+      gemachLogo: data.gemachLogo, 
+      gemachDocumentFrame: data.gemachDocumentFrame,
+      frameMarginTop: data.frameMarginTop,
+      frameMarginBottom: data.frameMarginBottom,
+      frameMarginRight: data.frameMarginRight,
+      frameMarginLeft: data.frameMarginLeft
+    }, logoHtml)}
     </body>
     </html>
   `
@@ -1132,6 +1201,10 @@ export function generateDepositorReport(data: {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   depositorName: string
   depositorPhone?: string
   depositorIdNumber?: string
@@ -1277,7 +1350,14 @@ export function generateDepositorReport(data: {
     </div>
   `
 
-  const finalContent = applyDocumentBranding(htmlContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo: data.gemachLogo, 
+    gemachDocumentFrame: data.gemachDocumentFrame,
+    frameMarginTop: data.frameMarginTop,
+    frameMarginBottom: data.frameMarginBottom,
+    frameMarginRight: data.frameMarginRight,
+    frameMarginLeft: data.frameMarginLeft
+  }, logoHtml)
   printHtml(finalContent, `דוח מפקיד - ${data.depositorName}`)
 }
 
@@ -1338,6 +1418,10 @@ export function createLoanEmailData(params: {
   loanType: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   guarantor1Name?: string
   guarantor2Name?: string
   dateFormat?: string
@@ -1448,7 +1532,14 @@ export function createLoanEmailData(params: {
     </div>
   `
   
-  const finalHtmlContent = applyDocumentBranding(htmlContent, { gemachLogo: params.gemachLogo, gemachDocumentFrame: params.gemachDocumentFrame }, logoHtml)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo: params.gemachLogo, 
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft
+  }, logoHtml)
   
   return {
     to: params.borrowerEmail,
@@ -1481,6 +1572,10 @@ export function createDepositEmailData(params: {
   dueDate?: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   dateFormat?: string
   withdrawals?: Array<{
     amount: number
@@ -1552,7 +1647,14 @@ export function createDepositEmailData(params: {
     </div>
   `
   
-  const finalHtmlContent = applyDocumentBranding(htmlContent, { gemachLogo: params.gemachLogo, gemachDocumentFrame: params.gemachDocumentFrame }, logoHtml)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo: params.gemachLogo, 
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft
+  }, logoHtml)
   
   return {
     to: params.depositorEmail,
@@ -1785,6 +1887,10 @@ export function createGuarantorDebtEmailData(params: {
   monthlyPayments?: number
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   dateFormat?: string
 }): EmailData {
   const formattedOriginal = formatCurrency(params.originalAmount)
@@ -1829,7 +1935,14 @@ export function createGuarantorDebtEmailData(params: {
     </div>
   `
   
-  const finalHtmlContent = applyDocumentBranding(htmlContent, { gemachLogo: params.gemachLogo, gemachDocumentFrame: params.gemachDocumentFrame }, logoHtml)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, { 
+    gemachLogo: params.gemachLogo, 
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft
+  }, logoHtml)
   
   return {
     to: params.guarantorEmail,
@@ -1862,6 +1975,10 @@ export interface GuarantorStatementData {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   guarantorName: string
   guarantorPhone?: string
   guarantorEmail?: string
@@ -2124,7 +2241,14 @@ export function generateGuarantorStatement(data: GuarantorStatementData): void {
     </head>
     <body>
       <div class="page-container">
-        ${applyDocumentBranding(innerContent, { gemachLogo: data.gemachLogo, gemachDocumentFrame: data.gemachDocumentFrame }, logoHtml)}
+        ${applyDocumentBranding(innerContent, { 
+          gemachLogo: data.gemachLogo, 
+          gemachDocumentFrame: data.gemachDocumentFrame,
+          frameMarginTop: data.frameMarginTop,
+          frameMarginBottom: data.frameMarginBottom,
+          frameMarginRight: data.frameMarginRight,
+          frameMarginLeft: data.frameMarginLeft
+        }, logoHtml)}
       </div>
     </body>
     </html>

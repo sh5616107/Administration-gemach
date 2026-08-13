@@ -7,6 +7,10 @@ interface Settings {
   gemach_name: string
   gemach_logo: string
   gemach_document_frame: string
+  gemach_frame_margin_top: number
+  gemach_frame_margin_bottom: number
+  gemach_frame_margin_right: number
+  gemach_frame_margin_left: number
   risk_threshold: string
   field_labels: string
   id_required: string
@@ -30,6 +34,10 @@ const defaultSettings: Settings = {
   gemach_name: 'גמ"ח שלי',
   gemach_logo: '',
   gemach_document_frame: '',
+  gemach_frame_margin_top: 35,
+  gemach_frame_margin_bottom: 48,
+  gemach_frame_margin_right: 20,
+  gemach_frame_margin_left: 20,
   risk_threshold: '50000',
   field_labels: '',
   id_required: 'optional',
