@@ -6,6 +6,7 @@ const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 's
 interface Settings {
   gemach_name: string
   gemach_logo: string
+  gemach_document_frame: string
   risk_threshold: string
   field_labels: string
   id_required: string
@@ -29,6 +30,7 @@ interface Settings {
 const defaultSettings: Settings = {
   gemach_name: 'גמ"ח שלי',
   gemach_logo: '',
+  gemach_document_frame: '',
   risk_threshold: '50000',
   field_labels: '',
   id_required: 'optional',

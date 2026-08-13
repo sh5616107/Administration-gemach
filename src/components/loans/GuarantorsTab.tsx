@@ -385,6 +385,7 @@ export default function GuarantorsTab() {
       dueDate: gl.due_date,
       monthlyPayments: gl.monthly_payments,
       gemachLogo: settings.gemach_logo,
+      gemachDocumentFrame: settings.gemach_document_frame,
       dateFormat: settings.date_format
     })
 
@@ -465,6 +466,7 @@ export default function GuarantorsTab() {
       const statementData: GuarantorStatementData = {
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
         guarantorName: `${guarantor.first_name} ${guarantor.last_name}`,
         guarantorPhone: guarantor.phone,
         guarantorEmail: guarantor.email,

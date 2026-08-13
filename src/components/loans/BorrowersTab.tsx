@@ -284,6 +284,7 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
       generateBorrowerReport({
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
         borrowerName: `${borrower.first_name} ${borrower.last_name}`,
         loans: loansWithRepayments,
         totalDebt,

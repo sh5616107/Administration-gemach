@@ -939,6 +939,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     generateLoanDocument({
       gemachName: settings.gemach_name,
       gemachLogo: settings.gemach_logo,
+      gemachDocumentFrame: settings.gemach_document_frame,
       borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
       amount: formData.amount,
       loanDate: formData.loan_date,
@@ -974,6 +975,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     generateLoanDocument({
       gemachName: settings.gemach_name,
       gemachLogo: settings.gemach_logo,
+      gemachDocumentFrame: settings.gemach_document_frame,
       borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
       amount: loan.amount,
       loanDate: loan.loan_date,
@@ -1019,6 +1021,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       dueDate: formData.due_date,
       loanType: formData.loan_type,
       gemachLogo: settings.gemach_logo,
+      gemachDocumentFrame: settings.gemach_document_frame,
       guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
       guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       dateFormat: settings.date_format,

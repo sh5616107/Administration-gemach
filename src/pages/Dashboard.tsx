@@ -193,6 +193,7 @@ export default function Dashboard() {
       
       generateBorrowerReport({
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         borrowerName: `${borrower.first_name} ${borrower.last_name}`,
         loans: loansWithRepayments,

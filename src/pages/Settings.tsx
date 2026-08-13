@@ -52,6 +52,7 @@ import { useSettings } from '../hooks/useSettings'
 import { isProtectionEnabled, setProtectionEnabled, setUserPassword, getUserPassword, setCustomHint, getCustomHint } from '../services/protection'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
+import { getVersion } from '@tauri-apps/api/app'
 
 const defaultFieldLabels = {
   borrower_first_name: 'שם פרטי',
@@ -77,6 +78,7 @@ export default function Settings() {
   const [localSettings, setLocalSettings] = useState({
     gemach_name: settings.gemach_name || '',
     gemach_logo: settings.gemach_logo || '',
+    gemach_document_frame: settings.gemach_document_frame || '',
     risk_threshold: settings.risk_threshold || '50000',
     id_required: settings.id_required || 'optional',
     currency: settings.currency || 'ILS',
@@ -100,6 +102,7 @@ export default function Settings() {
     setLocalSettings({
       gemach_name: settings.gemach_name || '',
       gemach_logo: settings.gemach_logo || '',
+      gemach_document_frame: settings.gemach_document_frame || '',
       risk_threshold: settings.risk_threshold || '50000',
       id_required: settings.id_required || 'optional',
       currency: settings.currency || 'ILS',
@@ -134,6 +137,7 @@ export default function Settings() {
   }, [settings.field_labels])
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const frameInputRef = useRef<HTMLInputElement>(null)
   const [protectionEnabled, setProtectionEnabledState] = useState(false)
   const [customHint, setCustomHintState] = useState('')
   const [userPassword, setUserPasswordState] = useState('')
@@ -144,14 +148,26 @@ export default function Settings() {
   const [updateInfo, setUpdateInfo] = useState<any>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
+  const [appVersion, setAppVersion] = useState<string>('')
 
   useEffect(() => {
     loadProtectionSettings()
+    loadAppVersion()
     // Sync i18n with settings
     if (settings.language && i18n.language !== settings.language) {
       i18n.changeLanguage(settings.language)
     }
   }, [settings.language, i18n])
+
+  const loadAppVersion = async () => {
+    try {
+      const version = await getVersion()
+      setAppVersion(version)
+    } catch (err) {
+      console.error('שגיאה בטעינת גרסה:', err)
+      setAppVersion('4.4.11')
+    }
+  }
 
   const loadProtectionSettings = async () => {
     const enabled = await isProtectionEnabled()
@@ -213,6 +229,9 @@ export default function Settings() {
       if (localSettings.gemach_logo !== settings.gemach_logo) {
         await updateSetting('gemach_logo', localSettings.gemach_logo)
       }
+      if (localSettings.gemach_document_frame !== settings.gemach_document_frame) {
+        await updateSetting('gemach_document_frame', localSettings.gemach_document_frame)
+      }
       setSnackbar({ open: true, message: t('settings.settingsSaved'), severity: 'success' })
       refreshSettings()
     } catch (error) {
@@ -234,6 +253,23 @@ export default function Settings() {
     reader.onload = (e) => {
       const base64 = e.target?.result as string
       setLocalSettings({ ...localSettings, gemach_logo: base64 })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleFrameUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setSnackbar({ open: true, message: t('common.error') + ': ' + 'נא לבחור קובץ תמונה', severity: 'error' })
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string
+      setLocalSettings({ ...localSettings, gemach_document_frame: base64 })
     }
     reader.readAsDataURL(file)
   }
@@ -347,6 +383,58 @@ export default function Settings() {
                     </Button>
                   )}
                 </Box>
+              </Box>
+
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  מסגרת מסמך מותאמת אישית (כוללת לוגו)
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                  {localSettings.gemach_document_frame && (
+                    <Box
+                      component="img"
+                      src={localSettings.gemach_document_frame}
+                      sx={{ 
+                        width: 100, 
+                        height: 140, 
+                        objectFit: 'contain', 
+                        border: '1px solid #ddd',
+                        borderRadius: 1
+                      }}
+                    />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={frameInputRef}
+                    hidden
+                    onChange={handleFrameUpload}
+                    aria-label="Upload frame image"
+                  />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<UploadIcon />}
+                      onClick={() => frameInputRef.current?.click()}
+                    >
+                      העלה מסגרת
+                    </Button>
+                    {localSettings.gemach_document_frame && (
+                      <Button
+                        variant="text"
+                        color="error"
+                        size="small"
+                        onClick={() => setLocalSettings({ ...localSettings, gemach_document_frame: '' })}
+                      >
+                        הסר מסגרת
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                  התמונה שתעלה תוצג כרקע מלא בכל מסמך שנשלח ללקוח (שטרות, קבלות), במקום הלוגו הרגיל. 
+                  מומלץ PNG עם רקע שקוף, ביחס גובה-רוחב A4 (1:1.41), עם שוליים פנימיים ריקים לטקסט המסמך.
+                </Typography>
               </Box>
 
               <TextField
@@ -816,7 +904,7 @@ export default function Settings() {
                     מינהל הגמ"ח
                   </Typography>
                   <Typography variant="h6" sx={{ mt: 1 }}>
-                    גרסה 4.4.0
+                    גרסה {appVersion}
                   </Typography>
                   <Divider sx={{ my: 2 }} />
                   <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

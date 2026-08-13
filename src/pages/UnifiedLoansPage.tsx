@@ -391,6 +391,7 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
         loanType: loan.loan_type,
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
         guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
         guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       });
@@ -418,6 +419,7 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
         loanType: loan.loan_type,
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
         guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
         guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       });

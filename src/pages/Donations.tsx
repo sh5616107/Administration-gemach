@@ -415,6 +415,7 @@ export default function Donations() {
     generateDonationReceipt({
       gemachName: settings.gemach_name || 'גמ"ח',
       gemachLogo: settings.gemach_logo,
+      gemachDocumentFrame: settings.gemach_document_frame,
       donorName: `${selectedDonor.first_name} ${selectedDonor.last_name}`,
       amount: donation.amount,
       donationDate: donation.donation_date,
