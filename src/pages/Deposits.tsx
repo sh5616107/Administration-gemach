@@ -118,6 +118,7 @@ export default function Deposits() {
   const [withdrawingDeposit, setWithdrawingDeposit] = useState<Deposit | null>(null);
   const [withdrawPaymentMethod, setWithdrawPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
   const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // Withdrawal history dialog state
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
@@ -411,23 +412,27 @@ export default function Deposits() {
 
   const handleConfirmWithdraw = async () => {
     if (!withdrawingDeposit) return;
-
-    // ולידציה - חישוב מחדש מההיסטוריה
-    const withdrawals = await depositWithdrawalsService.getByDeposit(withdrawingDeposit.id);
-    const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
-    const availableToWithdraw = withdrawingDeposit.amount - alreadyWithdrawn;
-
-    if (withdrawAmount <= 0) {
-      setSnackbar({ open: true, message: 'נא להזין סכום למשיכה', severity: 'error' });
-      return;
-    }
-
-    if (withdrawAmount > availableToWithdraw) {
-      setSnackbar({ open: true, message: `לא ניתן למשוך יותר מ-${formatCurrency(availableToWithdraw)}`, severity: 'error' });
-      return;
-    }
+    
+    // מניעת הגשה כפולה
+    if (isWithdrawing) return;
+    setIsWithdrawing(true);
 
     try {
+      // ולידציה - חישוב מחדש מההיסטוריה
+      const withdrawals = await depositWithdrawalsService.getByDeposit(withdrawingDeposit.id);
+      const alreadyWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+      const availableToWithdraw = withdrawingDeposit.amount - alreadyWithdrawn;
+
+      if (withdrawAmount <= 0) {
+        setSnackbar({ open: true, message: 'נא להזין סכום למשיכה', severity: 'error' });
+        return;
+      }
+
+      if (withdrawAmount > availableToWithdraw) {
+        setSnackbar({ open: true, message: `לא ניתן למשוך יותר מ-${formatCurrency(availableToWithdraw)}`, severity: 'error' });
+        return;
+      }
+
       const withdrawalDate = new Date().toISOString().split('T')[0];
 
       // יצירת רשומת משיכה חדשה
@@ -460,6 +465,8 @@ export default function Deposits() {
     } catch (error) {
       console.error('Error withdrawing:', error);
       setSnackbar({ open: true, message: 'שגיאה במשיכה', severity: 'error' });
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -1133,9 +1140,9 @@ export default function Deposits() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setWithdrawDialogOpen(false)}>ביטול</Button>
-          <Button variant="contained" color="warning" onClick={handleConfirmWithdraw}>
-            בצע משיכה
+          <Button onClick={() => setWithdrawDialogOpen(false)} disabled={isWithdrawing}>ביטול</Button>
+          <Button variant="contained" color="warning" onClick={handleConfirmWithdraw} disabled={isWithdrawing}>
+            {isWithdrawing ? 'מבצע משיכה...' : 'בצע משיכה'}
           </Button>
         </DialogActions>
       </Dialog>

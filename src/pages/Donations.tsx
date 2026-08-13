@@ -86,6 +86,7 @@ export default function Donations() {
   // Side panel state for donation
   const [donationDialogOpen, setDonationDialogOpen] = useState(false);
   const [activeDonation, setActiveDonation] = useState<Donation | null>(null);
+  const [isSavingDonation, setIsSavingDonation] = useState(false);
   
   // Donor edit dialog
   const [donorDialogOpen, setDonorDialogOpen] = useState(false);
@@ -286,6 +287,10 @@ export default function Donations() {
       return;
     }
     
+    // מניעת הגשה כפולה
+    if (isSavingDonation) return;
+    setIsSavingDonation(true);
+    
     try {
       if (activeDonation?.id) {
         await db.run(
@@ -328,6 +333,8 @@ export default function Donations() {
     } catch (error) {
       console.error('Error saving donation:', error);
       setSnackbar({ open: true, message: 'שגיאה בשמירת התרומה', severity: 'error' });
+    } finally {
+      setIsSavingDonation(false);
     }
   };
 
@@ -997,15 +1004,15 @@ export default function Donations() {
           />
 
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
-            <Button onClick={() => setDonationDialogOpen(false)}>
+            <Button onClick={() => setDonationDialogOpen(false)} disabled={isSavingDonation}>
               ביטול
             </Button>
             <Button 
               variant="contained" 
               onClick={handleSaveDonation}
-              disabled={donationForm.amount <= 0}
+              disabled={donationForm.amount <= 0 || isSavingDonation}
             >
-              {activeDonation ? 'שמור' : 'הוסף תרומה'}
+              {isSavingDonation ? 'שומר...' : (activeDonation ? 'שמור' : 'הוסף תרומה')}
             </Button>
           </Box>
         </Stack>

@@ -67,6 +67,7 @@ const BankMatchingPage: React.FC = () => {
   const [suggestions, setSuggestions] = useState<MatchSuggestion[]>([]);
   const [transactions, setTransactions] = useState<Record<string, BankTransaction>>({});
   const [loading, setLoading] = useState(true);
+  const [isApprovingMatch, setIsApprovingMatch] = useState(false);
   const [filterTab, setFilterTab] = useState<FilterTab>('pending');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [error, setError] = useState('');
@@ -136,6 +137,10 @@ const BankMatchingPage: React.FC = () => {
   };
 
   const handleApprove = async (id: string) => {
+    // מניעת הגשה כפולה
+    if (isApprovingMatch) return;
+    setIsApprovingMatch(true);
+    
     try {
       const suggestion = suggestions.find(s => s.id === id);
       if (!suggestion) {
@@ -187,6 +192,8 @@ const BankMatchingPage: React.FC = () => {
       await loadData();
     } catch (err) {
       setError(`שגיאה באישור התאמה: ${err}`);
+    } finally {
+      setIsApprovingMatch(false);
     }
   };
 
@@ -516,6 +523,7 @@ const BankMatchingPage: React.FC = () => {
               onReject={() => handleReject(current.id)}
               onSkip={() => handleSkip(current.id)}
               onManualMatch={() => setManualMatchOpen(true)}
+              isProcessing={isApprovingMatch}
             />
           )}
         </>
@@ -607,6 +615,7 @@ interface TransactionMatchCardProps {
   onReject: () => void;
   onSkip: () => void;
   onManualMatch: () => void;
+  isProcessing?: boolean;
 }
 
 const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
@@ -616,6 +625,7 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
   onReject,
   onSkip,
   onManualMatch,
+  isProcessing = false,
 }) => {
   const matchTypeLabel: Record<string, string> = {
     repayment: 'פירעון',
@@ -748,14 +758,16 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
               color="success"
               startIcon={<CheckIcon />}
               onClick={onApprove}
+              disabled={isProcessing}
             >
-              אשר
+              {isProcessing ? 'מאשר...' : 'אשר'}
             </Button>
             <Button
               variant="outlined"
               color="error"
               startIcon={<CloseIcon />}
               onClick={onReject}
+              disabled={isProcessing}
             >
               דחה
             </Button>
@@ -763,6 +775,7 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
               variant="outlined"
               startIcon={<SkipNextIcon />}
               onClick={onSkip}
+              disabled={isProcessing}
             >
               דלג
             </Button>
@@ -770,6 +783,7 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
               variant="outlined"
               startIcon={<SearchIcon />}
               onClick={onManualMatch}
+              disabled={isProcessing}
             >
               ידני
             </Button>

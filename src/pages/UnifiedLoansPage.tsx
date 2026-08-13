@@ -112,6 +112,7 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
   const [multiRepaymentDialogOpen, setMultiRepaymentDialogOpen] = useState(false);
   const [multiRepaymentAmount, setMultiRepaymentAmount] = useState(0);
   const [multiRepaymentPaymentMethod, setMultiRepaymentPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
+  const [isSubmittingMultiRepayment, setIsSubmittingMultiRepayment] = useState(false);
 
   // Recurring items dialogs
   const [editRecurringLoanDialogOpen, setEditRecurringLoanDialogOpen] = useState(false);
@@ -125,6 +126,7 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
   const [manualRepaymentAmount, setManualRepaymentAmount] = useState(0);
   const [manualRepaymentDate, setManualRepaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [manualRepaymentMethod, setManualRepaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
+  const [isSubmittingManualRepayment, setIsSubmittingManualRepayment] = useState(false);
 
   // Loan families expansion state (tracks which recurring_series_id are expanded)
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
@@ -431,6 +433,10 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
   const handleMultiRepayment = async () => {
     if (!selectedBorrower || multiRepaymentAmount <= 0) return;
     
+    // מניעת הגשה כפולה
+    if (isSubmittingMultiRepayment) return;
+    setIsSubmittingMultiRepayment(true);
+    
     try {
       const activeLoans = loans.filter(l => (l.remaining || 0) > 0 && l.loan_date <= new Date().toISOString().split('T')[0]);
       
@@ -476,11 +482,17 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
     } catch (error) {
       console.error('Error in multi repayment:', error);
       setSnackbar({ open: true, message: 'שגיאה בפירעון מרובה', severity: 'error' });
+    } finally {
+      setIsSubmittingMultiRepayment(false);
     }
   };
 
   const handleManualRepayment = async () => {
     if (!manualRepaymentLoanId || manualRepaymentAmount <= 0) return;
+    
+    // מניעת הגשה כפולה
+    if (isSubmittingManualRepayment) return;
+    setIsSubmittingManualRepayment(true);
     
     try {
       await createRepaymentWithNumbering({
@@ -502,6 +514,8 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
     } catch (error) {
       console.error('Error in manual repayment:', error);
       setSnackbar({ open: true, message: 'שגיאה ברישום פירעון', severity: 'error' });
+    } finally {
+      setIsSubmittingManualRepayment(false);
     }
   };
 
@@ -1197,13 +1211,13 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setMultiRepaymentDialogOpen(false)}>ביטול</Button>
+          <Button onClick={() => setMultiRepaymentDialogOpen(false)} disabled={isSubmittingMultiRepayment}>ביטול</Button>
           <Button
             variant="contained"
             onClick={handleMultiRepayment}
-            disabled={multiRepaymentAmount <= 0 || !multiRepaymentPaymentMethod.payment_method}
+            disabled={multiRepaymentAmount <= 0 || !multiRepaymentPaymentMethod.payment_method || isSubmittingMultiRepayment}
           >
-            בצע פירעון
+            {isSubmittingMultiRepayment ? 'מבצע פירעון...' : 'בצע פירעון'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1272,13 +1286,13 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setManualRepaymentDialogOpen(false)}>ביטול</Button>
+          <Button onClick={() => setManualRepaymentDialogOpen(false)} disabled={isSubmittingManualRepayment}>ביטול</Button>
           <Button
             variant="contained"
             onClick={handleManualRepayment}
-            disabled={manualRepaymentAmount <= 0 || !manualRepaymentMethod.payment_method}
+            disabled={manualRepaymentAmount <= 0 || !manualRepaymentMethod.payment_method || isSubmittingManualRepayment}
           >
-            רשום פירעון
+            {isSubmittingManualRepayment ? 'רושם פירעון...' : 'רשום פירעון'}
           </Button>
         </DialogActions>
       </Dialog>

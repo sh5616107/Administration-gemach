@@ -147,6 +147,7 @@ export default function AdvancedTools() {
   
   // Transfer to guarantor dialog
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [isTransferring, setIsTransferring] = useState(false)
   const [transferData, setTransferData] = useState<TransferDialogData>({
     loan: null,
     guarantor1: null,
@@ -192,6 +193,7 @@ export default function AdvancedTools() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const [isSavingExpense, setIsSavingExpense] = useState(false)
   const [expenseForm, setExpenseForm] = useState({
     description: '',
     amount: '',
@@ -525,6 +527,10 @@ export default function AdvancedTools() {
   const handleConfirmTransfer = async () => {
     if (!transferData.loan) return
 
+    // מניעת הגשה כפולה
+    if (isTransferring) return
+    setIsTransferring(true)
+
     try {
       const today = new Date().toISOString().split('T')[0]
       const loan = transferData.loan
@@ -578,6 +584,8 @@ export default function AdvancedTools() {
     } catch (error) {
       console.error('Error transferring to guarantor:', error)
       setSnackbar({ open: true, message: 'שגיאה בהעברת החוב', severity: 'error' })
+    } finally {
+      setIsTransferring(false)
     }
   }
 
@@ -1135,6 +1143,10 @@ export default function AdvancedTools() {
       return
     }
 
+    // מניעת הגשה כפולה
+    if (isSavingExpense) return
+    setIsSavingExpense(true)
+
     try {
       const paymentDetails = JSON.stringify(expensePaymentData)
       
@@ -1173,6 +1185,8 @@ export default function AdvancedTools() {
     } catch (error) {
       console.error('Error saving expense:', error)
       setSnackbar({ open: true, message: 'שגיאה בשמירת ההוצאה', severity: 'error' })
+    } finally {
+      setIsSavingExpense(false)
     }
   }
 
@@ -1628,8 +1642,8 @@ export default function AdvancedTools() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseExpenseDialog}>ביטול</Button>
-          <Button variant="contained" onClick={handleAddExpense}>{editingExpense ? 'עדכן' : 'הוסף'}</Button>
+          <Button onClick={handleCloseExpenseDialog} disabled={isSavingExpense}>ביטול</Button>
+          <Button variant="contained" onClick={handleAddExpense} disabled={isSavingExpense}>{isSavingExpense ? 'שומר...' : (editingExpense ? 'עדכן' : 'הוסף')}</Button>
         </DialogActions>
       </Dialog>
 
@@ -1835,9 +1849,9 @@ export default function AdvancedTools() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTransferDialogOpen(false)}>ביטול</Button>
-          <Button variant="contained" color="warning" onClick={handleConfirmTransfer}>
-            אשר העברה
+          <Button onClick={() => setTransferDialogOpen(false)} disabled={isTransferring}>ביטול</Button>
+          <Button variant="contained" color="warning" onClick={handleConfirmTransfer} disabled={isTransferring}>
+            {isTransferring ? 'מעביר...' : 'אשר העברה'}
           </Button>
         </DialogActions>
       </Dialog>

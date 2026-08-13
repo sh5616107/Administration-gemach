@@ -84,8 +84,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [repayments, setRepayments] = useState<Repayment[]>([])
   const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false)
   const [repaymentAmount, setRepaymentAmount] = useState(0)
+  const [isAddingRepayment, setIsAddingRepayment] = useState(false)
   const [multiRepaymentDialogOpen, setMultiRepaymentDialogOpen] = useState(false)
   const [multiRepaymentAmount, setMultiRepaymentAmount] = useState(0)
+  const [isSubmittingMultiRepayment, setIsSubmittingMultiRepayment] = useState(false)
   const [editRepaymentDialogOpen, setEditRepaymentDialogOpen] = useState(false)
   const [editingRepayment, setEditingRepayment] = useState<Repayment | null>(null)
   const [editRepaymentAmount, setEditRepaymentAmount] = useState(0)
@@ -93,6 +95,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [editRepaymentNotes, setEditRepaymentNotes] = useState('')
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const [waitlistEntry, setWaitlistEntry] = useState<WaitlistEntry | null>(null)
+  const [isSavingLoan, setIsSavingLoan] = useState(false)
   
   // Blacklist state
   const [blacklistedBorrowerIds, setBlacklistedBorrowerIds] = useState<string[]>([])
@@ -368,6 +371,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       return
     }
 
+    // מניעת הגשה כפולה
+    if (isSavingLoan) return
+    setIsSavingLoan(true)
+
     try {
       // חישוב מספר הלוואה מחזורית
       let recurringLoanNumber = formData.recurring_loan_number
@@ -463,6 +470,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     } catch (error) {
       console.error('Error saving loan:', error)
       setSnackbar({ open: true, message: 'שגיאה בשמירה', severity: 'error' })
+    } finally {
+      setIsSavingLoan(false)
     }
   }
 
@@ -693,6 +702,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       return
     }
 
+    // מניעת הגשה כפולה
+    if (isAddingRepayment) return
+    setIsAddingRepayment(true)
+
     try {
       // חישוב מספרים מחזוריים אם זה פירעון מחזורי
       let isRecurring = 0
@@ -751,6 +764,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     } catch (error) {
       console.error('Error adding repayment:', error)
       setSnackbar({ open: true, message: 'שגיאה בהוספת פירעון', severity: 'error' })
+    } finally {
+      setIsAddingRepayment(false)
     }
   }
 
@@ -768,6 +783,10 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       setSnackbar({ open: true, message: 'אין הלוואות פעילות לפירעון', severity: 'error' })
       return
     }
+
+    // מניעת הגשה כפולה
+    if (isSubmittingMultiRepayment) return
+    setIsSubmittingMultiRepayment(true)
 
     let remainingToDistribute = multiRepaymentAmount
     let guarantorLoansUpdated = false
@@ -817,6 +836,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     } catch (error) {
       console.error('Error in multi-repayment:', error)
       setSnackbar({ open: true, message: 'שגיאה בפירעון מרובה', severity: 'error' })
+    } finally {
+      setIsSubmittingMultiRepayment(false)
     }
   }
 
@@ -1738,8 +1759,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
 
             {/* Action Buttons */}
             <Box sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave}>
-                {selectedLoan ? 'עדכן הלוואה' : 'שמור הלוואה'}
+              <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={isSavingLoan}>
+                {isSavingLoan ? 'שומר...' : (selectedLoan ? 'עדכן הלוואה' : 'שמור הלוואה')}
               </Button>
               {selectedLoan && (
                 <>
@@ -1869,13 +1890,13 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRepaymentDialogOpen(false)}>ביטול</Button>
+          <Button onClick={() => setRepaymentDialogOpen(false)} disabled={isAddingRepayment}>ביטול</Button>
           <Button 
             variant="contained" 
             onClick={handleAddRepayment}
-            disabled={repaymentAmount <= 0 || repaymentAmount > (selectedLoan?.remaining || 0)}
+            disabled={repaymentAmount <= 0 || repaymentAmount > (selectedLoan?.remaining || 0) || isAddingRepayment}
           >
-            הוסף פירעון
+            {isAddingRepayment ? 'מוסיף פירעון...' : 'הוסף פירעון'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1912,13 +1933,13 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setMultiRepaymentDialogOpen(false)}>ביטול</Button>
+          <Button onClick={() => setMultiRepaymentDialogOpen(false)} disabled={isSubmittingMultiRepayment}>ביטול</Button>
           <Button 
             variant="contained" 
             onClick={handleMultiRepayment}
-            disabled={multiRepaymentAmount <= 0}
+            disabled={multiRepaymentAmount <= 0 || isSubmittingMultiRepayment}
           >
-            בצע פירעון מרובה
+            {isSubmittingMultiRepayment ? 'מבצע פירעון...' : 'בצע פירעון מרובה'}
           </Button>
         </DialogActions>
       </Dialog>
