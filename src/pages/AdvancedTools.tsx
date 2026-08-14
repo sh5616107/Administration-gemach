@@ -795,28 +795,44 @@ export default function AdvancedTools() {
 
   const handleStatisticsReport = async () => {
     try {
+      const today = new Date().toISOString().split('T')[0]
       const loans = await loansService.getAll() as any[]
+      
+      // סינון הלוואות שבפועל ניתנו (לא מתוכננות או עתידיות)
+      const actualLoans = loans.filter(l => l.status !== 'planned' && l.loan_date <= today)
+      
+      // סינון רק הלוואות פעילות עם יתרה (כמו getDashboardStats)
+      const activeLoansWithBalance = actualLoans.filter(l => l.status === 'active' && (l.remaining || 0) > 0)
+      
+      console.log('📊 Statistics Report - Loans filtering:')
+      console.log(`Total loans: ${loans.length}`)
+      console.log(`Actual loans (non-planned, non-future): ${actualLoans.length}`)
+      console.log(`Active loans with balance: ${activeLoansWithBalance.length}`)
+      console.log(`Filtered out: ${loans.length - actualLoans.length}`)
+      
       const allDeposits = await db.query("SELECT * FROM deposits") as any[]
-      const deposits = allDeposits.filter(d => d.status === 'active')
       const donations = await db.query("SELECT * FROM donations") as any[]
       const expensesData = await statsService.getExpenses() as any[]
       const gemachExpenses = expensesData.filter(e => e.paid_by === 'gemach')
       const guarantorLoansData = await guarantorLoansService.getAllWithDetails()
 
-      // איסוף פירעונות דרך repaymentsService.getByLoan על הלוואות קיימות בלבד
+      // איסוף פירעונות דרך repaymentsService.getByLoan על הלוואות שבפועל ניתנו בלבד
       const repayments: any[] = []
-      for (const loan of loans) {
+      for (const loan of actualLoans) {
         const loanRepayments = await repaymentsService.getByLoan(loan.id)
         repayments.push(...loanRepayments)
       }
 
-      // Calculate totals
-      const totalLoansOut = loans.reduce((sum, l) => sum + (l.amount || 0), 0)
+      // Calculate totals - שימוש ב-remaining של הלוואות פעילות (כמו getDashboardStats)
+      const totalLoansRemaining = activeLoansWithBalance.reduce((sum, l) => sum + (l.remaining || 0), 0)
       const totalRepaymentsIn = repayments.reduce((sum, r) => sum + (r.amount || 0), 0)
       
-      // חישוב סך ההפקדות עם ניכוי משיכות
+      console.log(`Total loans remaining (active only): ${totalLoansRemaining}`)
+      console.log(`Total repayments in: ${totalRepaymentsIn}`)
+      
+      // חישוב סך ההפקדות עם ניכוי משיכות - בדיוק כמו getDashboardStats (על כל ההפקדות)
       let totalDepositsIn = 0
-      for (const d of deposits) {
+      for (const d of allDeposits) {
         let depositAmount = d.amount || 0
         if (d.is_recurring === 1 && d.recurring_deposit_number) {
           depositAmount = (d.amount || 0) * d.recurring_deposit_number
@@ -832,11 +848,21 @@ export default function AdvancedTools() {
       
       const totalExpensesOut = gemachExpenses.reduce((sum, e) => sum + (e.amount || 0), 0)
 
-      // חישוב נטו - הפקדות כבר כוללות ניכוי משיכות, אז לא צריך להפחית אותן שוב
-      const totalIn = totalRepaymentsIn + totalDepositsIn + totalDonationsIn
-      const totalOut = totalLoansOut
+      console.log(`Total deposits in (after withdrawals): ${totalDepositsIn}`)
+      console.log(`Total donations in: ${totalDonationsIn}`)
+      console.log(`Total expenses out: ${totalExpensesOut}`)
+
+      // חישוב נטו - בדיוק כמו getDashboardStats
+      // נטו = (הפקדות + תרומות) - יתרת_הלוואות_פעילות - הוצאות
+      const totalIn = totalDepositsIn + totalDonationsIn
+      const totalOut = totalLoansRemaining
       const netBeforeExpenses = totalIn - totalOut
       const netFinal = netBeforeExpenses - totalExpensesOut
+      
+      console.log(`Total IN: ${totalIn}`)
+      console.log(`Total OUT: ${totalOut}`)
+      console.log(`Net before expenses: ${netBeforeExpenses}`)
+      console.log(`Net final: ${netFinal}`)
 
       // Group by payment method
       const methodLabels: Record<string, string> = {
@@ -866,9 +892,9 @@ export default function AdvancedTools() {
           netFinal
         },
         paymentMethodSummary: paymentMethodStats,
-        loans: { byMethod: groupByMethod(loans) },
+        loans: { byMethod: groupByMethod(actualLoans) },
         repayments: { byMethod: groupByMethod(repayments) },
-        deposits: { byMethod: groupByMethod(deposits) },
+        deposits: { byMethod: groupByMethod(allDeposits) },
         donations: { byMethod: groupByMethod(donations) },
         guarantorLoans: {
           count: guarantorLoansData.length,
