@@ -795,11 +795,20 @@ export default function AdvancedTools() {
 
   const handleStatisticsReport = async () => {
     try {
-      // שימוש בפונקציה המרכזית - בדיוק כמו getDashboardStats
-      const activeLoansWithBalance = await loansService.getActiveLoansForExistingBorrowers()
+      const today = new Date().toISOString().split('T')[0]
+      const borrowers = await borrowersService.getAll()
+      const existingBorrowerIds = new Set(borrowers.map(b => b.id))
+      const allLoans = await loansService.getAll() as any[]
       
-      console.log('📊 Statistics Report - Loans filtering:')
-      console.log(`Active loans with balance (existing borrowers): ${activeLoansWithBalance.length}`)
+      // כל ההלוואות שניתנו ללווים קיימים (לא מתוכננות, לא עתידיות) - לתזרים היסטורי
+      const loansToExistingBorrowers = allLoans.filter(l => 
+        existingBorrowerIds.has(l.borrower_id) &&
+        l.status !== 'planned' && 
+        l.loan_date <= today
+      )
+      
+      // רק הלוואות פעילות עם יתרה - לחישוב היתרה הנוכחית
+      const activeLoansWithBalance = await loansService.getActiveLoansForExistingBorrowers()
       
       const allDeposits = await db.query("SELECT * FROM deposits") as any[]
       const donations = await db.query("SELECT * FROM donations") as any[]
@@ -807,19 +816,19 @@ export default function AdvancedTools() {
       const gemachExpenses = expensesData.filter(e => e.paid_by === 'gemach')
       const guarantorLoansData = await guarantorLoansService.getAllWithDetails()
 
-      // איסוף פירעונות דרך repaymentsService.getByLoan על הלוואות פעילות בלבד
+      // איסוף פירעונות על כל ההלוואות שניתנו (כולל סגורות) - לתזרים היסטורי
       const repayments: any[] = []
-      for (const loan of activeLoansWithBalance) {
+      for (const loan of loansToExistingBorrowers) {
         const loanRepayments = await repaymentsService.getByLoan(loan.id)
         repayments.push(...loanRepayments)
       }
 
-      // Calculate totals - שימוש ב-remaining של הלוואות פעילות (כמו getDashboardStats)
-      const totalLoansRemaining = activeLoansWithBalance.reduce((sum, l) => sum + (l.remaining || 0), 0)
+      // חישוב תזרים היסטורי מלא
+      const totalLoansOut = loansToExistingBorrowers.reduce((sum, l) => sum + (l.amount || 0), 0)
       const totalRepaymentsIn = repayments.reduce((sum, r) => sum + (r.amount || 0), 0)
       
-      console.log(`Total loans remaining (active only): ${totalLoansRemaining}`)
-      console.log(`Total repayments in: ${totalRepaymentsIn}`)
+      // יתרה נוכחית (רק הלוואות פעילות)
+      const totalLoansRemaining = activeLoansWithBalance.reduce((sum, l) => sum + (l.remaining || 0), 0)
       
       // חישוב סך ההפקדות עם ניכוי משיכות - בדיוק כמו getDashboardStats (על כל ההפקדות)
       let totalDepositsIn = 0
@@ -836,24 +845,22 @@ export default function AdvancedTools() {
       }
       
       const totalDonationsIn = donations.reduce((sum, d) => sum + (d.amount || 0), 0)
-      
       const totalExpensesOut = gemachExpenses.reduce((sum, e) => sum + (e.amount || 0), 0)
 
-      console.log(`Total deposits in (after withdrawals): ${totalDepositsIn}`)
-      console.log(`Total donations in: ${totalDonationsIn}`)
-      console.log(`Total expenses out: ${totalExpensesOut}`)
-
-      // חישוב נטו - בדיוק כמו getDashboardStats
-      // נטו = (הפקדות + תרומות) - יתרת_הלוואות_פעילות - הוצאות
+      // חישוב נטו - שתי דרכים שמגיעות לאותה תוצאה:
+      // דרך 1: (הפקדות + תרומות) - יתרת_הלוואות_פעילות - הוצאות
+      // דרך 2: (פירעונות + הפקדות + תרומות) - הלוואות_שניתנו - הוצאות
+      // נשתמש בדרך 1 (כמו getDashboardStats) אבל נציג בדוח את התזרים המלא
       const totalIn = totalDepositsIn + totalDonationsIn
       const totalOut = totalLoansRemaining
       const netBeforeExpenses = totalIn - totalOut
       const netFinal = netBeforeExpenses - totalExpensesOut
       
-      console.log(`Total IN: ${totalIn}`)
-      console.log(`Total OUT: ${totalOut}`)
-      console.log(`Net before expenses: ${netBeforeExpenses}`)
-      console.log(`Net final: ${netFinal}`)
+      // לוודא שהחישובים מתאימים מתמטית
+      const netCheck = totalRepaymentsIn + totalDepositsIn + totalDonationsIn - totalLoansOut - totalExpensesOut
+      if (Math.abs(netFinal - netCheck) > 0.01) {
+        console.warn('⚠️ Net calculation mismatch:', { netFinal, netCheck, diff: netFinal - netCheck })
+      }
 
       // Group by payment method
       const methodLabels: Record<string, string> = {
@@ -883,7 +890,7 @@ export default function AdvancedTools() {
           netFinal
         },
         paymentMethodSummary: paymentMethodStats,
-        loans: { byMethod: groupByMethod(activeLoansWithBalance) },
+        loans: { byMethod: groupByMethod(loansToExistingBorrowers) },
         repayments: { byMethod: groupByMethod(repayments) },
         deposits: { byMethod: groupByMethod(allDeposits) },
         donations: { byMethod: groupByMethod(donations) },
