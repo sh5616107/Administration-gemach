@@ -666,6 +666,7 @@ export default function AdvancedTools() {
             th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
             th { background: #f5f5f5; }
             .summary { margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 8px; }
+            svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
           </style>
         </head>
@@ -760,6 +761,7 @@ export default function AdvancedTools() {
             th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
             th { background: #f5f5f5; }
             .summary { font-size: 18px; margin: 15px 0; }
+            svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
           </style>
         </head>
@@ -1083,6 +1085,7 @@ export default function AdvancedTools() {
             .in { color: #388e3c; }
             .out { color: #d32f2f; }
             .section { margin: 25px 0; page-break-inside: avoid; }
+            svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
           </style>
         </head>
@@ -1147,6 +1150,7 @@ export default function AdvancedTools() {
             th { background: #f5f5f5; }
             .out { color: #d32f2f; }
             .in { color: #388e3c; }
+            svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
           </style>
         </head>
