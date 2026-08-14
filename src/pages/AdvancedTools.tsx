@@ -56,7 +56,7 @@ import {
   CardGiftcard as CardGiftcardIcon,
   Handshake as HandshakeIcon,
 } from '@mui/icons-material'
-import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService, blacklistService } from '../services/database'
+import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService, blacklistService, repaymentsService } from '../services/database'
 import { generateFullReport, generateBorrowerReport, generateExpenseReceipt, generatePeriodicTransactionsReport } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
@@ -592,10 +592,10 @@ export default function AdvancedTools() {
   const handleBorrowersReport = async () => {
     try {
       const borrowers = await borrowersService.getAll() as any[]
-      const loans = await loansService.getAll() as any[]
+      const activeLoans = await loansService.getActiveLoansForExistingBorrowers()
       
       const borrowersWithDebt = borrowers.map(b => {
-        const borrowerLoans = loans.filter(l => l.borrower_id === b.id && l.status === 'active')
+        const borrowerLoans = activeLoans.filter(l => l.borrower_id === b.id)
         const totalDebt = borrowerLoans.reduce((sum, l) => sum + (l.remaining || 0), 0)
         return {
           name: `${b.first_name} ${b.last_name}`,
@@ -604,25 +604,32 @@ export default function AdvancedTools() {
         }
       }).filter(b => b.totalDebt > 0).sort((a, b) => b.totalDebt - a.totalDebt)
 
-      const activeLoans = loans.filter(l => l.status === 'active')
+      const allLoans = await loansService.getAll()
       const deposits = await db.query("SELECT * FROM deposits WHERE status = 'active'") as any[]
       const donations = await db.query("SELECT * FROM donations") as any[]
 
       const totalLoanAmount = activeLoans.reduce((sum, l) => sum + (l.remaining || 0), 0)
-      const totalDepositAmount = deposits.reduce((sum, d) => {
-        // חישוב סכום בפועל להפקדה מחזורית
+      
+      // חישוב סך ההפקדות עם ניכוי משיכות
+      let totalDepositAmount = 0
+      for (const d of deposits) {
         let depositAmount = d.amount
         if (d.is_recurring === 1 && d.recurring_deposit_number) {
           depositAmount = d.amount * d.recurring_deposit_number
         }
-        return sum + depositAmount
-      }, 0)
+        
+        // הפחתת משיכות
+        const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+        const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+        totalDepositAmount += (depositAmount - totalWithdrawn)
+      }
+      
       const totalDonationAmount = donations.reduce((sum, d) => sum + d.amount, 0)
 
       setBorrowersReportData({
         borrowers: borrowersWithDebt,
         stats: {
-          totalLoans: loans.length,
+          totalLoans: allLoans.length,
           activeLoans: activeLoans.length,
           totalLoanAmount,
           totalDeposits: deposits.length,
@@ -791,37 +798,43 @@ export default function AdvancedTools() {
       const loans = await loansService.getAll() as any[]
       const allDeposits = await db.query("SELECT * FROM deposits") as any[]
       const deposits = allDeposits.filter(d => d.status === 'active')
-      const withdrawnDeposits = allDeposits.filter(d => d.status === 'withdrawn')
       const donations = await db.query("SELECT * FROM donations") as any[]
-      const repayments = await db.query("SELECT * FROM repayments") as any[]
       const expensesData = await statsService.getExpenses() as any[]
       const gemachExpenses = expensesData.filter(e => e.paid_by === 'gemach')
       const guarantorLoansData = await guarantorLoansService.getAllWithDetails()
 
+      // איסוף פירעונות דרך repaymentsService.getByLoan על הלוואות קיימות בלבד
+      const repayments: any[] = []
+      for (const loan of loans) {
+        const loanRepayments = await repaymentsService.getByLoan(loan.id)
+        repayments.push(...loanRepayments)
+      }
+
       // Calculate totals
       const totalLoansOut = loans.reduce((sum, l) => sum + (l.amount || 0), 0)
       const totalRepaymentsIn = repayments.reduce((sum, r) => sum + (r.amount || 0), 0)
-      const totalDepositsIn = deposits.reduce((sum, d) => {
-        // חישוב סכום בפועל להפקדה מחזורית
+      
+      // חישוב סך ההפקדות עם ניכוי משיכות
+      let totalDepositsIn = 0
+      for (const d of deposits) {
         let depositAmount = d.amount || 0
         if (d.is_recurring === 1 && d.recurring_deposit_number) {
           depositAmount = (d.amount || 0) * d.recurring_deposit_number
         }
-        return sum + depositAmount
-      }, 0)
+        
+        // הפחתת משיכות
+        const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+        const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+        totalDepositsIn += (depositAmount - totalWithdrawn)
+      }
+      
       const totalDonationsIn = donations.reduce((sum, d) => sum + (d.amount || 0), 0)
-      const totalWithdrawalsOut = withdrawnDeposits.reduce((sum, d) => {
-        // חישוב סכום בפועל להפקדה מחזורית
-        let depositAmount = d.amount || 0
-        if (d.is_recurring === 1 && d.recurring_deposit_number) {
-          depositAmount = (d.amount || 0) * d.recurring_deposit_number
-        }
-        return sum + depositAmount
-      }, 0)
+      
       const totalExpensesOut = gemachExpenses.reduce((sum, e) => sum + (e.amount || 0), 0)
 
+      // חישוב נטו - הפקדות כבר כוללות ניכוי משיכות, אז לא צריך להפחית אותן שוב
       const totalIn = totalRepaymentsIn + totalDepositsIn + totalDonationsIn
-      const totalOut = totalLoansOut + totalWithdrawalsOut
+      const totalOut = totalLoansOut
       const netBeforeExpenses = totalIn - totalOut
       const netFinal = netBeforeExpenses - totalExpensesOut
 
