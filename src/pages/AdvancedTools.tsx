@@ -850,16 +850,28 @@ export default function AdvancedTools() {
       // חישוב נטו - שתי דרכים שמגיעות לאותה תוצאה:
       // דרך 1: (הפקדות + תרומות) - יתרת_הלוואות_פעילות - הוצאות
       // דרך 2: (פירעונות + הפקדות + תרומות) - הלוואות_שניתנו - הוצאות
-      // נשתמש בדרך 1 (כמו getDashboardStats) אבל נציג בדוח את התזרים המלא
+      // נחשב את הנטו בדרך 1 (כמו getDashboardStats) אבל נציג בדוח את התזרים בדרך 2
+      
+      // לתצוגה בדוח - תזרים מלא
+      const totalInForDisplay = totalRepaymentsIn + totalDepositsIn + totalDonationsIn
+      const totalOutForDisplay = totalLoansOut
+      
+      // לחישוב נטו - יתרה נוכחית (כמו getDashboardStats)
       const totalIn = totalDepositsIn + totalDonationsIn
       const totalOut = totalLoansRemaining
       const netBeforeExpenses = totalIn - totalOut
       const netFinal = netBeforeExpenses - totalExpensesOut
       
-      // לוודא שהחישובים מתאימים מתמטית
-      const netCheck = totalRepaymentsIn + totalDepositsIn + totalDonationsIn - totalLoansOut - totalExpensesOut
+      // בדיקת תקינות - שתי השיטות צריכות לתת אותו נטו
+      const netCheck = totalInForDisplay - totalOutForDisplay - totalExpensesOut
       if (Math.abs(netFinal - netCheck) > 0.01) {
-        console.warn('⚠️ Net calculation mismatch:', { netFinal, netCheck, diff: netFinal - netCheck })
+        console.warn('⚠️ Net calculation mismatch:', { 
+          netFinal, 
+          netCheck, 
+          diff: netFinal - netCheck,
+          method1: `(${totalIn}) - (${totalOut}) - (${totalExpensesOut})`,
+          method2: `(${totalInForDisplay}) - (${totalOutForDisplay}) - (${totalExpensesOut})`
+        })
       }
 
       // Group by payment method
@@ -883,8 +895,8 @@ export default function AdvancedTools() {
 
       setFullStats({
         summary: {
-          totalIn,
-          totalOut,
+          totalIn: totalInForDisplay,
+          totalOut: totalOutForDisplay,
           netBeforeExpenses,
           expenses: totalExpensesOut,
           netFinal
