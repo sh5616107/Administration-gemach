@@ -795,20 +795,11 @@ export default function AdvancedTools() {
 
   const handleStatisticsReport = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0]
-      const loans = await loansService.getAll() as any[]
-      
-      // סינון הלוואות שבפועל ניתנו (לא מתוכננות או עתידיות)
-      const actualLoans = loans.filter(l => l.status !== 'planned' && l.loan_date <= today)
-      
-      // סינון רק הלוואות פעילות עם יתרה (כמו getDashboardStats)
-      const activeLoansWithBalance = actualLoans.filter(l => l.status === 'active' && (l.remaining || 0) > 0)
+      // שימוש בפונקציה המרכזית - בדיוק כמו getDashboardStats
+      const activeLoansWithBalance = await loansService.getActiveLoansForExistingBorrowers()
       
       console.log('📊 Statistics Report - Loans filtering:')
-      console.log(`Total loans: ${loans.length}`)
-      console.log(`Actual loans (non-planned, non-future): ${actualLoans.length}`)
-      console.log(`Active loans with balance: ${activeLoansWithBalance.length}`)
-      console.log(`Filtered out: ${loans.length - actualLoans.length}`)
+      console.log(`Active loans with balance (existing borrowers): ${activeLoansWithBalance.length}`)
       
       const allDeposits = await db.query("SELECT * FROM deposits") as any[]
       const donations = await db.query("SELECT * FROM donations") as any[]
@@ -816,9 +807,9 @@ export default function AdvancedTools() {
       const gemachExpenses = expensesData.filter(e => e.paid_by === 'gemach')
       const guarantorLoansData = await guarantorLoansService.getAllWithDetails()
 
-      // איסוף פירעונות דרך repaymentsService.getByLoan על הלוואות שבפועל ניתנו בלבד
+      // איסוף פירעונות דרך repaymentsService.getByLoan על הלוואות פעילות בלבד
       const repayments: any[] = []
-      for (const loan of actualLoans) {
+      for (const loan of activeLoansWithBalance) {
         const loanRepayments = await repaymentsService.getByLoan(loan.id)
         repayments.push(...loanRepayments)
       }
@@ -892,7 +883,7 @@ export default function AdvancedTools() {
           netFinal
         },
         paymentMethodSummary: paymentMethodStats,
-        loans: { byMethod: groupByMethod(actualLoans) },
+        loans: { byMethod: groupByMethod(activeLoansWithBalance) },
         repayments: { byMethod: groupByMethod(repayments) },
         deposits: { byMethod: groupByMethod(allDeposits) },
         donations: { byMethod: groupByMethod(donations) },
