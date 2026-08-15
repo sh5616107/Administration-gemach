@@ -143,7 +143,6 @@ export default function Settings() {
   }, [settings.field_labels])
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const frameInputRef = useRef<HTMLInputElement>(null)
   const [protectionEnabled, setProtectionEnabledState] = useState(false)
   const [customHint, setCustomHintState] = useState('')
   const [userPassword, setUserPasswordState] = useState('')
@@ -231,15 +230,8 @@ export default function Settings() {
       await updateSetting('deposit_document_text', localSettings.deposit_document_text)
       await updateSetting('language', i18n.language)
       await updateSetting('report_repayments_order', localSettings.report_repayments_order)
-      await updateSetting('gemach_frame_margin_top', String(localSettings.gemach_frame_margin_top))
-      await updateSetting('gemach_frame_margin_bottom', String(localSettings.gemach_frame_margin_bottom))
-      await updateSetting('gemach_frame_margin_right', String(localSettings.gemach_frame_margin_right))
-      await updateSetting('gemach_frame_margin_left', String(localSettings.gemach_frame_margin_left))
       if (localSettings.gemach_logo !== settings.gemach_logo) {
         await updateSetting('gemach_logo', localSettings.gemach_logo)
-      }
-      if (localSettings.gemach_document_frame !== settings.gemach_document_frame) {
-        await updateSetting('gemach_document_frame', localSettings.gemach_document_frame)
       }
       setSnackbar({ open: true, message: t('settings.settingsSaved'), severity: 'success' })
       refreshSettings()
@@ -262,23 +254,6 @@ export default function Settings() {
     reader.onload = (e) => {
       const base64 = e.target?.result as string
       setLocalSettings({ ...localSettings, gemach_logo: base64 })
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const handleFrameUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      setSnackbar({ open: true, message: t('common.error') + ': ' + 'נא לבחור קובץ תמונה', severity: 'error' })
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string
-      setLocalSettings({ ...localSettings, gemach_document_frame: base64 })
     }
     reader.readAsDataURL(file)
   }
@@ -395,189 +370,10 @@ export default function Settings() {
               </Box>
 
               <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  מסגרת מסמך מותאמת אישית (כוללת לוגו)
+                <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary', fontStyle: 'italic' }}>
+                  הערה: תכונת המסגרת המותאמת אישית תופסק בגרסה זו בשל בעיות טכניות.
+                  התכונה תחזור בגרסה עתידית לאחר פתרון מלא.
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                  {localSettings.gemach_document_frame && (
-                    <Box
-                      component="img"
-                      src={localSettings.gemach_document_frame}
-                      sx={{ 
-                        width: 100, 
-                        height: 140, 
-                        objectFit: 'contain', 
-                        border: '1px solid #ddd',
-                        borderRadius: 1
-                      }}
-                    />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={frameInputRef}
-                    hidden
-                    onChange={handleFrameUpload}
-                    aria-label="Upload frame image"
-                  />
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<UploadIcon />}
-                      onClick={() => frameInputRef.current?.click()}
-                    >
-                      העלה מסגרת
-                    </Button>
-                    {localSettings.gemach_document_frame && (
-                      <Button
-                        variant="text"
-                        color="error"
-                        size="small"
-                        onClick={() => setLocalSettings({ ...localSettings, gemach_document_frame: '' })}
-                      >
-                        הסר מסגרת
-                      </Button>
-                    )}
-                  </Box>
-                </Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
-                  התמונה שתעלה תוצג כרקע מלא בכל מסמך שנשלח ללקוח (שטרות, קבלות), במקום הלוגו הרגיל. 
-                  מומלץ PNG עם רקע שקוף, ביחס גובה-רוחב A4 (1:1.41), עם שוליים פנימיים ריקים לטקסט המסמך.
-                </Typography>
-                
-                {/* שדות שוליים - מופיע רק אם יש מסגרת */}
-                {localSettings.gemach_document_frame && (
-                  <Box sx={{ mt: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
-                      כיול שוליים (מ"מ)
-                    </Typography>
-                    <Grid container spacing={2} sx={{ mb: 2 }}>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="שולי עליון"
-                          value={localSettings.gemach_frame_margin_top}
-                          onChange={(e) => setLocalSettings({ 
-                            ...localSettings, 
-                            gemach_frame_margin_top: Number(e.target.value) 
-                          })}
-                          inputProps={{ min: 0, max: 100 }}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="שולי תחתון"
-                          value={localSettings.gemach_frame_margin_bottom}
-                          onChange={(e) => setLocalSettings({ 
-                            ...localSettings, 
-                            gemach_frame_margin_bottom: Number(e.target.value) 
-                          })}
-                          inputProps={{ min: 0, max: 100 }}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="שולי ימין"
-                          value={localSettings.gemach_frame_margin_right}
-                          onChange={(e) => setLocalSettings({ 
-                            ...localSettings, 
-                            gemach_frame_margin_right: Number(e.target.value) 
-                          })}
-                          inputProps={{ min: 0, max: 100 }}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="שולי שמאל"
-                          value={localSettings.gemach_frame_margin_left}
-                          onChange={(e) => setLocalSettings({ 
-                            ...localSettings, 
-                            gemach_frame_margin_left: Number(e.target.value) 
-                          })}
-                          inputProps={{ min: 0, max: 100 }}
-                        />
-                      </Grid>
-                    </Grid>
-                    
-                    {/* תצוגה מקדימה */}
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
-                        תצוגה מקדימה:
-                      </Typography>
-                      <Box 
-                        sx={{ 
-                          width: '300px', 
-                          height: '424px',
-                          margin: '0 auto',
-                          position: 'relative',
-                          backgroundImage: `url(${localSettings.gemach_document_frame})`,
-                          backgroundSize: '100% 100%',
-                          backgroundRepeat: 'no-repeat',
-                          border: '1px solid #ddd',
-                          borderRadius: 1
-                        }}
-                      >
-                        <Box 
-                          sx={{ 
-                            position: 'absolute',
-                            top: 0,
-                            right: 0,
-                            bottom: 0,
-                            left: 0,
-                            padding: `${localSettings.gemach_frame_margin_top * (424/297)}px ${localSettings.gemach_frame_margin_right * (300/210)}px ${localSettings.gemach_frame_margin_bottom * (424/297)}px ${localSettings.gemach_frame_margin_left * (300/210)}px`,
-                            boxSizing: 'border-box'
-                          }}
-                        >
-                          <Box sx={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            border: '1px dashed rgba(0,0,0,0.3)',
-                            bgcolor: 'rgba(255,255,255,0.7)',
-                            p: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 0.5
-                          }}>
-                            <Typography variant="caption" sx={{ color: '#666', fontSize: '9px' }}>
-                              שטר הלוואה
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#666', fontSize: '8px' }}>
-                              אני הח"מ ___________
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#666', fontSize: '8px' }}>
-                              מאשר בזה כי לוויתי...
-                            </Typography>
-                            <Box sx={{ 
-                              mt: 1, 
-                              p: 0.5, 
-                              bgcolor: 'rgba(200,200,200,0.3)', 
-                              borderRadius: 0.5,
-                              fontSize: '7px'
-                            }}>
-                              <Typography variant="caption" sx={{ fontSize: '7px', color: '#999' }}>
-                                טבלה לדוגמה
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                      </Box>
-                      <Typography variant="caption" sx={{ display: 'block', mt: 1, textAlign: 'center', color: 'text.secondary' }}>
-                        אזור המסגרת בקו מקווקו מייצג את מיקום התוכן בפועל
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
               </Box>
 
               <TextField
