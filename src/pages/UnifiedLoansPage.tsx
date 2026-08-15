@@ -414,7 +414,7 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
       const guarantor1 = loan.guarantor1_id ? await borrowersService.getById(loan.guarantor1_id) as Guarantor : null;
       const guarantor2 = loan.guarantor2_id ? await borrowersService.getById(loan.guarantor2_id) as Guarantor : null;
       
-      const emailData = createLoanEmailData({
+      const emailData = await createLoanEmailData({
         borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
         borrowerEmail: selectedBorrower.email || '',
         amount: loan.amount,

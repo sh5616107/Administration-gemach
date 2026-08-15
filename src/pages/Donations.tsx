@@ -409,10 +409,10 @@ export default function Donations() {
     }
   };
 
-  const handleGenerateReceipt = (donation: Donation) => {
+  const handleGenerateReceipt = async (donation: Donation) => {
     if (!selectedDonor) return;
     
-    generateDonationReceipt({
+    await generateDonationReceipt({
       gemachName: settings.gemach_name || 'גמ"ח',
       gemachLogo: settings.gemach_logo,
       gemachDocumentFrame: settings.gemach_document_frame,

@@ -1050,7 +1050,7 @@ export default function Deposits() {
                           .reduce((sum, d) => sum + (d.withdrawn_amount || 0), 0);
                         
                         // Generate and print report (opens print dialog)
-                        generateDepositorReport({
+                        await generateDepositorReport({
                           gemachName: settings.gemach_name || 'גמ"ח',
                           gemachLogo: settings.gemach_logo,
                           gemachDocumentFrame: settings.gemach_document_frame,

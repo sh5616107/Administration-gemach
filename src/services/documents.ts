@@ -48,7 +48,12 @@ const openUrl = async (url: string) => {
 }
 
 // Download HTML content as PDF
-const downloadPdf = async (htmlContent: string, filename: string, frameImageBase64?: string): Promise<string | null> => {
+const downloadPdf = async (
+  htmlContent: string, 
+  filename: string, 
+  frameImageBase64?: string,
+  margins?: { top: number; bottom: number; right: number; left: number }
+): Promise<string | null> => {
   return new Promise((resolve) => {
     // Create a temporary container
     const container = document.createElement('div')
@@ -68,6 +73,10 @@ const downloadPdf = async (htmlContent: string, filename: string, frameImageBase
         const pageWidth = 210 // A4 width in mm
         const pageHeight = 297 // A4 height in mm
         
+        // חישוב contentWidth ו-contentHeight עם margins
+        const contentWidth = margins ? pageWidth - margins.left - margins.right : pageWidth
+        const contentHeight = margins ? pageHeight - margins.top - margins.bottom : pageHeight
+        
         // Use html2canvas with better settings
         const canvas = await html2canvas(container, {
           scale: 1.5,
@@ -77,28 +86,36 @@ const downloadPdf = async (htmlContent: string, filename: string, frameImageBase
         })
         
         const imgData = canvas.toDataURL('image/png', 0.95)
-        const imgWidth = pageWidth
-        const imgHeight = (canvas.height * pageWidth) / canvas.width
+        const imgWidth = contentWidth
+        const imgHeight = (canvas.height * contentWidth) / canvas.width
+        
+        // offset עבור ציור התוכן עם margins
+        const offsetX = margins ? margins.left : 0
+        const offsetY = margins ? margins.top : 0
         
         let heightLeft = imgHeight
         let position = 0
         
         // Add first page
         if (frameImageBase64) {
+          // ציור המסגרת במלוא העמוד
           pdf.addImage(frameImageBase64, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
         }
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST')
-        heightLeft -= pageHeight
+        // ציור התוכן עם offset
+        pdf.addImage(imgData, 'PNG', offsetX, offsetY + position, imgWidth, imgHeight, undefined, 'FAST')
+        heightLeft -= contentHeight
         
         // Add additional pages if content is longer
         while (heightLeft > 0) {
-          position -= pageHeight
+          position -= contentHeight
           pdf.addPage()
           if (frameImageBase64) {
+            // ציור המסגרת במלוא העמוד בכל עמוד
             pdf.addImage(frameImageBase64, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
           }
-          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
-          heightLeft -= pageHeight
+          // ציור התוכן עם offset
+          pdf.addImage(imgData, 'PNG', offsetX, offsetY + position, imgWidth, imgHeight, undefined, 'FAST')
+          heightLeft -= contentHeight
         }
         
         pdf.save(`${filename}.pdf`)
@@ -262,8 +279,9 @@ interface DocumentBrandingOptions {
 
 /**
  * עוטף תוכן HTML של מסמך עם מיתוג הגמ"ח.
- * אם קיימת gemachDocumentFrame — היא מוצגת כרקע מלא, והלוגו הרגיל (logoHtml) לא מוצג כלל.
- * אם אין מסגרת — מתנהג בדיוק כמו היום (הלוגו מוצג בנפרד בראש, אם קיים).
+ * החלטה בלבד אם להציג לוגו רגיל או לא - ללא ציור מסגרת ב-CSS.
+ * אם קיימת gemachDocumentFrame — מחזיר רק את innerHtml (ללא לוגו, המסגרת תצויר ב-downloadPdf).
+ * אם אין מסגרת — מחזיר לוגו + innerHtml כרגיל.
  */
 function applyDocumentBranding(
   innerHtml: string,
@@ -271,28 +289,14 @@ function applyDocumentBranding(
   logoHtmlIfNoFrame: string
 ): string {
   if (branding.gemachDocumentFrame) {
-    // שימוש בשוליים מהפרמטרים עם נפילה לערכי ברירת מחדל
-    const top = branding.frameMarginTop ?? 35
-    const bottom = branding.frameMarginBottom ?? 48
-    const right = branding.frameMarginRight ?? 20
-    const left = branding.frameMarginLeft ?? 20
-    
-    // מצב מסגרת: שימוש ב-@page margin במקום padding כדי ששוליים יישמרו בכל עמוד פיזי
-    return `
-      <style>
-        @page { size: A4; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm; }
-      </style>
-      <img src="${branding.gemachDocumentFrame}" style="position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; object-fit: fill; z-index: -1; -webkit-print-color-adjust: exact; print-color-adjust: exact;" alt="" />
-      <div style="position: relative; z-index: 1;">
-        ${innerHtml}
-      </div>
-    `
+    // מצב מסגרת: רק תוכן ללא לוגו (המסגרת תצויר ב-downloadPdf)
+    return innerHtml
   }
-  // מצב רגיל: ללא מסגרת, לוגו מוצג כרגיל (ההתנהגות הקיימת היום, ללא שינוי)
+  // מצב רגיל: לוגו מוצג כרגיל (preservation)
   return `${logoHtmlIfNoFrame}${innerHtml}`
 }
 
-export function generateLoanDocument(data: LoanDocumentData) {
+export async function generateLoanDocument(data: LoanDocumentData): Promise<void> {
   const today = new Date().toLocaleDateString('he-IL')
   const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
   const showHebrew = data.dateFormat === 'combined'
@@ -451,11 +455,23 @@ export function generateLoanDocument(data: LoanDocumentData) {
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
   }, logoHtml)
-  printHtml(finalContent, `שטר הלוואה - ${data.borrowerName}`)
+  
+  // אם יש מסגרת - שימוש ב-downloadPdf, אחרת printHtml
+  if (data.gemachDocumentFrame) {
+    const margins = {
+      top: data.frameMarginTop ?? 35,
+      bottom: data.frameMarginBottom ?? 48,
+      right: data.frameMarginRight ?? 20,
+      left: data.frameMarginLeft ?? 20
+    }
+    await downloadPdf(finalContent, `שטר הלוואה - ${data.borrowerName}`, data.gemachDocumentFrame, margins)
+  } else {
+    printHtml(finalContent, `שטר הלוואה - ${data.borrowerName}`)
+  }
 }
 
 
-export function generateEmptyLoanDocument(
+export async function generateEmptyLoanDocument(
   gemachName: string, 
   gemachLogo?: string, 
   gemachDocumentFrame?: string,
@@ -463,7 +479,7 @@ export function generateEmptyLoanDocument(
   frameMarginBottom?: number,
   frameMarginRight?: number,
   frameMarginLeft?: number
-) {
+): Promise<void> {
   const today = new Date().toLocaleDateString('he-IL')
   
   const logoHtml = gemachLogo 
@@ -518,10 +534,22 @@ export function generateEmptyLoanDocument(
     frameMarginRight,
     frameMarginLeft
   }, logoHtml)
-  printHtml(finalContent, 'שטר הלוואה ריק')
+  
+  // אם יש מסגרת - שימוש ב-downloadPdf, אחרת printHtml
+  if (gemachDocumentFrame) {
+    const margins = {
+      top: frameMarginTop ?? 35,
+      bottom: frameMarginBottom ?? 48,
+      right: frameMarginRight ?? 20,
+      left: frameMarginLeft ?? 20
+    }
+    await downloadPdf(finalContent, 'שטר הלוואה ריק', gemachDocumentFrame, margins)
+  } else {
+    printHtml(finalContent, 'שטר הלוואה ריק')
+  }
 }
 
-export function generateDonationReceipt(data: {
+export async function generateDonationReceipt(data: {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
@@ -534,7 +562,7 @@ export function generateDonationReceipt(data: {
   donationDate: string
   receiptNumber: string
   dateFormat?: string
-}) {
+}): Promise<void> {
   const showHebrew = data.dateFormat === 'combined'
   const dateDisplay = new Date(data.donationDate).toLocaleDateString('he-IL')
   const dateHebrew = showHebrew ? toHebrewDate(data.donationDate) : ''
@@ -580,7 +608,19 @@ export function generateDonationReceipt(data: {
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
   }, logoHtml)
-  printHtml(finalContent, `קבלה ${data.receiptNumber}`)
+  
+  // אם יש מסגרת - שימוש ב-downloadPdf, אחרת printHtml
+  if (data.gemachDocumentFrame) {
+    const margins = {
+      top: data.frameMarginTop ?? 35,
+      bottom: data.frameMarginBottom ?? 48,
+      right: data.frameMarginRight ?? 20,
+      left: data.frameMarginLeft ?? 20
+    }
+    await downloadPdf(finalContent, `קבלה ${data.receiptNumber}`, data.gemachDocumentFrame, margins)
+  } else {
+    printHtml(finalContent, `קבלה ${data.receiptNumber}`)
+  }
 }
 
 export function generateDepositDocument(data: {
@@ -721,7 +761,7 @@ export function generateDepositDocument(data: {
 }
 
 
-export function generateBorrowerReport(data: {
+export async function generateBorrowerReport(data: {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
@@ -757,7 +797,7 @@ export function generateBorrowerReport(data: {
   }>
   totalDebt: number
   repaymentsOrder?: 'newest_first' | 'oldest_first'
-}) {
+}): Promise<void> {
   const today = new Date().toLocaleDateString('he-IL')
 
   const logoHtml = data.gemachLogo 
@@ -1033,7 +1073,18 @@ export function generateBorrowerReport(data: {
     </html>
   `
 
-  printHtml(fullHtmlDocument, `דוח לווה - ${data.borrowerName}`)
+  // שימוש ב-downloadPdf אם יש מסגרת, אחרת printHtml
+  if (data.gemachDocumentFrame) {
+    const margins = {
+      top: data.frameMarginTop ?? 35,
+      bottom: data.frameMarginBottom ?? 48,
+      right: data.frameMarginRight ?? 20,
+      left: data.frameMarginLeft ?? 20
+    }
+    await downloadPdf(fullHtmlDocument, `דוח לווה - ${data.borrowerName}`, data.gemachDocumentFrame, margins)
+  } else {
+    printHtml(fullHtmlDocument, `דוח לווה - ${data.borrowerName}`)
+  }
 }
 
 export function generateExpenseReceipt(data: {
@@ -1375,6 +1426,7 @@ export interface EmailData {
   documentType: 'loan' | 'deposit' | 'donation' | 'borrower_report' | 'depositor_report' | 'donor_report' | 'guarantor_debt'
   htmlContent?: string
   filename?: string
+  attachmentPath?: string
 }
 
 export async function openEmailWithDocument(data: EmailData, provider: EmailProvider = 'gmail'): Promise<{ success: boolean; message: string }> {
@@ -1411,7 +1463,7 @@ export async function openEmailWithDocument(data: EmailData, provider: EmailProv
   }
 }
 
-export function createLoanEmailData(params: {
+export async function createLoanEmailData(params: {
   gemachName: string
   borrowerName: string
   borrowerEmail: string
@@ -1438,7 +1490,7 @@ export function createLoanEmailData(params: {
     recurringRepaymentNumber?: number
     recurringRepaymentCount?: number
   }>
-}): EmailData {
+}): Promise<EmailData> {
   const formattedAmount = formatCurrency(params.amount)
   const formattedDate = new Date(params.loanDate).toLocaleDateString('he-IL')
   const showHebrew = params.dateFormat === 'combined'
@@ -1544,6 +1596,35 @@ export function createLoanEmailData(params: {
     frameMarginLeft: params.frameMarginLeft
   }, logoHtml)
   
+  let attachmentPath: string | undefined = undefined
+  
+  // אם יש מסגרת, ניצור PDF עם downloadPdf
+  if (params.gemachDocumentFrame) {
+    const margins = {
+      top: params.frameMarginTop ?? 35,
+      bottom: params.frameMarginBottom ?? 48,
+      right: params.frameMarginRight ?? 20,
+      left: params.frameMarginLeft ?? 20
+    }
+    
+    const fullHtmlDocument = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="he">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; }
+        </style>
+      </head>
+      <body>
+        ${finalHtmlContent}
+      </body>
+      </html>
+    `
+    
+    attachmentPath = await downloadPdf(fullHtmlDocument, `שטר-הלוואה-${params.borrowerName}`, params.gemachDocumentFrame, margins)
+  }
+  
   return {
     to: params.borrowerEmail,
     subject: `שטר הלוואה - ${params.gemachName}`,
@@ -1561,7 +1642,8 @@ export function createLoanEmailData(params: {
 ${params.gemachName}`,
     documentType: 'loan',
     htmlContent: finalHtmlContent,
-    filename: `שטר-הלוואה-${params.borrowerName}`
+    filename: `שטר-הלוואה-${params.borrowerName}`,
+    attachmentPath
   }
 }
 
@@ -2013,7 +2095,7 @@ export interface GuarantorStatementData {
   }>
 }
 
-export function generateGuarantorStatement(data: GuarantorStatementData): void {
+export async function generateGuarantorStatement(data: GuarantorStatementData): Promise<void> {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('he-IL', {
       style: 'currency',
@@ -2257,7 +2339,18 @@ export function generateGuarantorStatement(data: GuarantorStatementData): void {
     </html>
   `
 
-  printHtml(fullDocument, `דוח ערב - ${data.guarantorName}`)
+  // שימוש ב-downloadPdf אם יש מסגרת, אחרת printHtml
+  if (data.gemachDocumentFrame) {
+    const margins = {
+      top: data.frameMarginTop ?? 35,
+      bottom: data.frameMarginBottom ?? 48,
+      right: data.frameMarginRight ?? 20,
+      left: data.frameMarginLeft ?? 20
+    }
+    await downloadPdf(fullDocument, `דוח ערב - ${data.guarantorName}`, data.gemachDocumentFrame, margins)
+  } else {
+    printHtml(fullDocument, `דוח ערב - ${data.guarantorName}`)
+  }
 }
 
 

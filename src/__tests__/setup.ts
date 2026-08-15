@@ -25,10 +25,20 @@ const localStorageMock = (() => {
 
 globalThis.localStorage = localStorageMock as Storage
 
-// Mock window object
+// Mock window object with document
 globalThis.window = {
-  localStorage: localStorageMock
+  localStorage: localStorageMock,
+  document: {
+    createElement: vi.fn(() => ({}))
+  }
 } as any
+
+// Mock document for html2canvas
+if (!globalThis.document) {
+  globalThis.document = {
+    createElement: vi.fn(() => ({}))
+  } as any
+}
 
 // Cleanup after each test
 afterEach(() => {

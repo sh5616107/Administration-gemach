@@ -936,7 +936,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     // טעינת פירעונות להלוואה
     const loanRepayments = selectedLoan.id ? await repaymentsService.getByLoan(selectedLoan.id) : []
     
-    generateLoanDocument({
+    await generateLoanDocument({
       gemachName: settings.gemach_name,
       gemachLogo: settings.gemach_logo,
       gemachDocumentFrame: settings.gemach_document_frame,
@@ -976,7 +976,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     // טעינת פירעונות להלוואה
     const loanRepayments = loan.id ? await repaymentsService.getByLoan(loan.id) : []
     
-    generateLoanDocument({
+    await generateLoanDocument({
       gemachName: settings.gemach_name,
       gemachLogo: settings.gemach_logo,
       gemachDocumentFrame: settings.gemach_document_frame,
@@ -1020,7 +1020,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     // טעינת פירעונות להלוואה
     const loanRepayments = selectedLoan.id ? await repaymentsService.getByLoan(selectedLoan.id) : []
     
-    const emailData = createLoanEmailData({
+    const emailData = await createLoanEmailData({
       gemachName: settings.gemach_name || 'גמ"ח',
       borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
       borrowerEmail: selectedBorrower.email,
@@ -1073,7 +1073,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     // טעינת פירעונות להלוואה
     const loanRepayments = loan.id ? await repaymentsService.getByLoan(loan.id) : []
     
-    const emailData = createLoanEmailData({
+    const emailData = await createLoanEmailData({
       gemachName: settings.gemach_name || 'גמ"ח',
       borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
       borrowerEmail: selectedBorrower.email,

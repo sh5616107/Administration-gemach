@@ -242,7 +242,7 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
       const totalActive = activeDeposits.reduce((sum, d) => sum + d.remaining, 0)
       const totalWithdrawn = depositsWithWithdrawals.reduce((sum, d) => sum + (d.withdrawn_amount || 0), 0)
       
-      generateDepositorReport({
+      await generateDepositorReport({
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
         gemachDocumentFrame: settings.gemach_document_frame,

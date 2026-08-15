@@ -191,7 +191,7 @@ export default function Dashboard() {
       // קבלת הוצאות ששולמו ע"י הלווה
       const borrowerExpenses = await statsService.getExpensesByBorrower(borrower.id)
       
-      generateBorrowerReport({
+      await generateBorrowerReport({
         gemachLogo: settings.gemach_logo,
         gemachDocumentFrame: settings.gemach_document_frame,
         frameMarginTop: settings.gemach_frame_margin_top,

@@ -281,7 +281,7 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
         .reduce((sum, l) => sum + (l.remaining || 0), 0)
       
       // הפקת הדוח
-      generateBorrowerReport({
+      await generateBorrowerReport({
         gemachName: settings.gemach_name || 'גמ"ח שלי',
         gemachLogo: settings.gemach_logo,
         gemachDocumentFrame: settings.gemach_document_frame,

@@ -483,7 +483,7 @@ export default function GuarantorsTab() {
         regularLoans: regularLoansData.length > 0 ? regularLoansData : undefined
       }
       
-      generateGuarantorStatement(statementData)
+      await generateGuarantorStatement(statementData)
       
       setSnackbar({ 
         open: true, 
