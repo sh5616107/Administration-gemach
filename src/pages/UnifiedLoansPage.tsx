@@ -91,12 +91,20 @@ function calculateNextDueDate(repaymentDay?: number): string | undefined {
   return new Date(nextYear, actualNextMonth, effectiveDayNextMonth).toISOString().split('T')[0];
 }
 
-export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowerId?: string } = {}) {
+interface UnifiedLoansPageProps {
+  initialBorrowerId?: string | null
+  initialWaitlistId?: string | null
+}
+
+export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId }: UnifiedLoansPageProps = {}) {
   const { settings } = useSettings();
   const [borrowers, setBorrowers] = useState<Borrower[]>([]);
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
+  
+  // State מקומי עבור waitlist - ינוקה אחרי השימוש הראשון
+  const [activeWaitlistId, setActiveWaitlistId] = useState<string | null>(null)
 
   // Map of loan ID to first recurring repayment (for auto-repayment management)
   const [loanRecurringRepayments, setLoanRecurringRepayments] = useState<Map<string, any>>(new Map());
@@ -159,6 +167,37 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
       }
     }
   }, [initialBorrowerId, borrowers]);
+
+  // Handle initial waitlist entry - open loan panel with pre-filled form
+  useEffect(() => {
+    const loadWaitlistEntry = async () => {
+      if (initialWaitlistId && borrowers.length > 0) {
+        try {
+          const { waitlistService } = await import('../services/database')
+          const entry = await waitlistService.getById(initialWaitlistId)
+          if (entry) {
+            const borrower = borrowers.find(b => b.id === entry.borrower_id)
+            if (borrower) {
+              setSelectedBorrower(borrower)
+              // שמירת ה-waitlist ID ב-state מקומי
+              setActiveWaitlistId(initialWaitlistId)
+              // פתיחת מגירת הלוואה חדשה - הטופס יתמלא אוטומטית ב-LoanSidePanel
+              setActiveLoan(null)
+              setLoanPanelOpen(true)
+              setSnackbar({ 
+                open: true, 
+                message: `טעינת בקשה מהתור: ${borrower.first_name} ${borrower.last_name}`, 
+                severity: 'success' 
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Error loading waitlist entry:', error)
+        }
+      }
+    }
+    loadWaitlistEntry()
+  }, [initialWaitlistId, borrowers])
 
   useEffect(() => {
     if (selectedBorrower) {
@@ -336,6 +375,7 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
   const handleLoanSaved = () => {
     if (selectedBorrower) loadLoansForBorrower(selectedBorrower.id);
     setLoanPanelOpen(false); // Close the drawer after saving
+    setActiveWaitlistId(null); // ניקוי ה-waitlist ID אחרי השמירה
   };
 
   const handleDeleteLoan = async (loan: Loan) => {
@@ -1059,7 +1099,11 @@ export default function UnifiedLoansPage({ initialBorrowerId }: { initialBorrowe
                 open={loanPanelOpen}
                 loan={activeLoan}
                 borrowerId={selectedBorrower.id}
-                onClose={() => setLoanPanelOpen(false)}
+                waitlistEntryId={activeWaitlistId}
+                onClose={() => {
+                  setLoanPanelOpen(false)
+                  setActiveWaitlistId(null) // ניקוי גם בסגירה ידנית
+                }}
                 onSaved={handleLoanSaved}
               />
             </Paper>

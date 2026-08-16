@@ -1584,7 +1584,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                         label="הלוואה מחזורית"
                       />
                       <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
-                        כל חודש תיווצר הלוואה חדשה ונפרדת — לא מתאים להחזר הלוואה קיימת בתשלומים
+                        כל חודש תיווצר הלוואה חדשה ונפרדת
                       </FormHelperText>
                     </Box>
                   </Grid>
@@ -1683,7 +1683,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                         label="פירעון מחזורי"
                       />
                       <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
-                        הלוואה אחת שמוחזרת בכמה תשלומים חודשיים — זה מה שרוב המקרים צריכים
+                        הלוואה אחת שמוחזרת בכמה תשלומים חודשיים
                       </FormHelperText>
                     </Box>
                   </Grid>

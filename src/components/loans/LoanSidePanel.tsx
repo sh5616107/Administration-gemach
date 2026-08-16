@@ -7,6 +7,7 @@ interface LoanSidePanelProps {
   open: boolean;
   loan: Loan | null; // null = creating a new loan
   borrowerId: string;
+  waitlistEntryId?: string | null; // ID של בקשה מתור ההלוואות
   onClose: () => void;
   onSaved: () => void; // refresh list after save
 }
@@ -15,7 +16,7 @@ interface LoanSidePanelProps {
  * Side drawer for creating/editing a loan using the LoansTab component
  * Shows only the form part, not the borrower selection or loans table
  */
-export default function LoanSidePanel({ open, loan, borrowerId, onClose, onSaved }: LoanSidePanelProps) {
+export default function LoanSidePanel({ open, loan, borrowerId, waitlistEntryId, onClose, onSaved }: LoanSidePanelProps) {
   const handleSaved = () => {
     onSaved();
   };
@@ -41,10 +42,11 @@ export default function LoanSidePanel({ open, loan, borrowerId, onClose, onSaved
         </IconButton>
       </Box>
       <Divider sx={{ mb: 2 }} />
-      {/* Pass the borrower ID and loan ID to LoansTab so it shows only the form */}
+      {/* Pass the borrower ID, loan ID, and waitlist ID to LoansTab so it shows only the form */}
       <LoansTab 
         initialBorrowerId={borrowerId} 
         initialLoanId={loan?.id || null}
+        initialWaitlistId={waitlistEntryId || null}
         hideLoansTable={true}
         hideHeader={true}
         onSaved={handleSaved}

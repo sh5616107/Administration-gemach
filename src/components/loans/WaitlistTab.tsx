@@ -678,8 +678,8 @@ export default function WaitlistTab() {
   }
 
   const handleApprove = async (entry: WaitlistEntry & { borrower_name: string }) => {
-    // Navigate to loans tab with this borrower and waitlist entry pre-selected
-    window.location.href = `/loans?tab=2&borrower=${entry.borrower_id}&waitlist=${entry.id}`
+    // ניווט לטאב הלוואות עם לווה ובקשת תור שנבחרו
+    window.location.href = `/loans?tab=0&borrower=${entry.borrower_id}&waitlist=${entry.id}`
   }
 
   const handleReject = async (id: string) => {

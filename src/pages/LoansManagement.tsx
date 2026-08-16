@@ -33,6 +33,7 @@ export default function LoansManagement() {
   const [selectedBorrowerId, setSelectedBorrowerId] = useState<string | null>(null)
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null)
   const [selectedWaitlistId, setSelectedWaitlistId] = useState<string | null>(null)
+  const [waitlistEntryForLoan, setWaitlistEntryForLoan] = useState<string | null>(null)
   
   const showWaitlistTab = settings.show_waitlist_tab !== 'no'
 
@@ -60,9 +61,15 @@ export default function LoansManagement() {
     }
     
     if (waitlistId) {
-      setSelectedWaitlistId(waitlistId)
-      // Switch to waitlist tab (index 2) when waitlist is specified
-      setTabValue(2)
+      // אם יש borrowerId גם כן, זה אישור מתור - נעביר את זה לטאב הלוואות
+      if (borrowerId) {
+        setWaitlistEntryForLoan(waitlistId)
+        setTabValue(0)
+      } else {
+        // אחרת זה סתם ניווט לתור
+        setSelectedWaitlistId(waitlistId)
+        setTabValue(showWaitlistTab ? 2 : 0)
+      }
     }
     
     // Clear URL params after reading
@@ -99,7 +106,10 @@ export default function LoansManagement() {
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
-        <UnifiedLoansPage initialBorrowerId={selectedBorrowerId} />
+        <UnifiedLoansPage 
+          initialBorrowerId={selectedBorrowerId} 
+          initialWaitlistId={waitlistEntryForLoan}
+        />
       </TabPanel>
       <TabPanel value={tabValue} index={1}>
         <GuarantorsTab />
