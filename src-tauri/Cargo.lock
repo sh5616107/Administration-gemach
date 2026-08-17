@@ -1109,7 +1109,7 @@ dependencies = [
 
 [[package]]
 name = "gemach-manager"
-version = "4.4.12"
+version = "4.5.0"
 dependencies = [
  "aes-gcm",
  "chrono",
