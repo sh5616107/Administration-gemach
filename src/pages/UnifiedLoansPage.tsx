@@ -40,7 +40,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
-import { borrowersService, loansService, guarantorLoansService, repaymentsService, type Borrower, type Loan, type Guarantor } from '../services/database';
+import { borrowersService, loansService, guarantorLoansService, repaymentsService, guarantorsService, type Borrower, type Loan, type Guarantor } from '../services/database';
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
 import { getLoanFamily, calculateNextRepaymentNumber } from '../services/recurringRepaymentsService';
@@ -419,8 +419,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
     if (!loan.id || !selectedBorrower) return;
     
     try {
-      const guarantor1 = loan.guarantor1_id ? await borrowersService.getById(loan.guarantor1_id) as Guarantor : null;
-      const guarantor2 = loan.guarantor2_id ? await borrowersService.getById(loan.guarantor2_id) as Guarantor : null;
+      const guarantor1 = loan.guarantor1_id ? await guarantorsService.getById(loan.guarantor1_id) as Guarantor : null;
+      const guarantor2 = loan.guarantor2_id ? await guarantorsService.getById(loan.guarantor2_id) as Guarantor : null;
       
       generateLoanDocument({
         borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
@@ -451,8 +451,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
     if (!loan.id || !selectedBorrower) return;
     
     try {
-      const guarantor1 = loan.guarantor1_id ? await borrowersService.getById(loan.guarantor1_id) as Guarantor : null;
-      const guarantor2 = loan.guarantor2_id ? await borrowersService.getById(loan.guarantor2_id) as Guarantor : null;
+      const guarantor1 = loan.guarantor1_id ? await guarantorsService.getById(loan.guarantor1_id) as Guarantor : null;
+      const guarantor2 = loan.guarantor2_id ? await guarantorsService.getById(loan.guarantor2_id) as Guarantor : null;
       
       const emailData = await createLoanEmailData({
         borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
