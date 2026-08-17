@@ -178,21 +178,24 @@ function clearStore(storeName: keyof DataStore): void {
 // Database service
 export const db = {
   async query(sql: string, params?: unknown[]): Promise<unknown[]> {
-    if (sql.includes('FROM contacts')) {
+    // נרמול SQL — מבטל רגישות לרווחים וירידות שורה
+    const normalizedSql = sql.replace(/\s+/g, ' ').trim()
+    
+    if (normalizedSql.includes('FROM contacts')) {
       const items = getAllItems<any>('contacts')
-      if (params && params.length > 0 && sql.includes('WHERE phone')) {
+      if (params && params.length > 0 && normalizedSql.includes('WHERE phone')) {
         return items.filter(c => c.phone === params[0])
       }
       return items
     }
-    if (sql.includes('FROM borrowers')) {
+    if (normalizedSql.includes('FROM borrowers')) {
       const items = getAllItems<any>('borrowers')
       // Filter out deleted borrowers if WHERE is_deleted = 0 or similar
-      if (sql.includes('is_deleted')) {
+      if (normalizedSql.includes('is_deleted')) {
         return items.filter(b => !b.is_deleted)
       }
       // Support search with LIKE
-      if (params && params.length >= 3 && sql.includes('LIKE')) {
+      if (params && params.length >= 3 && normalizedSql.includes('LIKE')) {
         const term = String(params[0]).replace(/%/g, '').toLowerCase()
         return items.filter(b => 
           b.first_name?.toLowerCase().includes(term) || 
@@ -202,15 +205,15 @@ export const db = {
       }
       return items
     }
-    if (sql.includes('FROM loans')) {
+    if (normalizedSql.includes('FROM loans')) {
       const items = getAllItems<any>('loans')
       // Filter out deleted loans if WHERE is_deleted = 0 or similar
-      if (sql.includes('is_deleted')) {
+      if (normalizedSql.includes('is_deleted')) {
         return items.filter(l => !l.is_deleted)
       }
       return items
     }
-    if (sql.includes('FROM donors')) {
+    if (normalizedSql.includes('FROM donors')) {
       const items = getAllItems<any>('donors')
       if (params && params.length >= 3) {
         const term = String(params[0]).replace(/%/g, '').toLowerCase()
@@ -218,7 +221,7 @@ export const db = {
       }
       return items
     }
-    if (sql.includes('FROM depositors')) {
+    if (normalizedSql.includes('FROM depositors')) {
       const items = getAllItems<any>('depositors')
       if (params && params.length >= 3) {
         const term = String(params[0]).replace(/%/g, '').toLowerCase()
@@ -226,46 +229,46 @@ export const db = {
       }
       return items
     }
-    if (sql.includes('FROM deposits')) {
+    if (normalizedSql.includes('FROM deposits')) {
       const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted)
       const depositors = getAllItems<any>('depositors')
       
       let filtered = deposits
       
       // פילטר לפי depositor_id
-      if (params && params.length > 0 && sql.includes('WHERE depositor_id')) {
+      if (params && params.length > 0 && normalizedSql.includes('WHERE depositor_id')) {
         filtered = filtered.filter(d => d.depositor_id === params[0])
         return filtered.sort((a: any, b: any) => new Date(b.deposit_date).getTime() - new Date(a.deposit_date).getTime())
       }
       
       // פילטר לפי is_recurring
-      if (sql.includes('is_recurring = 1')) {
+      if (normalizedSql.includes('is_recurring = 1')) {
         filtered = filtered.filter(d => d.is_recurring === 1)
       }
       
       // פילטר לפי status
-      if (sql.includes('status = ?') && params && params.length > 0) {
+      if (normalizedSql.includes('status = ?') && params && params.length > 0) {
         const statusParam = params[params.length - 1]
         filtered = filtered.filter(d => d.status === statusParam)
       }
       
       return filtered.map(d => ({ ...d, depositor_name: depositors.find(dep => dep.id === d.depositor_id)?.first_name + ' ' + depositors.find(dep => dep.id === d.depositor_id)?.last_name || '' }))
     }
-    if (sql.includes('FROM donations')) {
+    if (normalizedSql.includes('FROM donations')) {
       const donations = getAllItems<any>('donations')
       const donors = getAllItems<any>('donors')
       
       let filtered = donations
       
       // פילטר לפי donor_id
-      if (sql.includes('WHERE d.donor_id') || sql.includes('WHERE donor_id')) {
+      if (normalizedSql.includes('WHERE d.donor_id') || normalizedSql.includes('WHERE donor_id')) {
         // If params provided, use them (supports UUIDs)
         if (params && params.length > 0) {
           const donorId = params[0]
           filtered = filtered.filter(d => d.donor_id === donorId)
         } else {
           // Fallback: חילוץ ה-donor_id מה-SQL (תמיכה במספרים בלבד)
-          const match = sql.match(/donor_id\s*=\s*(\d+)/)
+          const match = normalizedSql.match(/donor_id\s*=\s*(\d+)/)
           if (match) {
             const donorId = parseInt(match[1], 10)
             filtered = filtered.filter(d => d.donor_id === donorId)
@@ -279,26 +282,29 @@ export const db = {
         donor_email: donors.find(don => don.id === d.donor_id)?.email || ''
       })).sort((a: any, b: any) => new Date(b.donation_date).getTime() - new Date(a.donation_date).getTime())
     }
-    if (sql.includes('FROM blacklist')) return getAllItems<any>('blacklist')
-    if (sql.includes('FROM repayments')) return getAllItems<any>('repayments')
-    if (sql.includes('settings')) return Object.entries(data.settings).map(([key, value]) => ({ key, value }))
+    if (normalizedSql.includes('FROM blacklist')) return getAllItems<any>('blacklist')
+    if (normalizedSql.includes('FROM repayments')) return getAllItems<any>('repayments')
+    if (normalizedSql.includes('settings')) return Object.entries(data.settings).map(([key, value]) => ({ key, value }))
     return []
   },
 
   async run(sql: string, params?: unknown[]): Promise<{ lastInsertRowid: string | number; changes: number }> {
-    if (sql.includes('DELETE FROM repayments') && !sql.includes('WHERE')) { clearStore('repayments'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM loans') && !sql.includes('WHERE')) { clearStore('loans'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM borrowers') && !sql.includes('WHERE')) { clearStore('borrowers'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM guarantors') && !sql.includes('WHERE')) { clearStore('guarantors'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM donations') && !sql.includes('WHERE')) { clearStore('donations'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM donors') && !sql.includes('WHERE')) { clearStore('donors'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM donors WHERE id') && params) { removeItem('donors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM deposits') && !sql.includes('WHERE')) { clearStore('deposits'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM depositors') && !sql.includes('WHERE')) { clearStore('depositors'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM depositors WHERE id') && params) { removeItem('depositors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM contacts') && !sql.includes('WHERE')) { clearStore('contacts'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM contacts WHERE phone') && params) { removeItem('contacts', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('UPDATE depositors SET') && params) {
+    // נרמול SQL — מבטל רגישות לרווחים וירידות שורה
+    const normalizedSql = sql.replace(/\s+/g, ' ').trim()
+    
+    if (normalizedSql.includes('DELETE FROM repayments') && !normalizedSql.includes('WHERE')) { clearStore('repayments'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM loans') && !normalizedSql.includes('WHERE')) { clearStore('loans'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM borrowers') && !normalizedSql.includes('WHERE')) { clearStore('borrowers'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM guarantors') && !normalizedSql.includes('WHERE')) { clearStore('guarantors'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM donations') && !normalizedSql.includes('WHERE')) { clearStore('donations'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM donors') && !normalizedSql.includes('WHERE')) { clearStore('donors'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM donors WHERE id') && params) { removeItem('donors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM deposits') && !normalizedSql.includes('WHERE')) { clearStore('deposits'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM depositors') && !normalizedSql.includes('WHERE')) { clearStore('depositors'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM depositors WHERE id') && params) { removeItem('depositors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM contacts') && !normalizedSql.includes('WHERE')) { clearStore('contacts'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM contacts WHERE phone') && params) { removeItem('contacts', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('UPDATE depositors SET') && params) {
       const d = getItem<any>('depositors', String(params[7]));
       if (d) {
         d.first_name = params[0]
@@ -312,7 +318,7 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (sql.includes('UPDATE donors SET') && params) {
+    if (normalizedSql.includes('UPDATE donors SET') && params) {
       const d = getItem<any>('donors', String(params[7]));
       if (d) {
         d.first_name = params[0]
@@ -326,14 +332,14 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (sql.includes('DELETE FROM blacklist') && !sql.includes('WHERE')) { clearStore('blacklist'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM waitlist') && !sql.includes('WHERE')) { clearStore('waitlist'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM expenses') && !sql.includes('WHERE')) { clearStore('expenses'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM guarantorLoans') && !sql.includes('WHERE')) { clearStore('guarantorLoans'); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM depositWithdrawals') && !sql.includes('WHERE')) { clearStore('depositWithdrawals'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM blacklist') && !normalizedSql.includes('WHERE')) { clearStore('blacklist'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM waitlist') && !normalizedSql.includes('WHERE')) { clearStore('waitlist'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM expenses') && !normalizedSql.includes('WHERE')) { clearStore('expenses'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM guarantorLoans') && !normalizedSql.includes('WHERE')) { clearStore('guarantorLoans'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM depositWithdrawals') && !normalizedSql.includes('WHERE')) { clearStore('depositWithdrawals'); return { lastInsertRowid: 0, changes: 1 } }
 
-    if (sql.includes('INSERT INTO blacklist') && params) { const id = generateId('blacklist'); setItem('blacklist', String(id), { id, entity_type: params[0], entity_id: params[1], reason: params[2], added_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
-    if (sql.includes('INSERT INTO contacts') && params) { 
+    if (normalizedSql.includes('INSERT INTO blacklist') && params) { const id = generateId('blacklist'); setItem('blacklist', String(id), { id, entity_type: params[0], entity_id: params[1], reason: params[2], added_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (normalizedSql.includes('INSERT INTO contacts') && params) { 
       const phone = String(params[0])
       setItem('contacts', phone, { 
         phone: params[0], 
@@ -354,7 +360,7 @@ export const db = {
       })
       return { lastInsertRowid: 0, changes: 1 } 
     }
-    if (sql.includes('UPDATE contacts SET') && params) {
+    if (normalizedSql.includes('UPDATE contacts SET') && params) {
       const phone = String(params[params.length - 1])
       const c = getItem<any>('contacts', phone)
       if (c) {
@@ -376,8 +382,8 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (sql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
-    if (sql.includes('INSERT INTO donations') && params) { 
+    if (normalizedSql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (normalizedSql.includes('INSERT INTO donations') && params) { 
       const id = generateId('donations'); 
       // Generate sequential receipt number
       const allDonations = getAllItems<any>('donations');
@@ -416,8 +422,8 @@ export const db = {
       }); 
       return { lastInsertRowid: id, changes: 1 } 
     }
-    if (sql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
-    if (sql.includes('INSERT INTO deposits') && params) { 
+    if (normalizedSql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (normalizedSql.includes('INSERT INTO deposits') && params) { 
       const id = generateId('deposits'); 
       setItem('deposits', String(id), { 
         id, 
@@ -441,7 +447,7 @@ export const db = {
       return { lastInsertRowid: id, changes: 1 } 
     }
 
-    if (sql.includes('UPDATE deposits SET status') && params) { 
+    if (normalizedSql.includes('UPDATE deposits SET status') && params) { 
       const d = getItem<any>('deposits', String(params[params.length - 1])); 
       if (d) { 
         d.status = params[0]; 
@@ -462,7 +468,7 @@ export const db = {
       } 
       return { lastInsertRowid: 0, changes: 1 } 
     }
-    if (sql.includes('UPDATE deposits SET amount') && params) {
+    if (normalizedSql.includes('UPDATE deposits SET amount') && params) {
       const d = getItem<any>('deposits', String(params[params.length - 1]));
       if (d) {
         // בדיקה אם זה UPDATE עם שדות מחזוריים (11 פרמטרים)
@@ -490,12 +496,12 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (sql.includes('DELETE FROM deposits WHERE id') && params) { 
+    if (normalizedSql.includes('DELETE FROM deposits WHERE id') && params) { 
       const d = getItem<any>('deposits', String(params[0])); 
       if (d) setItem('deposits', String(params[0]), { ...d, is_deleted: true, deleted_at: new Date().toISOString() }); 
       return { lastInsertRowid: 0, changes: 1 } 
     }
-    if (sql.includes('UPDATE donations SET') && params) {
+    if (normalizedSql.includes('UPDATE donations SET') && params) {
       const d = getItem<any>('donations', String(params[params.length - 1]));
       if (d) {
         d.amount = params[0]
@@ -507,17 +513,20 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (sql.includes('DELETE FROM donations WHERE id') && params) { removeItem('donations', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
-    if (sql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM donations WHERE id') && params) { removeItem('donations', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     
     // ⚠️ אזהרה: SQL לא מזוהה - עלול לגרום לנתונים לא להישמר
-    console.warn(`[DB] ⚠️ Unrecognized SQL command (fallback): ${sql.substring(0, 100)}`)
+    console.warn(`[DB] ⚠️ Unrecognized SQL command (fallback): ${normalizedSql.substring(0, 100)}`)
     return { lastInsertRowid: 1, changes: 1 }
   },
 
   async get(sql: string, params?: unknown[]): Promise<unknown> {
-    if (sql.includes('SELECT id FROM depositors') && params) return getAllItems<any>('depositors').find(d => d.first_name === params[0] && d.last_name === params[1] && d.phone === params[2]) || null
-    if (sql.includes('SELECT id FROM donors') && params) return getAllItems<any>('donors').find(d => d.first_name === params[0] && d.last_name === params[1] && d.phone === params[2]) || null
+    // נרמול SQL — מבטל רגישות לרווחים וירידות שורה
+    const normalizedSql = sql.replace(/\s+/g, ' ').trim()
+    
+    if (normalizedSql.includes('SELECT id FROM depositors') && params) return getAllItems<any>('depositors').find(d => d.first_name === params[0] && d.last_name === params[1] && d.phone === params[2]) || null
+    if (normalizedSql.includes('SELECT id FROM donors') && params) return getAllItems<any>('donors').find(d => d.first_name === params[0] && d.last_name === params[1] && d.phone === params[2]) || null
     return null
   },
 }

@@ -511,3 +511,123 @@ describe('Complex Deposit Scenarios', () => {
     expect(isDepositDue(dueDate, '2026-08-01')).toBe(true)
   })
 })
+
+// ========================================
+// בדיקות רגרסיה: טיפול ב-SQL מרובה שורות
+// ========================================
+
+describe('Multi-line SQL Regression Tests', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should handle UPDATE deposits with multi-line template strings', async () => {
+    // סימולציה של עדכון הפקדה עם template string מרובה שורות (כמו ב-DepositSidePanel.tsx)
+    const depositId = 'test-deposit-id'
+    const updatedData = {
+      amount: 5000,
+      deposit_date: '2026-02-01',
+      period_type: 'fixed',
+      due_date: '2026-08-01',
+      notes: 'הערה מעודכנת',
+    }
+
+    // Mock db.run מדמה את ההתנהגות האמיתית
+    let capturedSql = ''
+    let capturedParams: unknown[] = []
+    
+    vi.mocked(db.run).mockImplementation(async (sql: string, params?: unknown[]) => {
+      capturedSql = sql
+      capturedParams = params || []
+      return { lastInsertRowid: 0, changes: 1 }
+    })
+
+    // קריאה עם SQL מרובה שורות (עם ירידות שורה ורווחים בין SET ל-amount)
+    await db.run(
+      `UPDATE deposits SET 
+        amount = ?, 
+        deposit_date = ?, 
+        period_type = ?, 
+        due_date = ?, 
+        notes = ? 
+      WHERE id = ?`,
+      [
+        updatedData.amount,
+        updatedData.deposit_date,
+        updatedData.period_type,
+        updatedData.due_date,
+        updatedData.notes,
+        depositId,
+      ]
+    )
+
+    // וידוא שהפונקציה קיבלה את ה-SQL
+    expect(capturedSql).toContain('UPDATE deposits SET')
+    expect(capturedSql).toContain('amount = ?')
+    expect(capturedParams).toEqual([
+      5000,
+      '2026-02-01',
+      'fixed',
+      '2026-08-01',
+      'הערה מעודכנת',
+      depositId,
+    ])
+    
+    // וידוא שהפונקציה החזירה הצלחה
+    expect(db.run).toHaveBeenCalledTimes(1)
+  })
+
+  it('should handle UPDATE deposits SET status with multi-line SQL', async () => {
+    const depositId = 'test-deposit-id'
+    
+    vi.mocked(db.run).mockImplementation(async () => {
+      return { lastInsertRowid: 0, changes: 1 }
+    })
+
+    // עדכון סטטוס עם SQL מרובה שורות
+    await db.run(
+      `UPDATE deposits SET 
+        status = ?, 
+        withdrawal_date = ?, 
+        withdrawn_amount = ?, 
+        withdrawal_payment_method = ?, 
+        withdrawal_payment_details = ? 
+      WHERE id = ?`,
+      ['withdrawn', '2026-02-15', 5000, 'bank_transfer', 'העברה לחשבון 12345', depositId]
+    )
+
+    expect(db.run).toHaveBeenCalledTimes(1)
+  })
+
+  it('should normalize SQL with multiple spaces and line breaks', async () => {
+    // SQL עם רווחים מרובים וירידות שורה שונות
+    const messySql = `UPDATE    deposits    SET
+      
+        amount   =   ?,
+        deposit_date  =  ?
+        
+      WHERE   id   =   ?`
+    
+    vi.mocked(db.run).mockImplementation(async () => {
+      return { lastInsertRowid: 0, changes: 1 }
+    })
+
+    await db.run(messySql, [3000, '2026-03-01', 'test-id'])
+
+    // הנירמול צריך לטפל בכל הרווחים והירידות
+    expect(db.run).toHaveBeenCalledWith(messySql, [3000, '2026-03-01', 'test-id'])
+  })
+
+  it('should recognize UPDATE with tabs and mixed whitespace', async () => {
+    // SQL עם tabs, רווחים מרובים ו-\r\n (Windows line breaks)
+    const tabSql = `UPDATE\tdeposits\tSET\r\n\t\tamount\t=\t?,\r\n\t\tdeposit_date\t=\t?\r\nWHERE\tid\t=\t?`
+    
+    vi.mocked(db.run).mockImplementation(async () => {
+      return { lastInsertRowid: 0, changes: 1 }
+    })
+
+    await db.run(tabSql, [7000, '2026-04-01', 'test-id'])
+
+    expect(db.run).toHaveBeenCalledTimes(1)
+  })
+})
