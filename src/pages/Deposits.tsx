@@ -50,10 +50,11 @@ import {
   Payment as PaymentIcon,
 } from '@mui/icons-material';
 import { db, depositWithdrawalsService } from '../services/database';
-import { generateDepositorReport, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
+import { generateDepositorReport, generateDepositDocument, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
 import DepositorSidePanel from '../components/donations/DepositorSidePanel';
 import DepositSidePanel from '../components/donations/DepositSidePanel';
+import { EditRecurringDialog } from '../components/recurring/EditRecurringDialog';
 import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
 import AmountInput from '../components/AmountInput';
 
@@ -124,6 +125,8 @@ export default function Deposits() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedDepositForHistory, setSelectedDepositForHistory] = useState<Deposit | null>(null);
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
+  const [manageRecurringDialogOpen, setManageRecurringDialogOpen] = useState(false);
+  const [selectedRecurringDepositId, setSelectedRecurringDepositId] = useState<number | null>(null);
 
   // Snackbar
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -477,6 +480,39 @@ export default function Deposits() {
     setHistoryDialogOpen(true);
   };
 
+  const handleGenerateDepositReceipt = async (deposit: Deposit) => {
+    if (!selectedDepositor) return;
+
+    try {
+      const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id);
+
+      await generateDepositDocument({
+        gemachName: settings.gemach_name || 'גמ"ח',
+        gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
+        depositorName: `${selectedDepositor.first_name} ${selectedDepositor.last_name}`,
+        amount: deposit.amount,
+        depositDate: deposit.deposit_date,
+        periodType: deposit.period_type,
+        dueDate: deposit.due_date,
+        dateFormat: settings.date_format,
+        isRecurring: deposit.is_recurring === 1,
+        recurringDepositNumber: deposit.recurring_deposit_number,
+        recurringDepositCount: deposit.recurring_deposit_count,
+        withdrawals: withdrawals.map(w => ({ amount: w.amount, withdrawal_date: w.withdrawal_date })),
+      });
+
+      setSnackbar({ open: true, message: 'הקבלה הופקה בהצלחה', severity: 'success' });
+    } catch (error) {
+      console.error('Error generating deposit receipt:', error);
+      setSnackbar({ open: true, message: 'שגיאה בהפקת הקבלה', severity: 'error' });
+    }
+  };
+
   const formatCurrency = (amount: number) => `₪${amount.toLocaleString()}`;
 
   return (
@@ -804,7 +840,8 @@ export default function Deposits() {
                                   color="info"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // TODO: Implement recurring deposit management
+                                    setSelectedRecurringDepositId(deposit.id);
+                                    setManageRecurringDialogOpen(true);
                                   }}
                                   sx={{ '&:hover': { bgcolor: 'grey.200' } }}
                                 >
@@ -840,6 +877,20 @@ export default function Deposits() {
                                 sx={{ '&:hover': { bgcolor: 'grey.200' } }}
                               >
                                 <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <Tooltip title="הפק קבלה">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateDepositReceipt(deposit);
+                                }}
+                                sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                              >
+                                <DocIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                             
@@ -1082,8 +1133,56 @@ export default function Deposits() {
                       variant="outlined"
                       color="info"
                       startIcon={<EmailIcon />}
-                      onClick={() => {
-                        // TODO: Send report by email
+                      onClick={async () => {
+                        if (!selectedDepositor) return;
+
+                        try {
+                          // Prepare deposits data with withdrawals (same calculation as the report)
+                          const depositsWithDetails = await Promise.all(
+                            deposits.map(async (dep) => {
+                              const withdrawals = await depositWithdrawalsService.getByDeposit(dep.id);
+                              const withdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+                              let depositAmount = dep.amount;
+                              if (dep.is_recurring === 1 && dep.recurring_deposit_number) {
+                                depositAmount = dep.amount * dep.recurring_deposit_number;
+                              }
+                              return {
+                                ...dep,
+                                withdrawn_amount: withdrawn,
+                                remaining: depositAmount - withdrawn,
+                              };
+                            })
+                          );
+
+                          const totalActive = depositsWithDetails
+                            .filter(d => d.status === 'active')
+                            .reduce((sum, d) => sum + d.remaining, 0);
+
+                          const emailData = createDepositorReportEmailData({
+                            gemachName: settings.gemach_name || 'גמ"ח',
+                            depositorName: `${selectedDepositor.first_name} ${selectedDepositor.last_name}`,
+                            depositorEmail: selectedDepositor.email,
+                            totalActive,
+                            deposits: depositsWithDetails.map(d => ({
+                              id: d.id,
+                              amount: d.amount,
+                              deposit_date: d.deposit_date,
+                              period_type: d.period_type,
+                              status: d.status,
+                            })),
+                          });
+
+                          const provider = (settings.email_provider || 'gmail') as EmailProvider;
+                          const result = await openEmailWithDocument(emailData, provider);
+                          setSnackbar({
+                            open: true,
+                            message: result.message,
+                            severity: result.success ? 'success' : 'error',
+                          });
+                        } catch (error) {
+                          console.error('Error sending email:', error);
+                          setSnackbar({ open: true, message: 'שגיאה בשליחת המייל', severity: 'error' });
+                        }
                       }}
                     >
                       שלח דו"ח במייל
@@ -1241,6 +1340,22 @@ export default function Deposits() {
           setDepositorPanelOpen(false);
         }}
       />
+
+      {/* Manage Recurring Deposit Dialog */}
+      {selectedRecurringDepositId !== null && (
+        <EditRecurringDialog
+          open={manageRecurringDialogOpen}
+          onClose={() => setManageRecurringDialogOpen(false)}
+          itemType="deposit"
+          itemId={selectedRecurringDepositId as unknown as string}
+          onSuccess={() => {
+            setSnackbar({ open: true, message: 'ההפקדה המחזורית עודכנה בהצלחה', severity: 'success' });
+            if (selectedDepositor) {
+              loadDepositsForDepositor(selectedDepositor.id);
+            }
+          }}
+        />
+      )}
 
       {/* Snackbar */}
       <Snackbar

@@ -14,6 +14,8 @@ import {
   Stack,
   Snackbar,
   Alert,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { db } from '../../services/database';
@@ -62,6 +64,9 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
     period_type: 'flexible',
     due_date: '',
     notes: '',
+    is_recurring: false,
+    // Total number of deposits in the recurring series (including this first one)
+    recurring_total: 2,
   });
   
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -76,6 +81,8 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         period_type: deposit.period_type,
         due_date: deposit.due_date || '',
         notes: deposit.notes || '',
+        is_recurring: deposit.is_recurring === 1,
+        recurring_total: deposit.recurring_deposit_count || 2,
       });
     } else if (!deposit && open) {
       // Reset for new deposit
@@ -85,6 +92,8 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         period_type: 'flexible',
         due_date: '',
         notes: '',
+        is_recurring: false,
+        recurring_total: 2,
       });
     }
   }, [deposit, open]);
@@ -94,6 +103,11 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
     
     if (formData.amount <= 0) {
       setSnackbar({ open: true, message: 'נא להזין סכום תקין', severity: 'error' });
+      return;
+    }
+
+    if (!deposit?.id && formData.is_recurring && formData.recurring_total < 2) {
+      setSnackbar({ open: true, message: 'הפקדה מחזורית חייבת לכלול לפחות 2 הפקדות', severity: 'error' });
       return;
     }
     
@@ -120,23 +134,35 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         setSnackbar({ open: true, message: 'ההפקדה עודכנה בהצלחה', severity: 'success' });
       } else {
         // Create new deposit
+        const isRecurring = formData.is_recurring;
+        const recurringDay = isRecurring ? new Date(formData.deposit_date).getDate() : null;
+        // recurring_months = כמה הפקדות נוספות ייווצרו אוטומטית אחרי זו הראשונה
+        const recurringMonths = isRecurring ? formData.recurring_total - 1 : null;
+        const recurringDepositNumber = isRecurring ? 1 : null;
+        const recurringDepositCount = isRecurring ? formData.recurring_total : null;
+
         await db.run(
           `INSERT INTO deposits (
             depositor_id, amount, deposit_date, period_type, due_date, 
-            is_recurring, notes, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count,
+            notes, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             depositor.id,
             formData.amount,
             formData.deposit_date,
             formData.period_type,
             formData.due_date || null,
-            0, // not recurring for now
+            isRecurring ? 1 : 0,
+            recurringDay,
+            recurringMonths,
+            recurringDepositNumber,
+            recurringDepositCount,
             formData.notes,
             'active'
           ]
         );
-        setSnackbar({ open: true, message: 'ההפקדה נוספה בהצלחה', severity: 'success' });
+        setSnackbar({ open: true, message: isRecurring ? 'ההפקדה המחזורית נוספה בהצלחה' : 'ההפקדה נוספה בהצלחה', severity: 'success' });
       }
       
       setTimeout(() => {
@@ -217,6 +243,48 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
               InputLabelProps={{ shrink: true }}
               fullWidth
             />
+          )}
+
+          {/* Recurring deposit option - only available when creating a new deposit */}
+          {!deposit && (
+            <>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.is_recurring}
+                    onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
+                  />
+                }
+                label="הפקדה מחזורית"
+              />
+
+              {formData.is_recurring && (
+                <TextField
+                  label="מספר הפקדות בסדרה"
+                  type="number"
+                  value={formData.recurring_total}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    setFormData({ ...formData, recurring_total: isNaN(value) ? 2 : value });
+                  }}
+                  inputProps={{ min: 2 }}
+                  helperText={`הפקדה זו תהיה מספר 1 מתוך ${formData.recurring_total || 2}. ההפקדות הבאות ייווצרו אוטומטית מדי חודש באותו יום בחודש (${new Date(formData.deposit_date).getDate()}).`}
+                  error={formData.recurring_total < 2}
+                  fullWidth
+                />
+              )}
+            </>
+          )}
+
+          {/* Info note when editing a deposit that is part of a recurring series */}
+          {deposit && deposit.is_recurring === 1 && (
+            <Alert severity="info">
+              הפקדה זו היא חלק מסדרה מחזורית (מס' {deposit.recurring_deposit_number ?? '?'} מתוך {deposit.recurring_deposit_count ?? '?'}).
+              לא ניתן לשנות כאן את פרטי המחזוריות (סכום, יום בחודש, מספר חודשים) או לסיים את הסדרה מוקדם.
+              {deposit.recurring_deposit_number === 1
+                ? ' לשם כך יש להשתמש בכפתור "נהל הפקדה מחזורית" (אייקון החץ המסתובב) שמופיע על כרטיס הפקדה זו.'
+                : ' לשם כך יש להשתמש בכפתור "נהל הפקדה מחזורית" שמופיע על כרטיס ההפקדה הראשונה בסדרה (מס\' 1).'}
+            </Alert>
           )}
           
           <TextField
