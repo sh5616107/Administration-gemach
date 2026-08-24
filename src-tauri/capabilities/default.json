@@ -7,6 +7,16 @@
     "core:default",
     "shell:allow-open",
     "fs:default",
+    "dialog:default",
+    "dialog:allow-open",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-copy-file",
+      "allow": [{ "path": "**" }]
+    },
     "updater:default",
     "updater:allow-check",
     "updater:allow-download",
