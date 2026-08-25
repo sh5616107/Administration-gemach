@@ -17,6 +17,26 @@
       "identifier": "fs:allow-copy-file",
       "allow": [{ "path": "**" }]
     },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$APPLOCALDATA/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$APPLOCALDATA/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-stat",
+      "allow": [{ "path": "$APPLOCALDATA/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [{ "path": "$APPLOCALDATA/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": [{ "path": "$APPLOCALDATA/**" }, { "path": "$APPDATA/**" }]
+    },
     "updater:default",
     "updater:allow-check",
     "updater:allow-download",
