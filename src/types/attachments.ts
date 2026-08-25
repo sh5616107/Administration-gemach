@@ -41,6 +41,13 @@ export interface Attachment {
   entityType: AttachmentEntityType
   entityId: string
   category: AttachmentCategory
+  /**
+   * Free-text label shown alongside the category when category === 'אחר'.
+   * Keeps `category` itself a closed union (so the future "missing
+   * documents" report can still rely on it) while letting the user say
+   * what the "other" document actually is.
+   */
+  customLabel?: string
   /** Original file name, for display only. */
   fileName: string
   /**

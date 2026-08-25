@@ -70,6 +70,7 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
   const [attachDialogOpen, setAttachDialogOpen] = useState(false)
   const [pickedCategory, setPickedCategory] = useState<AttachmentCategory>('שטר הלוואה')
   const [pickedNote, setPickedNote] = useState('')
+  const [pickedCustomLabel, setPickedCustomLabel] = useState('')
   const [attaching, setAttaching] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<Attachment | null>(null)
@@ -101,13 +102,24 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
 
   const handleAttach = async () => {
     if (!entityId) return
+    if (pickedCategory === 'אחר' && !pickedCustomLabel.trim()) {
+      setError('נא להקליד כותרת עבור המסמך')
+      return
+    }
     setAttaching(true)
     setError(null)
     try {
-      const created = await pickAndAttachFile(entityType, entityId, pickedCategory, pickedNote.trim() || undefined)
+      const created = await pickAndAttachFile(
+        entityType,
+        entityId,
+        pickedCategory,
+        pickedNote.trim() || undefined,
+        pickedCategory === 'אחר' ? pickedCustomLabel.trim() : undefined
+      )
       if (created) {
         setAttachDialogOpen(false)
         setPickedNote('')
+        setPickedCustomLabel('')
         setPickedCategory('שטר הלוואה')
         await refresh()
       }
@@ -217,7 +229,7 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
                       {att.fileName}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {att.category}
+                      {att.category === 'אחר' && att.customLabel ? att.customLabel : att.category}
                       {att.fileSize ? ` · ${formatFileSize(att.fileSize)}` : ''}
                       {' · נוסף '}
                       {new Date(att.addedDate).toLocaleDateString('he-IL')}
@@ -289,6 +301,16 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
               <MenuItem key={cat} value={cat}>{cat}</MenuItem>
             ))}
           </TextField>
+          {pickedCategory === 'אחר' && (
+            <TextField
+              fullWidth
+              required
+              label="כותרת המסמך"
+              value={pickedCustomLabel}
+              onChange={e => setPickedCustomLabel(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+          )}
           <TextField
             fullWidth
             label="הערה (אופציונלי)"
@@ -303,7 +325,7 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAttachDialogOpen(false)} disabled={attaching}>ביטול</Button>
+          <Button onClick={() => { setAttachDialogOpen(false); setPickedCustomLabel('') }} disabled={attaching}>ביטול</Button>
           <Button variant="contained" onClick={handleAttach} disabled={attaching} startIcon={attaching ? <CircularProgress size={16} /> : <AttachFileIcon />}>
             {attaching ? 'מצרף...' : 'בחר קובץ ושמור'}
           </Button>

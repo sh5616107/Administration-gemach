@@ -57,7 +57,8 @@ export async function pickAndAttachFile(
   entityType: AttachmentEntityType,
   entityId: string,
   category: AttachmentCategory,
-  note?: string
+  note?: string,
+  customLabel?: string
 ): Promise<Attachment | null> {
   if (!isTauri()) throw new NotInDesktopAppError()
 
@@ -109,6 +110,7 @@ export async function pickAndAttachFile(
     entityType,
     entityId,
     category,
+    customLabel: category === 'אחר' ? customLabel?.trim() || undefined : undefined,
     fileName: originalName,
     storedPathRelative,
     fileSize,
@@ -202,6 +204,7 @@ export async function reattachFile(attachment: Attachment): Promise<Attachment |
     entityType: attachment.entityType,
     entityId: attachment.entityId,
     category: attachment.category,
+    customLabel: attachment.customLabel,
     fileName: attachment.fileName,
     storedPathRelative: attachment.storedPathRelative,
     fileSize,
