@@ -2,6 +2,7 @@ import { Drawer, Box, IconButton, Typography, Divider } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import type { Loan } from '../../services/database';
 import LoansTab from './LoansTab';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 interface LoanSidePanelProps {
   open: boolean;
@@ -51,6 +52,13 @@ export default function LoanSidePanel({ open, loan, borrowerId, waitlistEntryId,
         hideHeader={true}
         onSaved={handleSaved}
       />
+
+      {loan?.id && (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <AttachmentsSection entityType="loan" entityId={loan.id} />
+        </>
+      )}
     </Drawer>
   );
 }

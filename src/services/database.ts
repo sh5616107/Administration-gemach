@@ -1,6 +1,8 @@
 // Simple JSON file storage
 // Uses localStorage with manual backup/restore to JSON file
 
+import type { Attachment, AttachmentEntityType } from '../types/attachments'
+
 interface DataStore {
   settings: Record<string, string>
   borrowers: Record<string, any>
@@ -19,6 +21,7 @@ interface DataStore {
   guarantorRefunds: Record<string, any>
   waitlist: Record<string, any>
   contacts: Record<string, any>
+  attachments: Record<string, any>
 }
 
 const STORAGE_KEY = 'gemach_data_v1'
@@ -41,6 +44,7 @@ const defaultData: DataStore = {
   guarantorRefunds: {},
   waitlist: {},
   contacts: {},
+  attachments: {},
 }
 
 let data: DataStore = JSON.parse(JSON.stringify(defaultData))
@@ -50,8 +54,28 @@ let initializationPromise: Promise<void> | null = null
 import { saveAppData, loadAppData } from './persistence'
 
 // Save data (async; persistence handles environment detection)
+// NOTE: this is intentionally still "fire and forget" from setItem/removeItem/
+// clearStore's point of view (see below) — changing all ~85 call sites to
+// `await` this would be a much larger, riskier refactor. Instead we track the
+// in-flight save so callers that specifically need a guarantee that a write
+// has actually reached disk (e.g. the startup auto-create-recurring-items
+// flow, which was creating duplicate deposits on every restart because the
+// process could be killed before the previous run's save finished — see
+// scheduler.ts's runStartupChecks) can `await flushPendingSave()`.
+let pendingSave: Promise<void> | null = null
+
 function saveData(): void {
-  saveAppData(data).then(() => { console.log('💾 Data saved') }).catch(e => console.error('❌ Error saving:', e))
+  pendingSave = saveAppData(data).then(() => { console.log('💾 Data saved') }).catch(e => { console.error('❌ Error saving:', e) })
+}
+
+/**
+ * Waits for the most recently triggered save (if any) to finish writing to
+ * disk. Safe to call even if nothing is pending (resolves immediately).
+ */
+export async function flushPendingSave(): Promise<void> {
+  if (pendingSave) {
+    await pendingSave
+  }
 }
 
 // Load data (async)
@@ -1611,6 +1635,38 @@ export const contactsService = {
       })
     })
   }
+}
+
+// Attachments Service (MVP scope — see "אפיון פיצ'ר: צירוף מסמכים", section 4)
+// This only handles the DB-record side (list/create/hard-delete). The
+// filesystem side (copying files into the managed archive, opening them,
+// deleting the physical copy) lives in services/attachmentsStorage.ts,
+// which calls into this service for the record bookkeeping.
+export const attachmentsService = {
+  async getAll(): Promise<Attachment[]> {
+    return getAllItems<Attachment>('attachments').filter(a => !a.isDeleted)
+  },
+  async getByEntity(entityType: AttachmentEntityType, entityId: string): Promise<Attachment[]> {
+    const all = await this.getAll()
+    return all
+      .filter(a => a.entityType === entityType && a.entityId === entityId)
+      .sort((a, b) => new Date(b.addedDate).getTime() - new Date(a.addedDate).getTime())
+  },
+  async getById(id: string): Promise<Attachment | null> {
+    return getItem<Attachment>('attachments', id)
+  },
+  async create(a: Omit<Attachment, 'id' | 'addedDate'>): Promise<Attachment> {
+    const id = generateId('attachments')
+    const record: Attachment = { ...a, id, addedDate: new Date().toISOString() }
+    setItem('attachments', id, record)
+    return record
+  },
+  // Hard delete: removes the DB record only. Deleting the physical file is
+  // the caller's responsibility (see attachmentsStorage.hardDeleteAttachment) —
+  // kept separate so this service has no filesystem dependency.
+  async hardDelete(id: string): Promise<void> {
+    removeItem('attachments', id)
+  },
 }
 
 // Export/Import

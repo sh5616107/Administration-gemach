@@ -1,4 +1,34 @@
 const STORAGE_KEY = 'gemach_data_v1'
+const DATA_FILE = 'gemach_data.json'
+const TMP_FILE = 'gemach_data.json.tmp'
+
+/**
+ * Writes `json` to `fileName` atomically within `baseDir`: writes to a
+ * temporary sibling file first, then renames it over the real file.
+ * A crash/power-loss mid-write leaves either the old file intact or the
+ * new one fully written — never a half-written gemach_data.json.
+ * (See spec: "אפיון פיצ'ר: צירוף מסמכים" section 7.3.)
+ */
+async function writeFileAtomic(fileName: string, json: string, baseDir: any): Promise<void> {
+  const { writeTextFile, rename, remove, exists } = await import('@tauri-apps/plugin-fs')
+
+  await writeTextFile(TMP_FILE, json, { baseDir })
+
+  try {
+    await rename(TMP_FILE, fileName, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir })
+  } catch (renameError) {
+    // Clean up the temp file if the rename itself failed, so we don't
+    // leave stray .tmp files behind on repeated failures.
+    try {
+      if (await exists(TMP_FILE, { baseDir })) {
+        await remove(TMP_FILE, { baseDir })
+      }
+    } catch {
+      // best-effort cleanup only
+    }
+    throw renameError
+  }
+}
 
 export async function saveAppData(obj: unknown): Promise<void> {
   const json = JSON.stringify(obj)
@@ -6,7 +36,7 @@ export async function saveAppData(obj: unknown): Promise<void> {
   // Try Tauri fs
   if ((window as any).__TAURI__) {
     try {
-      const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { BaseDirectory } = await import('@tauri-apps/plugin-fs')
       const { appLocalDataDir } = await import('@tauri-apps/api/path')
       
       // Get the app local data directory
@@ -15,13 +45,13 @@ export async function saveAppData(obj: unknown): Promise<void> {
       
       // Try to write to local data directory (should be next to exe in portable mode)
       try {
-        await writeTextFile('gemach_data.json', json, { baseDir: BaseDirectory.AppLocalData })
+        await writeFileAtomic(DATA_FILE, json, BaseDirectory.AppLocalData)
         console.log('💾 ✅ Saved to AppLocalData:', localDataDir)
         return
       } catch (localError) {
         console.warn('⚠️ Cannot write to AppLocalData, trying AppData:', localError)
         // Fall back to AppData
-        await writeTextFile('gemach_data.json', json, { baseDir: BaseDirectory.AppData })
+        await writeFileAtomic(DATA_FILE, json, BaseDirectory.AppData)
         console.log('💾 Saved to AppData (fallback)')
         return
       }
@@ -30,7 +60,8 @@ export async function saveAppData(obj: unknown): Promise<void> {
     }
   }
 
-  // Fallback: localStorage
+  // Fallback: localStorage (writes are already effectively atomic here —
+  // the browser either commits the full string or throws, e.g. on quota)
   try {
     localStorage.setItem(STORAGE_KEY, json)
     console.log('💾 Saved to localStorage')
