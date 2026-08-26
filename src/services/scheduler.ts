@@ -371,8 +371,29 @@ export async function processAutoRepayment(loanId: string, amount: number): Prom
 }
 
 
-// Run all checks on app startup
+// Run all checks on app startup.
+// Guarded against concurrent double-invocation (e.g. React StrictMode
+// intentionally double-invokes effects in development, calling this twice
+// almost simultaneously) — without this guard, two overlapping runs can each
+// pass autoCreateRecurringDeposits/autoCreateRecurringLoans's duplicate-check
+// before either has actually created its record, so both create one.
+// Only concurrent calls are deduped — once a run finishes, the next call
+// starts a fresh run (existing tests, and any legitimate re-check, rely on
+// being able to call this more than once across the lifetime of the app).
+let inFlightStartupChecks: Promise<Alert[]> | null = null
+
 export async function runStartupChecks(): Promise<Alert[]> {
+  if (inFlightStartupChecks) {
+    console.log('[SCHEDULER] runStartupChecks already in flight — reusing result')
+    return inFlightStartupChecks
+  }
+  inFlightStartupChecks = runStartupChecksInternal().finally(() => {
+    inFlightStartupChecks = null
+  })
+  return inFlightStartupChecks
+}
+
+async function runStartupChecksInternal(): Promise<Alert[]> {
   console.log('[SCHEDULER] runStartupChecks started')
   
   // First, activate planned loans that have reached their date
