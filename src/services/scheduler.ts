@@ -1,4 +1,4 @@
-import { loansService, repaymentsService, db, getAllItems } from './database'
+import { loansService, repaymentsService, db, getAllItems, flushPendingSave } from './database'
 
 interface Alert {
   id: string
@@ -401,6 +401,15 @@ export async function runStartupChecks(): Promise<Alert[]> {
     deposit: depositAlerts.length,
     planned: plannedLoanAlerts.length
   })
+  
+  // Make sure anything created above (activated/auto-created loans and
+  // deposits in particular) has actually finished writing to disk before we
+  // consider startup checks done. Without this, a save triggered by e.g.
+  // autoCreateRecurringDeposits() could still be in flight if the process
+  // exits shortly after startup — and the next launch would then see the
+  // pre-save state and create the same recurring item again. See
+  // database.ts's flushPendingSave for details.
+  await flushPendingSave()
   
   return [...recurringAlerts, ...repaymentAlerts, ...depositAlerts, ...plannedLoanAlerts]
 }

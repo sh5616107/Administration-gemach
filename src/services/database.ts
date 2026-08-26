@@ -54,8 +54,28 @@ let initializationPromise: Promise<void> | null = null
 import { saveAppData, loadAppData } from './persistence'
 
 // Save data (async; persistence handles environment detection)
+// NOTE: this is intentionally still "fire and forget" from setItem/removeItem/
+// clearStore's point of view (see below) — changing all ~85 call sites to
+// `await` this would be a much larger, riskier refactor. Instead we track the
+// in-flight save so callers that specifically need a guarantee that a write
+// has actually reached disk (e.g. the startup auto-create-recurring-items
+// flow, which was creating duplicate deposits on every restart because the
+// process could be killed before the previous run's save finished — see
+// scheduler.ts's runStartupChecks) can `await flushPendingSave()`.
+let pendingSave: Promise<void> | null = null
+
 function saveData(): void {
-  saveAppData(data).then(() => { console.log('💾 Data saved') }).catch(e => console.error('❌ Error saving:', e))
+  pendingSave = saveAppData(data).then(() => { console.log('💾 Data saved') }).catch(e => { console.error('❌ Error saving:', e) })
+}
+
+/**
+ * Waits for the most recently triggered save (if any) to finish writing to
+ * disk. Safe to call even if nothing is pending (resolves immediately).
+ */
+export async function flushPendingSave(): Promise<void> {
+  if (pendingSave) {
+    await pendingSave
+  }
 }
 
 // Load data (async)
