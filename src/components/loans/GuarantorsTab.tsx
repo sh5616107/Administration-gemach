@@ -48,6 +48,7 @@ import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkNewGuarantor, type CrossCheckResult } from '../../services/crossCheck'
 import { GuarantorRefundDialog } from '../GuarantorRefundDialog'
+import AttachmentsSection from '../attachments/AttachmentsSection'
 
 const emptyGuarantor: Omit<Guarantor, 'id' | 'created_at'> = {
   first_name: '',
@@ -647,6 +648,13 @@ export default function GuarantorsTab() {
               </Button>
             )}
           </Box>
+
+          {editingId && (
+            <>
+              <Divider sx={{ my: 2 }} />
+              <AttachmentsSection entityType="guarantor" entityId={editingId} />
+            </>
+          )}
         </CardContent>
       </Card>
 

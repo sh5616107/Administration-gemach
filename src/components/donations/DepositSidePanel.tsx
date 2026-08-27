@@ -21,6 +21,7 @@ import { Close as CloseIcon } from '@mui/icons-material';
 import { db } from '../../services/database';
 import AmountInput from '../AmountInput';
 import PaymentMethodSelect, { PaymentMethodData } from '../PaymentMethodSelect';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 interface Deposit {
   id: number;
@@ -308,6 +309,13 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
               {deposit ? 'שמור' : 'הוסף הפקדה'}
             </Button>
           </Box>
+
+          {deposit?.id != null && (
+            <>
+              <Divider />
+              <AttachmentsSection entityType="deposit" entityId={String(deposit.id)} />
+            </>
+          )}
         </Stack>
       </Drawer>
       

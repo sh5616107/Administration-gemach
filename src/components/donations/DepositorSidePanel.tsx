@@ -1,6 +1,7 @@
-import { Drawer, Box, IconButton } from '@mui/material';
+import { Drawer, Box, IconButton, Divider } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import DepositorForm from './DepositorForm';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 interface Depositor {
   id?: number
@@ -48,6 +49,13 @@ export default function DepositorSidePanel({ open, depositor, onClose, onSaved }
         </IconButton>
       </Box>
       <DepositorForm depositor={depositor} onSaved={handleSaved} />
+
+      {depositor?.id != null && (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <AttachmentsSection entityType="depositor" entityId={String(depositor.id)} />
+        </>
+      )}
     </Drawer>
   );
 }

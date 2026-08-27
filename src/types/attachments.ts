@@ -16,7 +16,9 @@ export type AttachmentEntityType =
   | 'repayment'
   | 'borrower'
   | 'guarantor'
+  | 'donor'
   | 'donation'
+  | 'depositor'
   | 'deposit'
 
 export type AttachmentCategory =

@@ -45,6 +45,7 @@ import { useSettings } from '../hooks/useSettings';
 import { formatDisplayDate, toHebrewDate } from '../utils/dateUtils';
 import AmountInput from '../components/AmountInput';
 import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
+import AttachmentsSection from '../components/attachments/AttachmentsSection';
 
 interface Donor {
   id: number;
@@ -1020,6 +1021,13 @@ export default function Donations() {
               {isSavingDonation ? 'שומר...' : (activeDonation ? 'שמור' : 'הוסף תרומה')}
             </Button>
           </Box>
+
+          {activeDonation?.id != null && (
+            <>
+              <Divider />
+              <AttachmentsSection entityType="donation" entityId={String(activeDonation.id)} />
+            </>
+          )}
         </Stack>
       </Drawer>
 
@@ -1115,6 +1123,13 @@ export default function Donations() {
             {selectedDonor ? 'עדכן תורם' : 'שמור תורם'}
           </Button>
         </Box>
+
+        {selectedDonor?.id != null && (
+          <>
+            <Divider sx={{ my: 3 }} />
+            <AttachmentsSection entityType="donor" entityId={String(selectedDonor.id)} />
+          </>
+        )}
       </Drawer>
 
       {/* Snackbar */}

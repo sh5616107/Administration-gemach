@@ -1,7 +1,8 @@
-import { Drawer, Box, IconButton } from '@mui/material';
+import { Drawer, Box, IconButton, Divider } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import type { Borrower } from '../../services/database';
 import BorrowerForm from './BorrowerForm';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 interface BorrowerSidePanelProps {
   open: boolean;
@@ -37,6 +38,13 @@ export default function BorrowerSidePanel({ open, borrower, onClose, onSaved }: 
         </IconButton>
       </Box>
       <BorrowerForm borrower={borrower} onSaved={handleSaved} />
+
+      {borrower?.id && (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <AttachmentsSection entityType="borrower" entityId={borrower.id} />
+        </>
+      )}
     </Drawer>
   );
 }
