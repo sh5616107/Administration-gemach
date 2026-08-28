@@ -20,6 +20,7 @@ import {
 import { db, depositWithdrawalsService } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import { generateDepositorReport, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../../services/documents'
+import { confirmAction } from '../../utils/confirmDialog'
 
 interface Depositor {
   id?: number
@@ -256,7 +257,7 @@ export default function DepositorForm({ depositor, onSaved }: DepositorFormProps
       console.error('Error checking deposits:', error)
     }
 
-    if (!confirm('האם למחוק את המפקיד?')) return
+    if (!(await confirmAction('האם למחוק את המפקיד?'))) return
 
     try {
       // מחיקת כל ההפקדות של המפקיד

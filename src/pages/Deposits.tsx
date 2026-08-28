@@ -50,6 +50,7 @@ import {
   Payment as PaymentIcon,
 } from '@mui/icons-material';
 import { db, depositWithdrawalsService } from '../services/database';
+import { confirmAction } from '../utils/confirmDialog';
 import { generateDepositorReport, generateDepositDocument, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
 import DepositorSidePanel from '../components/donations/DepositorSidePanel';
@@ -232,8 +233,12 @@ export default function Deposits() {
       }
 
       // If selectDepositorId provided, select it
+      // NOTE: depositor ids are UUID strings (see generateId() in services/database.ts),
+      // not numbers — comparing with parseInt(selectDepositorId) never matched anything,
+      // which is why creating a new depositor never navigated to their page. Compare as
+      // strings instead, the same way loadBorrowers() does in UnifiedLoansPage.tsx.
       if (selectDepositorId) {
-        const newDepositor = depositorsWithStats.find(d => d.id === parseInt(selectDepositorId));
+        const newDepositor = depositorsWithStats.find(d => String(d.id) === String(selectDepositorId));
         if (newDepositor) {
           setSelectedDepositor(newDepositor);
         }
@@ -378,7 +383,7 @@ export default function Deposits() {
       return;
     }
     
-    if (!confirm('האם למחוק את ההפקדה?')) return;
+    if (!(await confirmAction('האם למחוק את ההפקדה?'))) return;
 
     try {
       await db.run('DELETE FROM deposits WHERE id = ?', [deposit.id]);
@@ -478,6 +483,34 @@ export default function Deposits() {
     setWithdrawalHistory(withdrawals);
     setSelectedDepositForHistory(deposit);
     setHistoryDialogOpen(true);
+  };
+
+  // BUG FIX: a deposit that has any withdrawals could never be deleted
+  // (see handleDeleteDeposit), but until now there was no way to remove a
+  // withdrawal record either — depositWithdrawalsService.delete() existed in
+  // the service layer but was never called from any screen, so a fully- or
+  // partially-withdrawn deposit was permanently stuck. This wires up a delete
+  // action from the withdrawal-history dialog itself.
+  const handleDeleteWithdrawal = async (withdrawal: any) => {
+    if (!selectedDepositForHistory) return;
+
+    if (!(await confirmAction('האם למחוק את רשומת המשיכה? הפעולה תשחזר את הסכום להפקדה.'))) return;
+
+    try {
+      await depositWithdrawalsService.delete(withdrawal.id);
+      setSnackbar({ open: true, message: 'רשומת המשיכה נמחקה', severity: 'success' });
+
+      // Refresh the history dialog itself
+      const refreshedWithdrawals = await depositWithdrawalsService.getByDeposit(selectedDepositForHistory.id);
+      setWithdrawalHistory(refreshedWithdrawals);
+
+      // Refresh the deposits list so the withdrawn/remaining amounts and the
+      // delete-blocking check reflect the removed withdrawal
+      if (selectedDepositor) await loadDepositsForDepositor(selectedDepositor.id);
+    } catch (error) {
+      console.error('Error deleting withdrawal:', error);
+      setSnackbar({ open: true, message: 'שגיאה במחיקת רשומת המשיכה', severity: 'error' });
+    }
   };
 
   const handleGenerateDepositReceipt = async (deposit: Deposit) => {
@@ -1279,6 +1312,7 @@ export default function Deposits() {
                     <TableCell align="right">תאריך משיכה</TableCell>
                     <TableCell align="center">סכום</TableCell>
                     <TableCell align="right">אמצעי תשלום</TableCell>
+                    <TableCell align="center">פעולות</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1308,6 +1342,17 @@ export default function Deposits() {
                         <TableCell align="right">
                           {paymentMethodText}
                         </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title="מחק רשומת משיכה">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteWithdrawal(withdrawal)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -1318,6 +1363,7 @@ export default function Deposits() {
                     <TableCell align="center" sx={{ fontWeight: 'bold', color: 'error.main' }}>
                       {formatCurrency(withdrawalHistory.reduce((sum, w) => sum + w.amount, 0))}
                     </TableCell>
+                    <TableCell />
                     <TableCell />
                   </TableRow>
                 </TableBody>
