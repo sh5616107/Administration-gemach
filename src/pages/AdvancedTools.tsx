@@ -65,6 +65,7 @@ import AmountInput from '../components/AmountInput'
 import ExcelImportDialog from '../components/ExcelImportDialog'
 import { exportToExcel, exportPeriodicTransactionsToExcel } from '../services/excelImport'
 import { getTransactionsForPeriod, getMonthRange, getYearRange } from '../services/reportsService'
+import AttachmentMaintenanceTools from '../components/attachments/AttachmentMaintenanceTools'
 
 interface OverdueLoan {
   id: string  // UUID
@@ -1363,6 +1364,11 @@ export default function AdvancedTools() {
               </Box>
             </CardContent>
           </Card>
+        </Grid>
+
+        {/* Attachments maintenance (check missing / clean up soft-deleted) */}
+        <Grid item xs={12}>
+          <AttachmentMaintenanceTools />
         </Grid>
 
         {/* Reports */}

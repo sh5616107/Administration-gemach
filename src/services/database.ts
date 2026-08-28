@@ -175,7 +175,7 @@ function generateNumericId(storeName: keyof DataStore): number {
   return newId
 }
 
-function getItem<T>(storeName: keyof DataStore, id: string): T | null {
+export function getItem<T>(storeName: keyof DataStore, id: string): T | null {
   return (data[storeName] as Record<string, T>)[id] || null
 }
 
@@ -322,10 +322,20 @@ export const db = {
     if (normalizedSql.includes('DELETE FROM guarantors') && !normalizedSql.includes('WHERE')) { clearStore('guarantors'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM donations') && !normalizedSql.includes('WHERE')) { clearStore('donations'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM donors') && !normalizedSql.includes('WHERE')) { clearStore('donors'); return { lastInsertRowid: 0, changes: 1 } }
-    if (normalizedSql.includes('DELETE FROM donors WHERE id') && params) { removeItem('donors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM donors WHERE id') && params) {
+      removeItem('donors', String(params[0]))
+      const attachedDocs = await attachmentsService.getByEntity('donor', String(params[0]))
+      if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+      return { lastInsertRowid: 0, changes: 1 }
+    }
     if (normalizedSql.includes('DELETE FROM deposits') && !normalizedSql.includes('WHERE')) { clearStore('deposits'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM depositors') && !normalizedSql.includes('WHERE')) { clearStore('depositors'); return { lastInsertRowid: 0, changes: 1 } }
-    if (normalizedSql.includes('DELETE FROM depositors WHERE id') && params) { removeItem('depositors', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM depositors WHERE id') && params) {
+      removeItem('depositors', String(params[0]))
+      const attachedDocs = await attachmentsService.getByEntity('depositor', String(params[0]))
+      if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+      return { lastInsertRowid: 0, changes: 1 }
+    }
     if (normalizedSql.includes('DELETE FROM contacts') && !normalizedSql.includes('WHERE')) { clearStore('contacts'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM contacts WHERE phone') && params) { removeItem('contacts', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('UPDATE depositors SET') && params) {
@@ -523,6 +533,7 @@ export const db = {
     if (normalizedSql.includes('DELETE FROM deposits WHERE id') && params) { 
       const d = getItem<any>('deposits', String(params[0])); 
       if (d) setItem('deposits', String(params[0]), { ...d, is_deleted: true, deleted_at: new Date().toISOString() }); 
+      await attachmentsService.softDeleteByEntity('deposit', String(params[0]))
       return { lastInsertRowid: 0, changes: 1 } 
     }
     if (normalizedSql.includes('UPDATE donations SET') && params) {
@@ -537,7 +548,12 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (normalizedSql.includes('DELETE FROM donations WHERE id') && params) { removeItem('donations', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM donations WHERE id') && params) {
+      removeItem('donations', String(params[0]))
+      const attachedDocs = await attachmentsService.getByEntity('donation', String(params[0]))
+      if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+      return { lastInsertRowid: 0, changes: 1 }
+    }
     if (normalizedSql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     
     // ⚠️ אזהרה: SQL לא מזוהה - עלול לגרום לנתונים לא להישמר
@@ -597,6 +613,9 @@ export const borrowersService = {
     const blacklistEntry = blacklistItems.find(b => b.entity_type === 'borrower' && b.entity_id === id)
     if (blacklistEntry) removeItem('blacklist', blacklistEntry.id)
     removeItem('borrowers', id) 
+    // מחיקת רשומות המסמכים המצורפים (ראו הערה על קבצים פיזיים ב-attachmentsService.hardDeleteMany)
+    const attachedDocs = await attachmentsService.getByEntity('borrower', id)
+    if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
   },
 }
 
@@ -626,6 +645,8 @@ export const guarantorsService = {
     const blacklistEntry = blacklistItems.find(b => b.entity_type === 'guarantor' && b.entity_id === id)
     if (blacklistEntry) removeItem('blacklist', blacklistEntry.id)
     removeItem('guarantors', id) 
+    const attachedDocs = await attachmentsService.getByEntity('guarantor', id)
+    if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
   },
   async getTotalGuarantees(id: string): Promise<number> { return (await loansService.getAll()).filter(l => (l.guarantor1_id === id || l.guarantor2_id === id) && l.status === 'active').reduce((s, l) => s + l.amount - (l.total_repaid || 0), 0) },
 }
@@ -714,7 +735,7 @@ export const loansService = {
     return { lastInsertRowid: id } 
   },
   async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, ...d }) },
-  async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
+  async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }); await attachmentsService.softDeleteByEntity('loan', id) },
   async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
   
   /**
@@ -766,7 +787,7 @@ export const repaymentsService = {
   async getByLoan(loanId: string): Promise<Repayment[]> { return getAllItems<Repayment>('repayments').filter(r => r.loan_id === loanId && !r.is_deleted).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()) },
   async create(r: Omit<Repayment, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('repayments'); setItem('repayments', id, { ...r, id, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: string, data: Partial<Repayment>): Promise<void> { const existing = getItem<Repayment>('repayments', id); if (existing && !existing.is_deleted) setItem('repayments', id, { ...existing, ...data }) },
-  async delete(id: string): Promise<void> { const e = getItem<Repayment>('repayments', id); if (e) setItem('repayments', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }) },
+  async delete(id: string): Promise<void> { const e = getItem<Repayment>('repayments', id); if (e) setItem('repayments', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }); await attachmentsService.softDeleteByEntity('repayment', id) },
 }
 
 // Stats Service
@@ -1646,6 +1667,15 @@ export const attachmentsService = {
   async getAll(): Promise<Attachment[]> {
     return getAllItems<Attachment>('attachments').filter(a => !a.isDeleted)
   },
+  // Includes soft-deleted records — used by the "check missing documents"
+  // scan (which should skip them) and by the cleanup tool (which targets
+  // exactly them).
+  async getAllIncludingDeleted(): Promise<Attachment[]> {
+    return getAllItems<Attachment>('attachments')
+  },
+  async getSoftDeleted(): Promise<Attachment[]> {
+    return getAllItems<Attachment>('attachments').filter(a => a.isDeleted)
+  },
   async getByEntity(entityType: AttachmentEntityType, entityId: string): Promise<Attachment[]> {
     const all = await this.getAll()
     return all
@@ -1667,6 +1697,79 @@ export const attachmentsService = {
   async hardDelete(id: string): Promise<void> {
     removeItem('attachments', id)
   },
+  // Hard-deletes several records' DB rows in one save (physical files are
+  // the caller's responsibility, same contract as hardDelete). Used by the
+  // cleanup tool and by hard-delete cascades (borrower/guarantor/depositor/
+  // donor) so removing N attachments doesn't trigger N separate saves.
+  async hardDeleteMany(ids: string[]): Promise<void> {
+    for (const id of ids) {
+      delete (data.attachments as Record<string, Attachment>)[id]
+    }
+    saveData()
+  },
+  // Soft-deletes every attachment linked to one entity in a single save —
+  // used when a soft-delete-capable parent (loan/repayment/deposit) is
+  // itself soft-deleted. See spec section 8.11.
+  async softDeleteByEntity(entityType: AttachmentEntityType, entityId: string): Promise<void> {
+    const store = data.attachments as Record<string, Attachment>
+    let changed = false
+    for (const att of Object.values(store)) {
+      if (att.entityType === entityType && att.entityId === entityId && !att.isDeleted) {
+        store[att.id] = { ...att, isDeleted: true }
+        changed = true
+      }
+    }
+    if (changed) saveData()
+  },
+  // Applies a batch of isMissing updates in one consolidated save — the
+  // "check missing documents" scan tool calls this once at the end of a
+  // full scan, never per-attachment (see spec section 7.3's closed
+  // decision on when isMissing is allowed to hit disk).
+  async setMissingFlagsBatch(updates: { id: string; isMissing: boolean }[]): Promise<void> {
+    if (updates.length === 0) return
+    const store = data.attachments as Record<string, Attachment>
+    for (const { id, isMissing } of updates) {
+      const existing = store[id]
+      if (existing) store[id] = { ...existing, isMissing }
+    }
+    saveData()
+  },
+}
+
+// Resolves a human-readable label for an attachment's parent entity, for
+// the "missing documents" report. Best-effort: falls back to a generic
+// label if the parent record can't be found (e.g. it was hard-deleted
+// without cleaning up its attachments — see spec section 8.11/8.12).
+const ATTACHMENT_ENTITY_STORE: Record<AttachmentEntityType, keyof DataStore> = {
+  loan: 'loans',
+  repayment: 'repayments',
+  borrower: 'borrowers',
+  guarantor: 'guarantors',
+  donor: 'donors',
+  donation: 'donations',
+  depositor: 'depositors',
+  deposit: 'deposits',
+}
+
+const ATTACHMENT_ENTITY_LABEL: Record<AttachmentEntityType, string> = {
+  loan: 'הלוואה',
+  repayment: 'פירעון',
+  borrower: 'לווה',
+  guarantor: 'ערב',
+  donor: 'תורם',
+  donation: 'תרומה',
+  depositor: 'מפקיד',
+  deposit: 'הפקדה',
+}
+
+export function resolveAttachmentEntityLabel(entityType: AttachmentEntityType, entityId: string): string {
+  const storeName = ATTACHMENT_ENTITY_STORE[entityType]
+  const record = getItem<any>(storeName, entityId)
+  const kind = ATTACHMENT_ENTITY_LABEL[entityType]
+  if (!record) return `${kind} (נמחק)`
+  const personName = [record.first_name, record.last_name].filter(Boolean).join(' ')
+  const name = personName || (record.loan_number ? `הלוואה #${record.loan_number}` : '') || record.name
+  return name ? `${kind}: ${name}` : `${kind} #${entityId.slice(0, 8)}`
 }
 
 // Export/Import

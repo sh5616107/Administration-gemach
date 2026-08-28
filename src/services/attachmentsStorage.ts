@@ -218,3 +218,101 @@ export function formatFileSize(bytes?: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
+
+/**
+ * "Check missing documents" tool (spec section 6.4 / stage 2 roadmap).
+ *
+ * Scans every non-soft-deleted attachment, checks whether its stored file
+ * still exists in the archive, and writes all the resulting isMissing flags
+ * in ONE consolidated save at the end — never per-attachment. This mirrors
+ * the closed decision in spec section 7.3: a single failed "open" click
+ * only updates in-memory UI state, but a full scan is allowed to persist
+ * isMissing, and it does so cheaply (one save, not N).
+ *
+ * User-initiated only (called from the Advanced Tools screen) — never runs
+ * automatically on startup.
+ */
+export interface MissingDocumentsScanResult {
+  checked: number
+  missing: Attachment[]
+}
+
+export async function scanForMissingDocuments(): Promise<MissingDocumentsScanResult> {
+  if (!isTauri()) throw new NotInDesktopAppError()
+
+  const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const attachments = await attachmentsService.getAll()
+
+  const updates: { id: string; isMissing: boolean }[] = []
+  const missing: Attachment[] = []
+
+  for (const att of attachments) {
+    let fileExists: boolean
+    try {
+      fileExists = await exists(att.storedPathRelative, { baseDir: BaseDirectory.AppLocalData })
+    } catch {
+      fileExists = false
+    }
+    const isMissing = !fileExists
+    if (isMissing !== !!att.isMissing) {
+      updates.push({ id: att.id, isMissing })
+    }
+    if (isMissing) missing.push({ ...att, isMissing: true })
+  }
+
+  await attachmentsService.setMissingFlagsBatch(updates)
+
+  return { checked: attachments.length, missing }
+}
+
+/**
+ * "Clean up soft-deleted documents" tool (spec section 6.4 / 8.11-8.12).
+ *
+ * Soft-deleted attachments (isDeleted: true) only exist as a byproduct of
+ * a soft-delete-capable parent (loan/repayment/deposit) being deleted —
+ * see attachmentsService.softDeleteByEntity. Their physical files are kept
+ * around in case the parent gets restored. This tool permanently deletes
+ * the physical file + DB record for ones that have been soft-deleted for
+ * at least `olderThanDays` (default 90), after the caller has shown the
+ * user a report and gotten confirmation.
+ */
+export interface CleanupCandidate {
+  attachment: Attachment
+  daysSinceDeleted: number
+}
+
+export async function listCleanupCandidates(olderThanDays = 90): Promise<CleanupCandidate[]> {
+  const softDeleted = await attachmentsService.getSoftDeleted()
+  const now = Date.now()
+  return softDeleted
+    .map(attachment => ({
+      attachment,
+      // addedDate is the closest thing we track to "when it entered the
+      // system" — soft-deletion doesn't stamp its own date in MVP scope,
+      // so age is measured from addedDate. Good enough for a manual,
+      // user-confirmed cleanup tool; not used for any automatic action.
+      daysSinceDeleted: Math.floor((now - new Date(attachment.addedDate).getTime()) / (1000 * 60 * 60 * 24)),
+    }))
+    .filter(c => c.daysSinceDeleted >= olderThanDays)
+    .sort((a, b) => b.daysSinceDeleted - a.daysSinceDeleted)
+}
+
+export async function cleanupSoftDeletedAttachments(attachments: Attachment[]): Promise<number> {
+  if (attachments.length === 0) return 0
+
+  if (isTauri()) {
+    const { remove, exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    for (const att of attachments) {
+      try {
+        if (await exists(att.storedPathRelative, { baseDir: BaseDirectory.AppLocalData })) {
+          await remove(att.storedPathRelative, { baseDir: BaseDirectory.AppLocalData })
+        }
+      } catch (e) {
+        console.warn('לא ניתן היה למחוק פיזית את הקובץ בניקוי:', att.fileName, e)
+      }
+    }
+  }
+
+  await attachmentsService.hardDeleteMany(attachments.map(a => a.id))
+  return attachments.length
+}
