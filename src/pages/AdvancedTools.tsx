@@ -31,6 +31,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  CircularProgress,
 } from '@mui/material'
 import {
   Download as ExportIcon,
@@ -66,6 +67,7 @@ import ExcelImportDialog from '../components/ExcelImportDialog'
 import { exportToExcel, exportPeriodicTransactionsToExcel } from '../services/excelImport'
 import { getTransactionsForPeriod, getMonthRange, getYearRange } from '../services/reportsService'
 import AttachmentMaintenanceTools from '../components/attachments/AttachmentMaintenanceTools'
+import { exportFullBackupZip } from '../services/fullBackupService'
 
 interface OverdueLoan {
   id: string  // UUID
@@ -312,6 +314,28 @@ export default function AdvancedTools() {
     } catch (error) {
       console.error('Error exporting:', error)
       setSnackbar({ open: true, message: 'שגיאה בייצוא', severity: 'error' })
+    }
+  }
+
+  const [fullBackupInProgress, setFullBackupInProgress] = useState(false)
+  const [fullBackupProgress, setFullBackupProgress] = useState('')
+
+  const handleExportFullBackup = async () => {
+    setFullBackupInProgress(true)
+    setFullBackupProgress('')
+    try {
+      const result = await exportFullBackupZip(msg => setFullBackupProgress(msg))
+      setSnackbar({
+        open: true,
+        message: `הגיבוי המלא יוצא בהצלחה (${result.fileCount} מסמכים כלולים)`,
+        severity: 'success',
+      })
+    } catch (error) {
+      console.error('Error exporting full backup:', error)
+      setSnackbar({ open: true, message: 'שגיאה בייצוא הגיבוי המלא', severity: 'error' })
+    } finally {
+      setFullBackupInProgress(false)
+      setFullBackupProgress('')
     }
   }
 
@@ -1360,6 +1384,15 @@ export default function AdvancedTools() {
                   color="info"
                 >
                   יצוא לאקסל
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={fullBackupInProgress ? <CircularProgress size={16} /> : <ExportIcon />}
+                  onClick={handleExportFullBackup}
+                  disabled={fullBackupInProgress}
+                  color="secondary"
+                >
+                  {fullBackupInProgress ? (fullBackupProgress || 'מייצא...') : 'גיבוי מלא (כולל מסמכים)'}
                 </Button>
               </Box>
             </CardContent>

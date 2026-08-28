@@ -72,7 +72,27 @@ export async function pickAndAttachFile(
   // `open` only returns an array when `multiple: true`; we never pass that,
   // but guard defensively in case the option ever changes.
   if (!selected || Array.isArray(selected)) return null
-  const sourcePath = selected
+
+  return attachFileFromPath(entityType, entityId, selected, category, note, customLabel)
+}
+
+/**
+ * Copies a file already known by its absolute source path into the managed
+ * archive for the given entity and creates the Attachment record. Shared by
+ * pickAndAttachFile (source path comes from the native file dialog) and the
+ * drag & drop flow in AttachmentsSection (source path comes from the
+ * webview's onDragDropEvent) — both need the exact same archive-copy logic,
+ * just a different way of obtaining the source path.
+ */
+export async function attachFileFromPath(
+  entityType: AttachmentEntityType,
+  entityId: string,
+  sourcePath: string,
+  category: AttachmentCategory,
+  note?: string,
+  customLabel?: string
+): Promise<Attachment> {
+  if (!isTauri()) throw new NotInDesktopAppError()
 
   const { mkdir, copyFile, exists, stat, BaseDirectory } = await import('@tauri-apps/plugin-fs')
   const { basename } = await import('@tauri-apps/api/path')
@@ -315,4 +335,39 @@ export async function cleanupSoftDeletedAttachments(attachments: Attachment[]): 
 
   await attachmentsService.hardDeleteMany(attachments.map(a => a.id))
   return attachments.length
+}
+
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png']
+
+export function isPreviewableImage(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase()
+  return !!ext && IMAGE_EXTENSIONS.includes(ext)
+}
+
+/**
+ * Resolves an image attachment's stored copy to a URL the webview can load
+ * directly in an <img src>, via Tauri's asset:// protocol (see
+ * tauri.conf.json's app.security.assetProtocol, scoped to the app's own
+ * data directories). Returns null for non-image attachments, or when not
+ * running under Tauri (no asset protocol available, e.g. a plain browser
+ * preview) — callers should fall back to the generic file-type icon.
+ */
+export async function resolveAttachmentPreviewUrl(attachment: Attachment): Promise<string | null> {
+  if (!isTauri()) return null
+  if (!isPreviewableImage(attachment.fileName)) return null
+
+  try {
+    const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const fileExists = await exists(attachment.storedPathRelative, { baseDir: BaseDirectory.AppLocalData })
+    if (!fileExists) return null
+
+    const { appLocalDataDir, join } = await import('@tauri-apps/api/path')
+    const { convertFileSrc } = await import('@tauri-apps/api/core')
+    const base = await appLocalDataDir()
+    const absolutePath = await join(base, attachment.storedPathRelative)
+    return convertFileSrc(absolutePath)
+  } catch (e) {
+    console.warn('לא ניתן היה ליצור תצוגה מקדימה עבור:', attachment.fileName, e)
+    return null
+  }
 }

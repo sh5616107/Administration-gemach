@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Box,
   Stack,
@@ -33,10 +33,13 @@ import { ATTACHMENT_CATEGORIES } from '../../types/attachments'
 import { attachmentsService } from '../../services/database'
 import {
   pickAndAttachFile,
+  attachFileFromPath,
   openAttachment,
   hardDeleteAttachment,
   reattachFile,
   formatFileSize,
+  resolveAttachmentPreviewUrl,
+  isPreviewableImage,
   NotInDesktopAppError,
 } from '../../services/attachmentsStorage'
 
@@ -78,6 +81,11 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
 
   const [missingIds, setMissingIds] = useState<Set<string>>(new Set())
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
+
+  const dropZoneRef = useRef<HTMLDivElement>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [droppedFilePath, setDroppedFilePath] = useState<string | null>(null)
 
   const refresh = async () => {
     if (!entityId) {
@@ -88,6 +96,15 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
     try {
       const items = await attachmentsService.getByEntity(entityType, entityId)
       setAttachments(items)
+
+      // Resolve image thumbnails in the background — don't block the list
+      // from rendering on this. Each result is applied as it resolves.
+      for (const att of items) {
+        if (!isPreviewableImage(att.fileName)) continue
+        resolveAttachmentPreviewUrl(att).then(url => {
+          if (url) setPreviewUrls(prev => ({ ...prev, [att.id]: url }))
+        })
+      }
     } catch (e) {
       console.error('שגיאה בטעינת מסמכים מצורפים:', e)
     } finally {
@@ -100,6 +117,61 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityType, entityId])
 
+  // Drag & drop: getCurrentWebview().onDragDropEvent fires for the whole
+  // window, not a specific DOM element — so we check the drop position
+  // against this component's own bounding box before reacting. Position
+  // comes in physical (device) pixels, while getBoundingClientRect() is in
+  // logical/CSS pixels, hence the devicePixelRatio conversion.
+  // NOTE: this is Tauri-only functionality that hasn't been exercised in a
+  // live build yet — if drops aren't detected, check that
+  // window.__TAURI__/__TAURI_INTERNALS__ is actually present at runtime.
+  useEffect(() => {
+    if (!entityId) return
+    if (typeof window === 'undefined') return
+    const hasTauri = '__TAURI__' in window || '__TAURI_INTERNALS__' in window
+    if (!hasTauri) return
+
+    let unlisten: (() => void) | undefined
+    let cancelled = false
+
+    const isPositionOverDropZone = (physicalX: number, physicalY: number): boolean => {
+      const el = dropZoneRef.current
+      if (!el) return false
+      const ratio = window.devicePixelRatio || 1
+      const logicalX = physicalX / ratio
+      const logicalY = physicalY / ratio
+      const rect = el.getBoundingClientRect()
+      return logicalX >= rect.left && logicalX <= rect.right && logicalY >= rect.top && logicalY <= rect.bottom
+    }
+
+    import('@tauri-apps/api/webview').then(({ getCurrentWebview }) => {
+      if (cancelled) return
+      getCurrentWebview().onDragDropEvent(event => {
+        const payload = event.payload
+        if (payload.type === 'over') {
+          setIsDragOver(isPositionOverDropZone(payload.position.x, payload.position.y))
+        } else if (payload.type === 'drop') {
+          const overZone = isPositionOverDropZone(payload.position.x, payload.position.y)
+          setIsDragOver(false)
+          if (overZone && payload.paths.length > 0) {
+            setDroppedFilePath(payload.paths[0])
+            setAttachDialogOpen(true)
+          }
+        } else if (payload.type === 'leave') {
+          setIsDragOver(false)
+        }
+      }).then(fn => {
+        if (cancelled) fn()
+        else unlisten = fn
+      })
+    })
+
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [entityId])
+
   const handleAttach = async () => {
     if (!entityId) return
     if (pickedCategory === 'אחר' && !pickedCustomLabel.trim()) {
@@ -109,18 +181,28 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
     setAttaching(true)
     setError(null)
     try {
-      const created = await pickAndAttachFile(
-        entityType,
-        entityId,
-        pickedCategory,
-        pickedNote.trim() || undefined,
-        pickedCategory === 'אחר' ? pickedCustomLabel.trim() : undefined
-      )
+      const created = droppedFilePath
+        ? await attachFileFromPath(
+            entityType,
+            entityId,
+            droppedFilePath,
+            pickedCategory,
+            pickedNote.trim() || undefined,
+            pickedCategory === 'אחר' ? pickedCustomLabel.trim() : undefined
+          )
+        : await pickAndAttachFile(
+            entityType,
+            entityId,
+            pickedCategory,
+            pickedNote.trim() || undefined,
+            pickedCategory === 'אחר' ? pickedCustomLabel.trim() : undefined
+          )
       if (created) {
         setAttachDialogOpen(false)
         setPickedNote('')
         setPickedCustomLabel('')
         setPickedCategory('שטר הלוואה')
+        setDroppedFilePath(null)
         await refresh()
       }
     } catch (e) {
@@ -186,7 +268,17 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
   }
 
   return (
-    <Box>
+    <Box
+      ref={dropZoneRef}
+      sx={isDragOver ? {
+        outline: '2px dashed',
+        outlineColor: 'primary.main',
+        outlineOffset: 4,
+        borderRadius: 1,
+        backgroundColor: 'action.hover',
+        transition: 'background-color 0.15s ease',
+      } : undefined}
+    >
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
         <Typography variant="subtitle1" fontWeight="bold">
           📎 מסמכים מצורפים{attachments.length > 0 ? ` (${attachments.length})` : ''}
@@ -207,6 +299,12 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
         </Typography>
       )}
 
+      {entityId && isDragOver && (
+        <Typography variant="body2" color="primary" sx={{ mb: 1 }}>
+          שחרר כאן כדי לצרף את הקובץ
+        </Typography>
+      )}
+
       {entityId && loading && <CircularProgress size={20} />}
 
       {entityId && !loading && attachments.length === 0 && (
@@ -223,7 +321,16 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
             <Paper key={att.id} variant="outlined" sx={{ p: 1.5 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                 <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
-                  {fileIconFor(att.fileName)}
+                  {previewUrls[att.id] ? (
+                    <Box
+                      component="img"
+                      src={previewUrls[att.id]}
+                      alt={att.fileName}
+                      sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
+                    />
+                  ) : (
+                    fileIconFor(att.fileName)
+                  )}
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="body2" fontWeight="medium" noWrap title={att.fileName}>
                       {att.fileName}
@@ -321,13 +428,15 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
             sx={{ mb: 1 }}
           />
           <Typography variant="caption" color="text.secondary">
-            בלחיצה על "בחר קובץ" תיפתח האפשרות לבחור קובץ מהמחשב. הקובץ יועתק אוטומטית לארכיון המסמכים המסודר של המערכת.
+            {droppedFilePath
+              ? `הקובץ שנגרר (${droppedFilePath.split(/[\\/]/).pop()}) יועתק אוטומטית לארכיון המסמכים המסודר של המערכת.`
+              : 'בלחיצה על "בחר קובץ" תיפתח האפשרות לבחור קובץ מהמחשב. הקובץ יועתק אוטומטית לארכיון המסמכים המסודר של המערכת.'}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setAttachDialogOpen(false); setPickedCustomLabel('') }} disabled={attaching}>ביטול</Button>
+          <Button onClick={() => { setAttachDialogOpen(false); setPickedCustomLabel(''); setDroppedFilePath(null) }} disabled={attaching}>ביטול</Button>
           <Button variant="contained" onClick={handleAttach} disabled={attaching} startIcon={attaching ? <CircularProgress size={16} /> : <AttachFileIcon />}>
-            {attaching ? 'מצרף...' : 'בחר קובץ ושמור'}
+            {attaching ? 'מצרף...' : (droppedFilePath ? 'שמור' : 'בחר קובץ ושמור')}
           </Button>
         </DialogActions>
       </Dialog>
