@@ -254,8 +254,21 @@ export const db = {
       return items
     }
     if (normalizedSql.includes('FROM deposits')) {
-      const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted)
       const depositors = getAllItems<any>('depositors')
+      const withName = (d: any) => ({ ...d, depositor_name: depositors.find(dep => dep.id === d.depositor_id)?.first_name + ' ' + depositors.find(dep => dep.id === d.depositor_id)?.last_name || '' })
+
+      // ✅ BUG FIX: 'WHERE id = ?' had no matching branch below, so it fell
+      // through and returned EVERY deposit in the store unfiltered. Callers
+      // (e.g. createRecurringDeposit in scheduler.ts) then took `results[0]`
+      // assuming it was the requested row — silently working with the WRONG
+      // deposit (and therefore the wrong depositor) whenever more than one
+      // depositor had deposits in the store.
+      if (params && params.length > 0 && normalizedSql.includes('WHERE id')) {
+        const byId = getAllItems<any>('deposits').filter(d => !d.is_deleted && String(d.id) === String(params[0]))
+        return byId.map(withName)
+      }
+
+      const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted)
       
       let filtered = deposits
       
@@ -809,10 +822,10 @@ export const statsService = {
     // חישוב סה"כ הפקדות (כולל מחזוריות, מפחיתים משיכות)
     let totalDeposits = 0
     for (const d of deps) {
-      let depositAmount = d.amount
-      if (d.is_recurring === 1 && d.recurring_deposit_number) {
-        depositAmount = d.amount * d.recurring_deposit_number
-      }
+      // BUG FIX: removed `* recurring_deposit_number` multiplication — see
+      // Deposits.tsx for the full explanation. Each recurring deposit row is
+      // its own independent monthly contribution.
+      const depositAmount = d.amount
       
       // הפחתת משיכות
       const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
@@ -883,11 +896,10 @@ export const statsService = {
     
     // הפקדות (כניסה) ומשיכות (יציאה)
     for (const d of deposits) {
-      // חישוב סכום בפועל להפקדה מחזורית
-      let depositAmount = d.amount || 0
-      if (d.is_recurring === 1 && d.recurring_deposit_number) {
-        depositAmount = (d.amount || 0) * d.recurring_deposit_number
-      }
+      // BUG FIX: removed `* recurring_deposit_number` multiplication — see
+      // Deposits.tsx for the full explanation. Each recurring deposit row is
+      // its own independent monthly contribution.
+      const depositAmount = d.amount || 0
       
       const method = d.payment_method || 'unknown'
       if (d.status === 'active') {

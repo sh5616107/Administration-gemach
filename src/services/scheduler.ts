@@ -28,6 +28,24 @@ interface MissedLoanAlert {
   totalCount: number
 }
 
+// ✅ BUG FIX (series identification mismatch — see
+// באג-סדרה-מחזורית-לא-מתואמת.md): every place in this file that decides
+// "which other loans/deposits belong to the same recurring series" MUST use
+// the exact same criterion as identifySeriesItems() in
+// recurringItemsService.ts (borrower_id/depositor_id + recurring_day), which
+// is also what "עריכת סדרה" / "סיים סדרה מוקדם" operate on. Previously these
+// functions matched on `amount` instead, which is explicitly documented in
+// identifySeriesItems() as unreliable ("the amount might have been
+// changed") — so if a series' amount ever changed, the scheduler and the
+// series-editor could each pick a DIFFERENT loan/deposit as "the latest one",
+// causing "finish series early" to silently fail to stop future creations.
+function isSameLoanSeries(a: any, b: any): boolean {
+  return a.borrower_id === b.borrower_id && a.recurring_day === b.recurring_day
+}
+function isSameDepositSeries(a: any, b: any): boolean {
+  return a.depositor_id === b.depositor_id && a.recurring_day === b.recurring_day
+}
+
 /**
  * Get the latest loan in a series (with highest recurring_loan_number)
  * This is used to read updated parameters after editing recurring items
@@ -36,8 +54,7 @@ interface MissedLoanAlert {
  */
 async function getLatestLoanInSeries(loan: any, allLoans: any[]): Promise<any> {
   const seriesLoans = allLoans.filter((l: any) =>
-    l.borrower_id === loan.borrower_id &&
-    l.amount === loan.amount &&
+    isSameLoanSeries(l, loan) &&
     l.is_recurring === 1 &&
     !l.is_deleted
   )
@@ -56,8 +73,7 @@ async function getLatestLoanInSeries(loan: any, allLoans: any[]): Promise<any> {
  */
 async function getLatestDepositInSeries(deposit: any, allDeposits: any[]): Promise<any> {
   const seriesDeposits = allDeposits.filter((d: any) =>
-    d.depositor_id === deposit.depositor_id &&
-    d.amount === deposit.amount &&
+    isSameDepositSeries(d, deposit) &&
     d.is_recurring === 1 &&
     !d.is_deleted
   )
@@ -509,8 +525,7 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       
       // ✅ תיקון באג 4: סינון !l.is_deleted כדי למנוע תקיעה אם האחרונה נמחקה
       const newerLoanExists = allLoansIncludingDeleted.find((l: any) => 
-        l.borrower_id === loan.borrower_id && 
-        l.amount === loan.amount && 
+        isSameLoanSeries(l, loan) &&
         l.id !== loan.id &&
         l.is_recurring === 1 &&
         l.recurring_loan_number > currentRecurringNumber && // ← הלוואה עם מספר גבוה יותר (בכל חודש)
@@ -535,8 +550,7 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       // Now check if the NEXT loan in sequence already exists
       // Check in ALL loans (including deleted) to see if loan was created and then deleted
       const existingLoanThisMonth = allLoansIncludingDeleted.find((l: any) => 
-        l.borrower_id === loan.borrower_id && 
-        l.amount === loan.amount && 
+        isSameLoanSeries(l, loan) &&
         l.loan_date >= firstDayOfMonth &&
         l.loan_date <= todayStr &&
         l.id !== loan.id &&
@@ -655,9 +669,6 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
       
       if (!shouldCreateToday && !isPastRecurringDay) continue
       
-      // Get the first day of current month
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
-      
       // Check if deposit already created this month - check by recurring number
       const currentRecurringNumber = deposit.recurring_deposit_number || 1
       const nextRecurringNumber = currentRecurringNumber + 1
@@ -666,8 +677,7 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
       // מונע כפילויות כאשר כל הפקדה בסדרה מנסה ליצור את "הבאה שלה"
       // ✅ תיקון באג 4: סינון !d.is_deleted כדי למנוע תקיעה אם האחרונה נמחקה
       const newerDepositExists = allDepositsIncludingDeleted.find((d: any) =>
-        d.depositor_id === deposit.depositor_id &&
-        d.amount === amount &&
+        isSameDepositSeries(d, deposit) &&
         d.id !== deposit.id &&
         d.is_recurring === 1 &&
         d.recurring_deposit_number > currentRecurringNumber &&
@@ -679,10 +689,29 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
         continue
       }
       
+      // ✅ BUG FIX (was missing here, exists for loans as "CRITICAL FIX #2"):
+      // if THIS deposit (the current latest in the series) was itself created
+      // this calendar month, don't create yet another one. Without this check,
+      // `isPastRecurringDay` stays true for every day left in the month, so
+      // opening the app on day 26, 27, 28... each created one more deposit —
+      // one per app launch instead of at most one catch-up per month.
+      const depositDate = new Date(deposit.deposit_date)
+      const depositMonth = depositDate.getMonth()
+      const depositYear = depositDate.getFullYear()
+      const currentMonth = today.getMonth()
+      const currentYear = today.getFullYear()
+      
+      if (depositYear === currentYear && depositMonth === currentMonth) {
+        console.log(`[AUTO-CREATE] Deposit #${deposit.id} was created this month (${deposit.deposit_date}), skipping`)
+        continue
+      }
+      
+      // Get the first day of current month
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+      
       // Check in ALL deposits (including deleted) to see if deposit was created and then deleted
       const existingDepositThisMonth = allDepositsIncludingDeleted.find((d: any) => 
-        d.depositor_id === deposit.depositor_id && 
-        d.amount === amount && // Use updated amount
+        isSameDepositSeries(d, deposit) &&
         d.deposit_date >= firstDayOfMonth &&
         d.deposit_date <= todayStr &&
         d.id !== deposit.id &&
@@ -962,6 +991,16 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     )
     
     // עדכון ההפקדה האחרונה להפחית את recurring_months
+    //
+    // Note: this UPDATE has no matching handler in database.ts's db.run() —
+    // it silently does nothing. Left as-is (not this fix's concern): nothing
+    // ever reads recurring_months off a non-latest row, so it's inert, not
+    // functionally broken. An earlier version of this fix also set `status =
+    // 'superseded'` here to hide old rows from the deposits list, but that
+    // broke softDeleteDepositsPrevention.test.ts, softDeleteLastItemBugFix
+    // .test.ts and updateSeriesItemsBugFix.test.ts, which all depend on every
+    // row in a series staying individually queryable. See Deposits.tsx for
+    // the actual fix to the runaway-multiplier display bug.
     if (latestDeposit.recurring_months) {
       await db.run(
         'UPDATE deposits SET recurring_months = ? WHERE id = ?',

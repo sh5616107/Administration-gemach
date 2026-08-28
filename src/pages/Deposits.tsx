@@ -199,9 +199,12 @@ export default function Deposits() {
         
         for (const deposit of depositorDeposits) {
           let depositAmount = deposit.amount;
-          if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
-            depositAmount = deposit.amount * deposit.recurring_deposit_number;
-          }
+          // BUG FIX: removed `* recurring_deposit_number` multiplication. Each
+          // recurring deposit row is its own independent monthly contribution
+          // (matching expectedFundsCalculator.ts and how recurring loans already
+          // work) - multiplying inflated every row's displayed value by its own
+          // position in the series, so month 2 showed 44 (=22*2) alongside month
+          // 1's own 22, month 3 showed 66, etc. instead of each showing its own 22.
           
           totalDeposited += depositAmount;
           
@@ -292,9 +295,12 @@ export default function Deposits() {
     
     deposits.forEach((d) => {
       let depositAmount = d.amount;
-      if (d.is_recurring === 1 && d.recurring_deposit_number) {
-        depositAmount = d.amount * d.recurring_deposit_number;
-      }
+      // BUG FIX: removed `* recurring_deposit_number` multiplication. Each
+      // recurring deposit row is its own independent monthly contribution
+      // (matching expectedFundsCalculator.ts and how recurring loans already
+      // work) - multiplying inflated every row's displayed value by its own
+      // position in the series, so month 2 showed 44 (=22*2) alongside month
+      // 1's own 22, month 3 showed 66, etc. instead of each showing its own 22.
       
       total += depositAmount;
       const withdrewAmount = d.withdrawn_amount || 0;
@@ -314,9 +320,12 @@ export default function Deposits() {
   const filteredDeposits = useMemo(() => {
     return deposits.filter(deposit => {
       let depositAmount = deposit.amount;
-      if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
-        depositAmount = deposit.amount * deposit.recurring_deposit_number;
-      }
+      // BUG FIX: removed `* recurring_deposit_number` multiplication. Each
+      // recurring deposit row is its own independent monthly contribution
+      // (matching expectedFundsCalculator.ts and how recurring loans already
+      // work) - multiplying inflated every row's displayed value by its own
+      // position in the series, so month 2 showed 44 (=22*2) alongside month
+      // 1's own 22, month 3 showed 66, etc. instead of each showing its own 22.
       
       const balance = depositAmount - (deposit.withdrawn_amount ?? 0);
       const isWithdrawn = balance <= 0;
@@ -402,9 +411,12 @@ export default function Deposits() {
 
     // חישוב סכום הפקדה בפועל (כולל הפקדות מחזוריות) - עקבי עם תצוגת הכרטיס
     let depositAmount = deposit.amount;
-    if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
-      depositAmount = deposit.amount * deposit.recurring_deposit_number;
-    }
+    // BUG FIX: removed `* recurring_deposit_number` multiplication. Each
+    // recurring deposit row is its own independent monthly contribution
+    // (matching expectedFundsCalculator.ts and how recurring loans already
+    // work) - multiplying inflated every row's displayed value by its own
+    // position in the series, so month 2 showed 44 (=22*2) alongside month
+    // 1's own 22, month 3 showed 66, etc. instead of each showing its own 22.
     const availableToWithdraw = depositAmount - alreadyWithdrawn;
 
     if (availableToWithdraw <= 0) {
@@ -733,9 +745,12 @@ export default function Deposits() {
                 <Grid container spacing={2}>
                   {filteredDeposits.map((deposit) => {
                     let depositAmount = deposit.amount;
-                    if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
-                      depositAmount = deposit.amount * deposit.recurring_deposit_number;
-                    }
+                    // BUG FIX: removed `* recurring_deposit_number` multiplication. Each
+                    // recurring deposit row is its own independent monthly contribution
+                    // (matching expectedFundsCalculator.ts and how recurring loans already
+                    // work) - multiplying inflated every row's displayed value by its own
+                    // position in the series, so month 2 showed 44 (=22*2) alongside month
+                    // 1's own 22, month 3 showed 66, etc. instead of each showing its own 22.
                     const withdrawn = deposit.withdrawn_amount || 0;
                     const balance = depositAmount - withdrawn;
                     
@@ -1176,9 +1191,12 @@ export default function Deposits() {
                               const withdrawals = await depositWithdrawalsService.getByDeposit(dep.id);
                               const withdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
                               let depositAmount = dep.amount;
-                              if (dep.is_recurring === 1 && dep.recurring_deposit_number) {
-                                depositAmount = dep.amount * dep.recurring_deposit_number;
-                              }
+                              // BUG FIX: removed `* recurring_deposit_number` multiplication. Each
+                              // recurring deposit row is its own independent monthly contribution
+                              // (matching expectedFundsCalculator.ts and how recurring loans already
+                              // work) - multiplying inflated every row's displayed value by its own
+                              // position in the series, so month 2 showed 44 (=22*2) alongside month
+                              // 1's own 22, month 3 showed 66, etc. instead of each showing its own 22.
                               return {
                                 ...dep,
                                 withdrawn_amount: withdrawn,

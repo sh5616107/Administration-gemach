@@ -1234,11 +1234,11 @@ export async function generateDepositorReport(data: {
     : ''
 
   const depositsHtml = data.deposits.map(dep => {
-    // חישוב סכום בפועל להפקדה מחזורית
-    let depositAmount = dep.amount
-    if (dep.is_recurring === 1 && dep.recurring_deposit_number) {
-      depositAmount = dep.amount * dep.recurring_deposit_number
-    }
+    // BUG FIX: removed `* recurring_deposit_number` multiplication (and the
+    // "amount × N" caption it fed below) — see Deposits.tsx for the full
+    // explanation. Each recurring deposit row is its own independent monthly
+    // contribution, not a running cumulative total.
+    const depositAmount = dep.amount
     
     const withdrawn = dep.withdrawn_amount || 0
     const remaining = dep.remaining !== undefined ? dep.remaining : (depositAmount - withdrawn)
@@ -1252,10 +1252,7 @@ export async function generateDepositorReport(data: {
       ? `🔄 ${dep.recurring_deposit_number}/${dep.recurring_deposit_count}`
       : dep.is_recurring ? '🔄' : ''
     
-    // תצוגת סכום - אם מחזורי, מציגים גם פירוט
-    const amountDisplay = dep.is_recurring === 1 && dep.recurring_deposit_number && dep.recurring_deposit_number > 1
-      ? `${formatCurrency(depositAmount)}<br/><small style="color:#666;">(${formatCurrency(dep.amount)} × ${dep.recurring_deposit_number})</small>`
-      : formatCurrency(depositAmount)
+    const amountDisplay = formatCurrency(depositAmount)
     
     return `
     <tr style="background: ${remaining === 0 ? '#f5f5f5' : 'white'};">
