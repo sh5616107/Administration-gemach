@@ -434,9 +434,33 @@ describe('Expected Funds Calculation', () => {
 
       const result = calculateExpectedFunds([], deposits, today)
 
-      // לא צריכה להיות לולאה אינסופית, ההפקדה הראשונה צריכה להתעלם
-      // ההפקדה השנייה: פברואר, מרץ, אפריל = 3 × 2000 = 6000
-      expect(result.month).toBe(6000)
+      // לא צריכה להיות לולאה אינסופית, ההפקדה הראשונה צריכה להתעלם לגמרי
+      // (recurring_months=0 הוא ערך חוקי שצריך להיפסל, לא לקבל ברירת מחדל של 1)
+      // ההפקדה השנייה בלבד: פברואר, מרץ (בטווח 30 יום מ-1 בפברואר) = 2 × 2000 = 4000
+      expect(result.month).toBe(4000)
+    })
+
+    it('הפקדה עם recurring_months = 0 לא נספרת כאילו היא מחזורית חודשית (0 || 1)', () => {
+      // בדיקת רגרסיה ממוקדת: recurring_months=0 הוא ערך falsy ב-JS, ולכן
+      // ביטוי כמו `deposit.recurring_months || 1` ידרוס אותו בטעות ל-1
+      // ויתייחס להפקדה כאילו היא מחזורית חודשית במקום לפסול אותה.
+      const deposits: Deposit[] = [
+        {
+          id: '1',
+          depositor_id: '1',
+          amount: 1000,
+          deposit_date: '2026-01-01',
+          status: 'active',
+          is_recurring: 1,
+          recurring_months: 0,
+        },
+      ]
+
+      const result = calculateExpectedFunds([], deposits, today)
+
+      expect(result.week).toBe(0)
+      expect(result.month).toBe(0)
+      expect(result.threeMonths).toBe(0)
     })
 
     it('צריך להתעלם מהלוואה מחזורית עם תאריך לא תקין', () => {

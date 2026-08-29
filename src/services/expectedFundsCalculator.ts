@@ -105,7 +105,7 @@ export function calculateExpectedFunds(
 
   for (const deposit of recurringDeposits) {
     const amount = deposit.amount || 0
-    const recurringMonths = deposit.recurring_months || 1
+    const recurringMonths = deposit.recurring_months ?? 1
 
     // בדיקות תקינות
     if (amount <= 0) continue
@@ -118,8 +118,9 @@ export function calculateExpectedFunds(
     if (isNaN(currentDate.getTime())) continue
 
     // מצא את ההפקדה הבאה
+    // הערה: משתמשים ב-'<' ולא ב-'<=' כדי לא לדלג על הפקדה שחלה בדיוק היום
     let iterations = 0
-    while (currentDate <= today && iterations < 100) {
+    while (currentDate < today && iterations < 100) {
       currentDate.setMonth(currentDate.getMonth() + recurringMonths)
       iterations++
     }
