@@ -371,3 +371,30 @@ export async function resolveAttachmentPreviewUrl(attachment: Attachment): Promi
     return null
   }
 }
+
+/**
+ * Physically deletes the entire attachments archive folder (מסמכי_הגמח/),
+ * recursively. Used by the "delete all data" flow (Dashboard.tsx's
+ * handleClearAll) — that flow clears every DataStore table, but until now
+ * never touched the attachments archive, so a full "delete everything"
+ * followed by a backup would still include every previously attached
+ * document. The caller is responsible for also clearing the `attachments`
+ * DB records (via attachmentsService) — this function only handles the
+ * physical files, matching the layering used everywhere else in this
+ * feature (database.ts never touches the filesystem directly).
+ *
+ * Safe to call even if the archive folder doesn't exist yet (e.g. no
+ * attachments were ever added) — silently does nothing in that case.
+ */
+export async function clearEntireArchive(): Promise<void> {
+  if (!isTauri()) return
+
+  const { remove, exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  try {
+    if (await exists(ARCHIVE_ROOT, { baseDir: BaseDirectory.AppLocalData })) {
+      await remove(ARCHIVE_ROOT, { baseDir: BaseDirectory.AppLocalData, recursive: true })
+    }
+  } catch (e) {
+    console.warn('לא ניתן היה למחוק את תיקיית הארכיון במלואה:', e)
+  }
+}

@@ -40,7 +40,8 @@ import {
   Warning as WarningIcon,
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
-import { statsService, borrowersService, loansService, db, waitlistService } from '../services/database'
+import { statsService, borrowersService, loansService, db, waitlistService, attachmentsService } from '../services/database'
+import { clearEntireArchive } from '../services/attachmentsStorage'
 import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmailData, EmailProvider } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import ItemsListDialog from '../components/ItemsListDialog'
@@ -146,6 +147,17 @@ export default function Dashboard() {
       await db.run('DELETE FROM expenses')
       await db.run('DELETE FROM guarantorLoanRepayments')
       await db.run('DELETE FROM guarantorLoans')
+
+      // Attachments: cleared separately from the DELETE FROM chain above,
+      // since attachmentsService doesn't go through the SQL-string shim
+      // (see database.ts) — this was previously missing entirely, so
+      // "delete all" left every attached document (both the DB records
+      // and the physical files in the archive) behind.
+      const allAttachments = await attachmentsService.getAllIncludingDeleted()
+      if (allAttachments.length > 0) {
+        await attachmentsService.hardDeleteMany(allAttachments.map(a => a.id))
+      }
+      await clearEntireArchive()
       
       setClearConfirmOpen(false)
       setClearConfirmText('')

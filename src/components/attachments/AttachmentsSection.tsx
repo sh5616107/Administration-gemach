@@ -392,7 +392,7 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
       </Stack>
 
       {/* Attach dialog */}
-      <Dialog open={attachDialogOpen} onClose={() => !attaching && setAttachDialogOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog open={attachDialogOpen} onClose={() => !attaching && setAttachDialogOpen(false)} maxWidth="xs" fullWidth disableRestoreFocus>
         <DialogTitle>צירוף מסמך</DialogTitle>
         <DialogContent>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -442,7 +442,7 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
       </Dialog>
 
       {/* Delete confirmation */}
-      <Dialog open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)} maxWidth="xs" fullWidth>
+      <Dialog open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)} maxWidth="xs" fullWidth disableRestoreFocus>
         <DialogTitle>מחיקת מסמך</DialogTitle>
         <DialogContent>
           <Typography>

@@ -383,6 +383,7 @@ export const db = {
     if (normalizedSql.includes('DELETE FROM waitlist') && !normalizedSql.includes('WHERE')) { clearStore('waitlist'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM expenses') && !normalizedSql.includes('WHERE')) { clearStore('expenses'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM guarantorLoans') && !normalizedSql.includes('WHERE')) { clearStore('guarantorLoans'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM guarantorLoanRepayments') && !normalizedSql.includes('WHERE')) { clearStore('guarantorLoanRepayments'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM depositWithdrawals') && !normalizedSql.includes('WHERE')) { clearStore('depositWithdrawals'); return { lastInsertRowid: 0, changes: 1 } }
 
     if (normalizedSql.includes('INSERT INTO blacklist') && params) { const id = generateId('blacklist'); setItem('blacklist', String(id), { id, entity_type: params[0], entity_id: params[1], reason: params[2], added_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
