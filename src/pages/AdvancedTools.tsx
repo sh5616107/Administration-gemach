@@ -67,7 +67,7 @@ import ExcelImportDialog from '../components/ExcelImportDialog'
 import { exportToExcel, exportPeriodicTransactionsToExcel } from '../services/excelImport'
 import { getTransactionsForPeriod, getMonthRange, getYearRange } from '../services/reportsService'
 import AttachmentMaintenanceTools from '../components/attachments/AttachmentMaintenanceTools'
-import { exportFullBackupZip } from '../services/fullBackupService'
+import { exportFullBackupZip, importFullBackupZip, parseBackupJson } from '../services/fullBackupService'
 
 interface OverdueLoan {
   id: string  // UUID
@@ -359,80 +359,17 @@ export default function AdvancedTools() {
   const handleImport = () => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.json'
+    input.accept = '.json,.zip'
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
 
       try {
-        const text = await file.text()
-        const data = JSON.parse(text)
+        const isZip = file.name.toLowerCase().endsWith('.zip')
 
-        // Validate backup file
-        if (!data.exportDate && !data.borrowers && !data.settings) {
-          throw new Error('Invalid backup file')
-        }
-
-        // Convert old format to new format if needed
-        const importData: any = {
-          settings: {},
-          borrowers: {},
-          guarantors: {},
-          loans: {},
-          repayments: {},
-          donors: {},
-          donations: {},
-          depositors: {},
-          deposits: {},
-          depositWithdrawals: {},
-          blacklist: {},
-          expenses: {},
-          guarantorLoans: {},
-          guarantorLoanRepayments: {},
-          waitlist: {},
-        }
-
-        // Handle settings
-        if (Array.isArray(data.settings)) {
-          data.settings.forEach((s: any) => { importData.settings[s.key] = s.value })
-        } else if (data.settings) {
-          importData.settings = data.settings
-        }
-
-        // Handle arrays or objects - convert to objects with id as key
-        const convertToObject = (input: any) => {
-          if (!input) return {}
-          // If already an object (not array), return as is
-          if (!Array.isArray(input) && typeof input === 'object') {
-            return input
-          }
-          // If array, convert to object
-          const obj: Record<string, any> = {}
-          if (Array.isArray(input)) {
-            input.forEach(item => { if (item.id) obj[String(item.id)] = item })
-          }
-          return obj
-        }
-
-        if (data.borrowers) importData.borrowers = convertToObject(data.borrowers)
-        if (data.guarantors) importData.guarantors = convertToObject(data.guarantors)
-        if (data.loans) importData.loans = convertToObject(data.loans)
-        if (data.repayments) importData.repayments = convertToObject(data.repayments)
-        if (data.donors) importData.donors = convertToObject(data.donors)
-        if (data.donations) importData.donations = convertToObject(data.donations)
-        if (data.depositors) importData.depositors = convertToObject(data.depositors)
-        if (data.deposits) importData.deposits = convertToObject(data.deposits)
-        if (data.blacklist) importData.blacklist = convertToObject(data.blacklist)
-        if (data.expenses) importData.expenses = convertToObject(data.expenses)
-        if (data.guarantorLoans) importData.guarantorLoans = convertToObject(data.guarantorLoans)
-        if (data.guarantorLoanRepayments) importData.guarantorLoanRepayments = convertToObject(data.guarantorLoanRepayments)
-        if (data.waitlist) importData.waitlist = convertToObject(data.waitlist)
-        if (data.depositWithdrawals) importData.depositWithdrawals = convertToObject(data.depositWithdrawals)
-
-        // Check if this is an old backup with numeric IDs
-        const hasNumericIds = Object.values(importData.borrowers || {}).some(
-          (b: any) => typeof b.id === 'number' || (typeof b.id === 'string' && b.id.length < 20)
-        )
+        const { importData, hasNumericIds, restoredFileCount } = isZip
+          ? await importFullBackupZip(file)
+          : { ...parseBackupJson(await file.text()), restoredFileCount: undefined as number | undefined }
 
         await importAllData(importData)
         
@@ -453,6 +390,12 @@ export default function AdvancedTools() {
             open: true, 
             message: `הגיבוי יובא בהצלחה! הומרו ${result.migrated} רשומות ל-UUID`, 
             severity: 'success' 
+          })
+        } else if (isZip) {
+          setSnackbar({
+            open: true,
+            message: `הגיבוי המלא יובא בהצלחה! שוחזרו ${restoredFileCount} מסמכים`,
+            severity: 'success',
           })
         } else {
           setSnackbar({ open: true, message: 'הגיבוי יובא בהצלחה!', severity: 'success' })
@@ -1367,7 +1310,7 @@ export default function AdvancedTools() {
                   startIcon={<ImportIcon />}
                   onClick={handleImport}
                 >
-                  יבוא מגיבוי
+                  יבוא מגיבוי (JSON או ZIP)
                 </Button>
                 <Button
                   variant="outlined"

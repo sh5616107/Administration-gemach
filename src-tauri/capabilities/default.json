@@ -41,6 +41,10 @@
       "identifier": "fs:allow-read-dir",
       "allow": [{ "path": "$APPLOCALDATA/**" }, { "path": "$APPDATA/**" }]
     },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$APPLOCALDATA/**" }, { "path": "$APPDATA/**" }]
+    },
     "updater:default",
     "updater:allow-check",
     "updater:allow-download",
