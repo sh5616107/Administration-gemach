@@ -284,6 +284,16 @@ export default function Settings() {
     }
   }
 
+  const handleOpenKofi = async () => {
+    const kofiUrl = 'https://ko-fi.com/N4N51O9Q5W'
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('open_url', { url: kofiUrl })
+    } catch {
+      window.open(kofiUrl, '_blank')
+    }
+  }
+
   const handleInstallUpdate = async () => {
     if (!updateInfo) return
     
@@ -835,6 +845,20 @@ export default function Settings() {
                   <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
                   </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleOpenKofi}
+                    startIcon={<span style={{ fontSize: 16 }}>☕</span>}
+                    sx={{
+                      mt: 1,
+                      borderColor: '#72a4f2',
+                      color: '#72a4f2',
+                      '&:hover': { borderColor: '#5b8ee0', bgcolor: 'rgba(114,164,242,0.08)' },
+                    }}
+                  >
+                    תמכו בהמשך הפיתוח
+                  </Button>
                 </Grid>
                 
                 <Grid item xs={12} md={6}>
