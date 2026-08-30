@@ -270,14 +270,7 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
   return (
     <Box
       ref={dropZoneRef}
-      sx={isDragOver ? {
-        outline: '2px dashed',
-        outlineColor: 'primary.main',
-        outlineOffset: 4,
-        borderRadius: 1,
-        backgroundColor: 'action.hover',
-        transition: 'background-color 0.15s ease',
-      } : undefined}
+      sx={isDragOver ? { backgroundColor: 'action.hover', borderRadius: 1, transition: 'background-color 0.15s ease' } : undefined}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
         <Typography variant="subtitle1" fontWeight="bold">
@@ -299,10 +292,23 @@ export default function AttachmentsSection({ entityType, entityId }: Attachments
         </Typography>
       )}
 
-      {entityId && isDragOver && (
-        <Typography variant="body2" color="primary" sx={{ mb: 1 }}>
-          שחרר כאן כדי לצרף את הקובץ
-        </Typography>
+      {entityId && (
+        <Box
+          sx={{
+            mb: 1.5,
+            py: isDragOver ? 2 : 1,
+            textAlign: 'center',
+            border: '2px dashed',
+            borderColor: isDragOver ? 'primary.main' : 'divider',
+            borderRadius: 1,
+            backgroundColor: isDragOver ? 'action.hover' : 'transparent',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Typography variant="caption" color={isDragOver ? 'primary' : 'text.secondary'}>
+            {isDragOver ? 'שחרר כאן כדי לצרף את הקובץ' : 'ניתן גם לגרור קובץ לכאן לצירוף מהיר'}
+          </Typography>
+        </Box>
       )}
 
       {entityId && loading && <CircularProgress size={20} />}
