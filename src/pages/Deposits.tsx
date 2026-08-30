@@ -590,7 +590,7 @@ export default function Deposits() {
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש מפקיד לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth />
+                <TextField {...params} placeholder="חיפוש מפקיד לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth autoFocus />
               )}
             />
           </Grid>

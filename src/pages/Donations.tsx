@@ -193,8 +193,12 @@ export default function Donations() {
         return;
       }
 
+      // NOTE: donor ids are UUID strings (see generateId() in services/database.ts),
+      // not numbers — comparing with parseInt(selectDonorId) never matched anything,
+      // which is why creating a new donor never navigated to their page. Compare as
+      // strings instead, the same way loadDepositors() does in Deposits.tsx.
       if (selectDonorId) {
-        const newDonor = donorsWithStats.find(d => d.id === parseInt(selectDonorId));
+        const newDonor = donorsWithStats.find(d => String(d.id) === String(selectDonorId));
         if (newDonor) {
           setSelectedDonor(newDonor);
         }
@@ -550,7 +554,7 @@ export default function Donations() {
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש תורם לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth />
+                <TextField {...params} placeholder="חיפוש תורם לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth autoFocus />
               )}
             />
           </Grid>
