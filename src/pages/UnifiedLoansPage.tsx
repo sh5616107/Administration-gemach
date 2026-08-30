@@ -115,6 +115,10 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
 
   // Borrower edit panel (separate small drawer, also scoped — not a full navigate)
   const [borrowerPanelOpen, setBorrowerPanelOpen] = useState(false);
+  // true => panel is creating a brand-new borrower, regardless of which borrower
+  // (if any) is currently selected. Lets you add a new borrower while another
+  // borrower's page is open, without clearing the search field first.
+  const [creatingNewBorrower, setCreatingNewBorrower] = useState(false);
 
   // Multi-repayment dialog state
   const [multiRepaymentDialogOpen, setMultiRepaymentDialogOpen] = useState(false);
@@ -583,6 +587,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
               value={selectedBorrower}
               getOptionLabel={(b) => `${b.first_name} ${b.last_name}`}
               onChange={(_, value) => setSelectedBorrower(value)}
+              openOnFocus
               renderOption={(props, b) => (
                 <li {...props} key={b.id}>
                   <Box>
@@ -597,19 +602,37 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש לווה לפי שם, טלפון, ת.ז..." fullWidth autoFocus />
+                <TextField {...params} placeholder="חיפוש לווה לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth autoFocus />
               )}
             />
           </Grid>
           <Grid item xs={12} md={4}>
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={selectedBorrower ? <EditIcon /> : <AddIcon />}
-              onClick={() => setBorrowerPanelOpen(true)}
-            >
-              {selectedBorrower ? 'ערוך פרטי הלווה' : 'הוסף לווה חדש'}
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button
+                fullWidth
+                variant={selectedBorrower ? 'outlined' : 'contained'}
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  setCreatingNewBorrower(true);
+                  setBorrowerPanelOpen(true);
+                }}
+              >
+                לווה חדש
+              </Button>
+              {selectedBorrower && (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  onClick={() => {
+                    setCreatingNewBorrower(false);
+                    setBorrowerPanelOpen(true);
+                  }}
+                >
+                  ערוך פרטי הלווה
+                </Button>
+              )}
+            </Stack>
           </Grid>
         </Grid>
       </Paper>
@@ -1212,15 +1235,6 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
               </Stack>
 
               <Divider />
-
-              {/* Edit/new borrower also opens as a side panel, not a full
-                  page navigation — keeps you in context either way. */}
-              <BorrowerSidePanel
-                open={borrowerPanelOpen}
-                borrower={selectedBorrower}
-                onClose={() => setBorrowerPanelOpen(false)}
-                onSaved={loadBorrowers}
-              />
             </Paper>
           </Grid>
         </Grid>
@@ -1230,12 +1244,20 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
         </Paper>
       )}
 
-      {/* Borrower edit/create panel - works for both selected and new borrowers */}
+      {/* Borrower edit/create panel - works for both selected and new borrowers.
+          borrower is forced to null while creatingNewBorrower is true, so "לווה
+          חדש" always opens a blank form even when another borrower is selected. */}
       <BorrowerSidePanel
         open={borrowerPanelOpen}
-        borrower={selectedBorrower}
-        onClose={() => setBorrowerPanelOpen(false)}
-        onSaved={(borrowerId) => loadBorrowers(borrowerId)}
+        borrower={creatingNewBorrower ? null : selectedBorrower}
+        onClose={() => {
+          setBorrowerPanelOpen(false);
+          setCreatingNewBorrower(false);
+        }}
+        onSaved={(borrowerId) => {
+          loadBorrowers(borrowerId);
+          setCreatingNewBorrower(false);
+        }}
       />
 
       {/* Multi-Repayment Dialog */}

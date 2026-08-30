@@ -91,6 +91,12 @@ export default function Donations() {
   
   // Donor edit dialog
   const [donorDialogOpen, setDonorDialogOpen] = useState(false);
+  // true => dialog is creating a brand-new donor, regardless of which donor
+  // (if any) is currently selected. Lets you add a new donor while another
+  // donor's page is open, without clearing the search field first.
+  const [creatingNewDonor, setCreatingNewDonor] = useState(false);
+  // The donor being edited by the dialog — null while creating a new one.
+  const donorBeingEdited = creatingNewDonor ? null : selectedDonor;
 
   // Snackbar
   const [snackbar, setSnackbar] = useState({ 
@@ -353,16 +359,18 @@ export default function Donations() {
     }
   };
 
-  const handleOpenDonorDialog = () => {
-    if (selectedDonor) {
+  const handleOpenDonorDialog = (forceNew: boolean = false) => {
+    setCreatingNewDonor(forceNew);
+    const donorToEdit = forceNew ? null : selectedDonor;
+    if (donorToEdit) {
       setDonorForm({
-        first_name: selectedDonor.first_name,
-        last_name: selectedDonor.last_name,
-        phone: selectedDonor.phone,
-        id_number: selectedDonor.id_number,
-        address: selectedDonor.address,
-        email: selectedDonor.email,
-        notes: selectedDonor.notes,
+        first_name: donorToEdit.first_name,
+        last_name: donorToEdit.last_name,
+        phone: donorToEdit.phone,
+        id_number: donorToEdit.id_number,
+        address: donorToEdit.address,
+        email: donorToEdit.email,
+        notes: donorToEdit.notes,
       });
     } else {
       setDonorForm({
@@ -386,12 +394,12 @@ export default function Donations() {
 
     try {
       let savedDonorId: string;
-      if (selectedDonor?.id) {
+      if (donorBeingEdited?.id) {
         await db.run(
           'UPDATE donors SET first_name = ?, last_name = ?, phone = ?, id_number = ?, address = ?, email = ?, notes = ? WHERE id = ?',
-          [donorForm.first_name, donorForm.last_name, donorForm.phone, donorForm.id_number, donorForm.address, donorForm.email, donorForm.notes, selectedDonor.id]
+          [donorForm.first_name, donorForm.last_name, donorForm.phone, donorForm.id_number, donorForm.address, donorForm.email, donorForm.notes, donorBeingEdited.id]
         );
-        savedDonorId = selectedDonor.id.toString();
+        savedDonorId = donorBeingEdited.id.toString();
         setSnackbar({ open: true, message: 'התורם עודכן בהצלחה', severity: 'success' });
       } else {
         const result = await db.run(
@@ -403,6 +411,7 @@ export default function Donations() {
       }
       
       setDonorDialogOpen(false);
+      setCreatingNewDonor(false);
       loadDonors(savedDonorId);
     } catch (error) {
       console.error('Error saving donor:', error);
@@ -526,6 +535,7 @@ export default function Donations() {
               getOptionLabel={(d) => `${d.first_name} ${d.last_name}`}
               isOptionEqualToValue={(option, value) => option.id === value.id}
               onChange={(_, value) => setSelectedDonor(value)}
+              openOnFocus
               renderOption={(props, d) => (
                 <li {...props} key={d.id}>
                   <Box>
@@ -540,19 +550,31 @@ export default function Donations() {
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש תורם לפי שם, טלפון, ת.ז..." fullWidth />
+                <TextField {...params} placeholder="חיפוש תורם לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth />
               )}
             />
           </Grid>
           <Grid item xs={12} md={4}>
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={selectedDonor ? <EditIcon /> : <AddIcon />}
-              onClick={handleOpenDonorDialog}
-            >
-              {selectedDonor ? 'ערוך פרטי התורם' : 'הוסף תורם חדש'}
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button
+                fullWidth
+                variant={selectedDonor ? 'outlined' : 'contained'}
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenDonorDialog(true)}
+              >
+                תורם חדש
+              </Button>
+              {selectedDonor && (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  onClick={() => handleOpenDonorDialog(false)}
+                >
+                  ערוך פרטי התורם
+                </Button>
+              )}
+            </Stack>
           </Grid>
         </Grid>
       </Paper>
@@ -1035,7 +1057,10 @@ export default function Donations() {
       <Drawer
         anchor="left"
         open={donorDialogOpen}
-        onClose={() => setDonorDialogOpen(false)}
+        onClose={() => {
+          setDonorDialogOpen(false);
+          setCreatingNewDonor(false);
+        }}
         PaperProps={{
           sx: {
             width: { xs: '100%', sm: 500 },
@@ -1045,9 +1070,9 @@ export default function Donations() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
-            {selectedDonor ? 'עריכת תורם' : 'תורם חדש'}
+            {donorBeingEdited ? 'עריכת תורם' : 'תורם חדש'}
           </Typography>
-          <IconButton onClick={() => setDonorDialogOpen(false)} aria-label="סגור">
+          <IconButton onClick={() => { setDonorDialogOpen(false); setCreatingNewDonor(false); }} aria-label="סגור">
             <CloseIcon />
           </IconButton>
         </Box>
@@ -1116,18 +1141,18 @@ export default function Donations() {
         </Grid>
 
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
-          <Button onClick={() => setDonorDialogOpen(false)}>
+          <Button onClick={() => { setDonorDialogOpen(false); setCreatingNewDonor(false); }}>
             ביטול
           </Button>
           <Button variant="contained" onClick={handleSaveDonor}>
-            {selectedDonor ? 'עדכן תורם' : 'שמור תורם'}
+            {donorBeingEdited ? 'עדכן תורם' : 'שמור תורם'}
           </Button>
         </Box>
 
-        {selectedDonor?.id != null && (
+        {donorBeingEdited?.id != null && (
           <>
             <Divider sx={{ my: 3 }} />
-            <AttachmentsSection entityType="donor" entityId={String(selectedDonor.id)} />
+            <AttachmentsSection entityType="donor" entityId={String(donorBeingEdited.id)} />
           </>
         )}
       </Drawer>

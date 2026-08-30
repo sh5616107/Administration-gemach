@@ -114,6 +114,10 @@ export default function Deposits() {
 
   // Depositor edit panel
   const [depositorPanelOpen, setDepositorPanelOpen] = useState(false);
+  // true => panel is creating a brand-new depositor, regardless of which
+  // depositor (if any) is currently selected. Lets you add a new depositor
+  // while another depositor's page is open, without clearing the search field.
+  const [creatingNewDepositor, setCreatingNewDepositor] = useState(false);
 
   // Withdraw dialog state
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
@@ -571,6 +575,7 @@ export default function Deposits() {
               value={selectedDepositor}
               getOptionLabel={(d) => `${d.first_name} ${d.last_name}`}
               onChange={(_, value) => setSelectedDepositor(value)}
+              openOnFocus
               renderOption={(props, d) => (
                 <li {...props} key={d.id}>
                   <Box>
@@ -585,19 +590,37 @@ export default function Deposits() {
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש מפקיד לפי שם, טלפון, ת.ז..." fullWidth />
+                <TextField {...params} placeholder="חיפוש מפקיד לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth />
               )}
             />
           </Grid>
           <Grid item xs={12} md={4}>
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={selectedDepositor ? <EditIcon /> : <AddIcon />}
-              onClick={() => setDepositorPanelOpen(true)}
-            >
-              {selectedDepositor ? 'ערוך פרטי המפקיד' : 'הוסף מפקיד חדש'}
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button
+                fullWidth
+                variant={selectedDepositor ? 'outlined' : 'contained'}
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  setCreatingNewDepositor(true);
+                  setDepositorPanelOpen(true);
+                }}
+              >
+                מפקיד חדש
+              </Button>
+              {selectedDepositor && (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  onClick={() => {
+                    setCreatingNewDepositor(false);
+                    setDepositorPanelOpen(true);
+                  }}
+                >
+                  ערוך פרטי המפקיד
+                </Button>
+              )}
+            </Stack>
           </Grid>
         </Grid>
       </Paper>
@@ -1394,14 +1417,20 @@ export default function Deposits() {
         </DialogActions>
       </Dialog>
 
-      {/* Depositor Edit Panel */}
+      {/* Depositor Edit/Create Panel — depositor is forced to null while
+          creatingNewDepositor is true, so "מפקיד חדש" always opens a blank
+          form even when another depositor is selected. */}
       <DepositorSidePanel
         open={depositorPanelOpen}
-        depositor={selectedDepositor}
-        onClose={() => setDepositorPanelOpen(false)}
+        depositor={creatingNewDepositor ? null : selectedDepositor}
+        onClose={() => {
+          setDepositorPanelOpen(false);
+          setCreatingNewDepositor(false);
+        }}
         onSaved={(id) => {
           loadDepositors(id);
           setDepositorPanelOpen(false);
+          setCreatingNewDepositor(false);
         }}
       />
 
