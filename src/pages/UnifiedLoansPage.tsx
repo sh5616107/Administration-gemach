@@ -1252,12 +1252,14 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
             fullWidth
             autoFocus
           />
-          <Box sx={{ mt: 2 }}>
-            <PaymentMethodSelect
-              value={multiRepaymentPaymentMethod}
-              onChange={setMultiRepaymentPaymentMethod}
-            />
-          </Box>
+          {settings.show_payment_method === 'yes' && (
+            <Box sx={{ mt: 2 }}>
+              <PaymentMethodSelect
+                value={multiRepaymentPaymentMethod}
+                onChange={setMultiRepaymentPaymentMethod}
+              />
+            </Box>
+          )}
           {multiRepaymentAmount > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
               הסכום יחולק על {loans.filter(l => (l.remaining || 0) > 0).length} הלוואות פעילות
@@ -1269,7 +1271,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
           <Button
             variant="contained"
             onClick={handleMultiRepayment}
-            disabled={multiRepaymentAmount <= 0 || !multiRepaymentPaymentMethod.payment_method || isSubmittingMultiRepayment}
+            disabled={multiRepaymentAmount <= 0 || (settings.show_payment_method === 'yes' && !multiRepaymentPaymentMethod.payment_method) || isSubmittingMultiRepayment}
           >
             {isSubmittingMultiRepayment ? 'מבצע פירעון...' : 'בצע פירעון'}
           </Button>
@@ -1333,10 +1335,12 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
               fullWidth
               InputLabelProps={{ shrink: true }}
             />
-            <PaymentMethodSelect
-              value={manualRepaymentMethod}
-              onChange={setManualRepaymentMethod}
-            />
+            {settings.show_payment_method === 'yes' && (
+              <PaymentMethodSelect
+                value={manualRepaymentMethod}
+                onChange={setManualRepaymentMethod}
+              />
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1344,7 +1348,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
           <Button
             variant="contained"
             onClick={handleManualRepayment}
-            disabled={manualRepaymentAmount <= 0 || !manualRepaymentMethod.payment_method || isSubmittingManualRepayment}
+            disabled={manualRepaymentAmount <= 0 || (settings.show_payment_method === 'yes' && !manualRepaymentMethod.payment_method) || isSubmittingManualRepayment}
           >
             {isSubmittingManualRepayment ? 'רושם פירעון...' : 'רשום פירעון'}
           </Button>
