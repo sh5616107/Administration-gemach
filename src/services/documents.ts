@@ -1,6 +1,7 @@
 import { toHebrewDate } from '../utils/dateUtils'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { DocumentLayoutConfig } from '../types/documentLayout'
 
 // Debug log function
 const debugLog = (message: string, data?: unknown) => {
@@ -265,6 +266,63 @@ interface DocumentBrandingOptions {
  * אם קיימת gemachDocumentFrame — מחזיר רק את innerHtml (ללא לוגו, המסגרת תצויר ב-downloadPdf).
  * אם אין מסגרת — מחזיר לוגו + innerHtml כרגיל.
  */
+/**
+ * הימלטות HTML entity לכל טקסט חופשי לפני הזרקה ל-HTML — חובה לפי
+ * רשימת הבאגים הצפויים (#1, XSS/הזרקת HTML). מוחל על customBlocks
+ * ו-labelOverrides בכל 8 הפונקציות (4 מסמכים × 2 נתיבים).
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * מרנדר את כל בלוקי הטקסט החופשי המצורפים לעוגן נתון, ממוינים לפי order.
+ * תומך ביותר מבלוק אחד על אותו עוגן (ר' שלב 1 — CustomTextBlock[]).
+ * direction מפורש כדי למנוע התנגשות יישור שמאל/ימין מול RTL (באג #4).
+ */
+function renderCustomBlocks(anchorId: string, layout?: DocumentLayoutConfig): string {
+  if (!layout?.customBlocks?.length) return ''
+  const blocks = layout.customBlocks
+    .filter(b => b.anchorId === anchorId)
+    .sort((a, b) => a.order - b.order)
+  if (blocks.length === 0) return ''
+
+  return blocks.map(b => {
+    const weight = b.bold ? 'font-weight: bold;' : ''
+    const underline = b.underline ? 'text-decoration: underline;' : ''
+    const dir = b.align === 'left' ? 'ltr' : 'rtl'
+    return `<div style="text-align: ${b.align}; direction: ${dir}; font-family: '${b.fontFamily}', Arial, sans-serif; font-size: ${b.fontSize}px; ${weight} ${underline} margin: 8px 0;">${escapeHtml(b.text)}</div>`
+  }).join('')
+}
+
+/**
+ * חשוב: זה **לא** קשור ל-`field_labels` הישן (שמות שדות בטופס קליטת
+ * לווה, כמו "שם פרטי"/"טלפון") — זו מערכת נפרדת לגמרי, ללא חפיפה.
+ * `labelOverrides` כאן דורס תוויות שמודפסות בגוף המסמך עצמו (למשל
+ * "אני הח״מ"/"סכום הלוואה מקורי:"). בדקתי את שתי המערכות בפועל בקוד
+ * לפני כתיבת השורה הזו — אין ביניהן שום קשר, בניגוד להנחה קודמת שלי.
+ */
+function label(key: string, fallback: string, layout?: DocumentLayoutConfig): string {
+  const override = layout?.labelOverrides?.[key]
+  return override ? escapeHtml(override) : fallback
+}
+
+/** true אלא אם showSystemBlocks[key] === false במפורש (באג #9: הסתרה היא opt-in מפורש, לא ברירת מחדל) */
+function isSystemBlockVisible(key: string, layout?: DocumentLayoutConfig): boolean {
+  return layout?.showSystemBlocks?.[key] !== false
+}
+
+/**
+ * עוטף תוכן HTML של מסמך עם מיתוג הגמ"ח.
+ * החלטה בלבד אם להציג לוגו רגיל או לא - ללא ציור מסגרת ב-CSS.
+ * אם קיימת gemachDocumentFrame — מחזיר רק את innerHtml (ללא לוגו, המסגרת תצויר ב-downloadPdf).
+ * אם אין מסגרת — מחזיר לוגו + innerHtml כרגיל.
+ */
 function applyDocumentBranding(
   innerHtml: string,
   branding: DocumentBrandingOptions,
@@ -278,22 +336,23 @@ function applyDocumentBranding(
   return `${logoHtmlIfNoFrame}${innerHtml}`
 }
 
-export async function generateLoanDocument(data: LoanDocumentData): Promise<void> {
+
+/**
+ * מקור אמת יחיד לתוכן שטר ההלוואה — נקרא הן מ-generateLoanDocument
+ * (הדפסה/PDF) והן מ-createLoanEmailData (אימייל). ר' שלב 2 במסמך ההוראות.
+ * עם layout ריק/undefined מייצר בדיוק את אותו HTML שיוצר היה נוצר לפני
+ * הריפקטור בנתיב ההדפסה (ר' diff בפלט הבדיקה).
+ */
+export function buildLoanDocumentHtml(data: LoanDocumentData, layout?: DocumentLayoutConfig): string {
   const today = new Date().toLocaleDateString('he-IL')
   const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
   const showHebrew = data.dateFormat === 'combined'
-  
-  // Format dates
+
   const loanDateDisplay = new Date(data.loanDate).toLocaleDateString('he-IL')
   const loanDateHebrew = showHebrew ? toHebrewDate(data.loanDate) : ''
   const dueDateDisplay = data.dueDate ? new Date(data.dueDate).toLocaleDateString('he-IL') : ''
   const dueDateHebrew = showHebrew && data.dueDate ? toHebrewDate(data.dueDate) : ''
-  
-  const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
-    : ''
 
-  // HTML להלוואה מחזורית - רק אם יש יותר מהלוואה אחת בסדרה
   const recurringLoanHtml = data.isRecurring && data.recurringLoanNumber && data.recurringLoanCount && data.recurringLoanCount > 1 ? `
     <div style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
@@ -327,7 +386,7 @@ export async function generateLoanDocument(data: LoanDocumentData): Promise<void
 
   const guarantorsHtml = (data.guarantor1Name || data.guarantor2Name) ? `
     <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 12px;">
-      <div style="font-weight: bold; margin-bottom: 8px;">ערבים:</div>
+      <div style="font-weight: bold; margin-bottom: 8px;">${label('loan.guarantorsTitle', 'ערבים:', layout)}</div>
       ${data.guarantor1Name ? `
         <div style="margin-bottom: 10px;">
           <span>ערב 1: ${data.guarantor1Name}</span>
@@ -341,18 +400,18 @@ export async function generateLoanDocument(data: LoanDocumentData): Promise<void
         </div>
       ` : ''}
     </div>
-  ` : ''
+    ${renderCustomBlocks('afterGuarantors', layout)}
+  ` : renderCustomBlocks('afterGuarantors', layout)
 
-  // Custom text - only use if provided and not containing old template variables
   const isValidCustomText = data.customText && !data.customText.includes('{שם_') && !data.customText.includes('{סכום}')
   const commitmentText = isValidCustomText ? data.customText : 'מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע.'
 
-  // חישוב פירעונות
   const totalRepaid = data.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
   const remaining = data.amount - totalRepaid
-  
-  // HTML לפירעונות
-  const repaymentsHtml = data.repayments && data.repayments.length > 0 ? `
+  const isFullyRepaid = remaining <= 0 && (data.repayments?.length || 0) > 0
+
+  const repaymentsTableVisible = isSystemBlockVisible('repaymentsTable', layout)
+  const repaymentsHtml = repaymentsTableVisible && data.repayments && data.repayments.length > 0 ? `
     <div style="margin-top: 20px; padding: 12px; background: #e8f5e9; border-radius: 6px;">
       <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #2e7d32;">פירעונות שבוצעו:</h3>
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -387,8 +446,11 @@ export async function generateLoanDocument(data: LoanDocumentData): Promise<void
     </div>
   ` : ''
 
-  const htmlContent = `
+  const loanFullyRepaidBlock = isFullyRepaid ? renderCustomBlocks('loanFullyRepaid', layout) : ''
+
+  return `
     <div style="text-align: center; padding: 15px; max-width: 800px; margin: 0 auto;">
+      ${renderCustomBlocks('header', layout)}
       <h1 style="font-size: 24px; margin: 8px 0;">שטר הלוואה</h1>
       <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
@@ -397,11 +459,13 @@ export async function generateLoanDocument(data: LoanDocumentData): Promise<void
       ${recurringLoanHtml}
       
       <div style="text-align: right; font-size: 15px; line-height: 1.6;">
-        <p style="margin: 8px 0;">אני הח"מ <strong>${data.borrowerName}</strong></p>
+        <p style="margin: 8px 0;">${label('loan.commitmentIntro', 'אני הח"מ', layout)} <strong>${data.borrowerName}</strong></p>
+        ${renderCustomBlocks('afterBorrowerName', layout)}
         <p style="margin: 8px 0;">${commitmentText}</p>
         <p style="font-size: 18px; margin: 15px 0;">
-          סכום הלוואה מקורי: <strong>${formatCurrency(data.amount)}</strong>
+          ${label('loan.originalAmount', 'סכום הלוואה מקורי:', layout)} <strong>${formatCurrency(data.amount)}</strong>
         </p>
+        ${renderCustomBlocks('afterAmount', layout)}
         <p style="margin: 8px 0;">בתאריך: <strong>${loanDateDisplay}</strong>${loanDateHebrew ? ` <span style="color: #666;">(${loanDateHebrew})</span>` : ''}</p>
         <p style="margin: 8px 0;">
           ${data.loanType === 'fixed' && dueDateDisplay 
@@ -411,10 +475,12 @@ export async function generateLoanDocument(data: LoanDocumentData): Promise<void
         </p>
       </div>
       
-      ${repaymentsHtml}
+      ${repaymentsTableVisible ? `${renderCustomBlocks('beforeRepaymentsTable', layout)}${repaymentsHtml}${renderCustomBlocks('afterRepaymentsTable', layout)}` : renderCustomBlocks('afterRepaymentsTable', layout)}
+      ${loanFullyRepaidBlock}
       
       <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;" />
       
+      ${renderCustomBlocks('beforeSignature', layout)}
       <div style="text-align: right; margin-top: 20px;">
         <p style="margin: 8px 0;">חתימת הלווה: _______________________</p>
       </div>
@@ -426,8 +492,17 @@ export async function generateLoanDocument(data: LoanDocumentData): Promise<void
       <div style="text-align: right; font-size: 11px; color: #666;">
         תאריך הפקת השטר: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
       </div>
+      ${renderCustomBlocks('footer', layout)}
     </div>
   `
+}
+
+export async function generateLoanDocument(data: LoanDocumentData, layout?: DocumentLayoutConfig): Promise<void> {
+  const logoHtml = data.gemachLogo 
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
+    : ''
+
+  const htmlContent = buildLoanDocumentHtml(data, layout)
 
   const finalContent = applyDocumentBranding(htmlContent, { 
     gemachLogo: data.gemachLogo, 
@@ -511,6 +586,62 @@ export async function generateEmptyLoanDocument(
   printHtml(finalContent, 'שטר הלוואה ריק')
 }
 
+/**
+ * מקור אמת יחיד לתוכן קבלת התרומה — נקרא הן מ-generateDonationReceipt
+ * (הדפסה/PDF) והן מ-createDonationEmailData (אימייל).
+ * שינוי מכוון בנתיב האימייל: הגרסה הישנה לא עברה דרך applyDocumentBranding
+ * (לא תמכה במסגרת) ולא כללה את שורת "חתימת הגמ"ח" — כעת שתיהן כן, כמו
+ * בגרסה המודפסת (מקור אמת יחיד, ר' קריטריוני קבלה).
+ */
+export function buildDonationReceiptHtml(data: {
+  gemachName: string
+  donorName: string
+  amount: number
+  donationDate: string
+  receiptNumber: string
+  dateFormat?: string
+}, layout?: DocumentLayoutConfig): string {
+  const showHebrew = data.dateFormat === 'combined'
+  const dateDisplay = new Date(data.donationDate).toLocaleDateString('he-IL')
+  const dateHebrew = showHebrew ? toHebrewDate(data.donationDate) : ''
+
+  return `
+    <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
+      ${renderCustomBlocks('header', layout)}
+      <h1 style="font-size: 24px; margin: 10px 0;">קבלה על תרומה</h1>
+      <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
+      
+      <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
+      
+      <div style="text-align: right; font-size: 16px; line-height: 2;">
+        <p>${label('donation.receiptNumber', 'מספר קבלה:', layout)} <strong>${data.receiptNumber}</strong></p>
+        ${renderCustomBlocks('afterReceiptNumber', layout)}
+        <p>${label('donation.receivedFrom', 'התקבל מאת:', layout)} <strong>${data.donorName}</strong></p>
+        ${renderCustomBlocks('afterDonorName', layout)}
+        <p style="font-size: 20px; margin: 15px 0;">
+          ${label('donation.amount', 'סכום:', layout)} <strong>${formatCurrency(data.amount)}</strong>
+        </p>
+        ${renderCustomBlocks('afterAmount', layout)}
+        <p>תאריך: <strong>${dateDisplay}</strong>${dateHebrew ? ` <span style="color: #666;">(${dateHebrew})</span>` : ''}</p>
+      </div>
+      
+      ${renderCustomBlocks('beforeThankYou', layout)}
+      <div style="margin: 30px 0; text-align: center;">
+        <p style="font-size: 18px; font-weight: bold;">תודה רבה על תרומתך!</p>
+        <p style="font-size: 16px;">יישר כח!</p>
+      </div>
+      ${renderCustomBlocks('afterThankYou', layout)}
+      
+      <hr style="border: none; border-top: 1px solid #ccc; margin: 15px 0;" />
+      
+      ${renderCustomBlocks('beforeSignature', layout)}
+      <div style="text-align: right; font-size: 14px;">
+        <p>חתימת הגמ"ח: _______________________</p>
+      </div>
+    </div>
+  `
+}
+
 export async function generateDonationReceipt(data: {
   gemachName: string
   gemachLogo?: string
@@ -524,43 +655,12 @@ export async function generateDonationReceipt(data: {
   donationDate: string
   receiptNumber: string
   dateFormat?: string
-}): Promise<void> {
-  const showHebrew = data.dateFormat === 'combined'
-  const dateDisplay = new Date(data.donationDate).toLocaleDateString('he-IL')
-  const dateHebrew = showHebrew ? toHebrewDate(data.donationDate) : ''
-  
+}, layout?: DocumentLayoutConfig): Promise<void> {
   const logoHtml = data.gemachLogo 
     ? `<img src="${data.gemachLogo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
-  const htmlContent = `
-    <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
-      <h1 style="font-size: 24px; margin: 10px 0;">קבלה על תרומה</h1>
-      <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
-      
-      <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
-      
-      <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>מספר קבלה: <strong>${data.receiptNumber}</strong></p>
-        <p>התקבל מאת: <strong>${data.donorName}</strong></p>
-        <p style="font-size: 20px; margin: 15px 0;">
-          סכום: <strong>${formatCurrency(data.amount)}</strong>
-        </p>
-        <p>תאריך: <strong>${dateDisplay}</strong>${dateHebrew ? ` <span style="color: #666;">(${dateHebrew})</span>` : ''}</p>
-      </div>
-      
-      <div style="margin: 30px 0; text-align: center;">
-        <p style="font-size: 18px; font-weight: bold;">תודה רבה על תרומתך!</p>
-        <p style="font-size: 16px;">יישר כח!</p>
-      </div>
-      
-      <hr style="border: none; border-top: 1px solid #ccc; margin: 15px 0;" />
-      
-      <div style="text-align: right; font-size: 14px;">
-        <p>חתימת הגמ"ח: _______________________</p>
-      </div>
-    </div>
-  `
+  const htmlContent = buildDonationReceiptHtml(data, layout)
 
   const finalContent = applyDocumentBranding(htmlContent, { 
     gemachLogo: data.gemachLogo, 
@@ -575,14 +675,12 @@ export async function generateDonationReceipt(data: {
   printHtml(finalContent, `קבלה ${data.receiptNumber}`)
 }
 
-export function generateDepositDocument(data: {
+/**
+ * מקור אמת יחיד לתוכן שטר ההפקדה — נקרא הן מ-generateDepositDocument
+ * (הדפסה/PDF) והן מ-createDepositEmailData (אימייל).
+ */
+export function buildDepositDocumentHtml(data: {
   gemachName: string
-  gemachLogo?: string
-  gemachDocumentFrame?: string
-  frameMarginTop?: number
-  frameMarginBottom?: number
-  frameMarginRight?: number
-  frameMarginLeft?: number
   depositorName: string
   amount: number
   depositDate: string
@@ -593,29 +691,20 @@ export function generateDepositDocument(data: {
   isRecurring?: boolean
   recurringDepositNumber?: number
   recurringDepositCount?: number
-  withdrawals?: Array<{
-    amount: number
-    withdrawal_date: string
-  }>
-}) {
+  withdrawals?: Array<{ amount: number; withdrawal_date: string }>
+}, layout?: DocumentLayoutConfig): string {
   const today = new Date().toLocaleDateString('he-IL')
   const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
   const showHebrew = data.dateFormat === 'combined'
-  
+
   const depositDateDisplay = new Date(data.depositDate).toLocaleDateString('he-IL')
   const depositDateHebrew = showHebrew ? toHebrewDate(data.depositDate) : ''
   const dueDateDisplay = data.dueDate ? new Date(data.dueDate).toLocaleDateString('he-IL') : ''
   const dueDateHebrew = showHebrew && data.dueDate ? toHebrewDate(data.dueDate) : ''
 
-  const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
-    : ''
-
-  // Custom text - only use if provided and not containing old template variables
   const isValidCustomText = data.customText && !data.customText.includes('{שם_') && !data.customText.includes('{סכום}')
   const commitmentText = isValidCustomText ? data.customText : ''
-  
-  // HTML להפקדה מחזורית - רק אם יש יותר מהפקדה אחת בסדרה
+
   const recurringDepositHtml = data.isRecurring && data.recurringDepositNumber && data.recurringDepositCount && data.recurringDepositCount > 1 ? `
     <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
       <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
@@ -626,13 +715,12 @@ export function generateDepositDocument(data: {
       </p>
     </div>
   ` : ''
-  
-  // חישוב משיכות
+
   const totalWithdrawn = data.withdrawals?.reduce((sum, w) => sum + w.amount, 0) || 0
   const remaining = data.amount - totalWithdrawn
-  
-  // HTML למשיכות
-  const withdrawalsHtml = data.withdrawals && data.withdrawals.length > 0 ? `
+
+  const withdrawalsTableVisible = isSystemBlockVisible('withdrawalsTable', layout)
+  const withdrawalsHtml = withdrawalsTableVisible && data.withdrawals && data.withdrawals.length > 0 ? `
     <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 8px;">
       <h3 style="margin: 0 0 15px 0; color: #856404;">משיכות שבוצעו:</h3>
       <table style="width: 100%; border-collapse: collapse;">
@@ -661,8 +749,9 @@ export function generateDepositDocument(data: {
     </div>
   ` : ''
 
-  const htmlContent = `
+  return `
     <div style="text-align: center; padding: 20px;">
+      ${renderCustomBlocks('header', layout)}
       <h1 style="font-size: 28px; margin: 10px 0;">שטר הפקדה</h1>
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
       
@@ -671,10 +760,11 @@ export function generateDepositDocument(data: {
       ${recurringDepositHtml}
       
       <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>אני הח"מ מנהל גמ"ח "<strong>${data.gemachName}</strong>"</p>
-        <p>מאשר בזה כי קיבלתי הפקדה מאת: <strong>${data.depositorName}</strong></p>
+        <p>${label('deposit.commitmentIntro', 'אני הח"מ מנהל גמ"ח', layout)} "<strong>${data.gemachName}</strong>"</p>
+        <p>${label('deposit.receivedFrom', 'מאשר בזה כי קיבלתי הפקדה מאת:', layout)} <strong>${data.depositorName}</strong></p>
+        ${renderCustomBlocks('afterDepositorName', layout)}
         <p style="font-size: 20px; margin: 20px 0;">
-          סכום הפקדה מקורי: <strong>${formatCurrency(data.amount)}</strong>
+          ${label('deposit.originalAmount', 'סכום הפקדה מקורי:', layout)} <strong>${formatCurrency(data.amount)}</strong>
         </p>
         <p>בתאריך: <strong>${depositDateDisplay}</strong>${depositDateHebrew ? ` <span style="color: #666;">(${depositDateHebrew})</span>` : ''}</p>
         <p style="margin-top: 20px;">
@@ -682,12 +772,14 @@ export function generateDepositDocument(data: {
           ${dueDateDisplay ? `<br/>תאריך סיום: <strong>${dueDateDisplay}</strong>${dueDateHebrew ? ` <span style="color: #666;">(${dueDateHebrew})</span>` : ''}` : ''}
         </p>
         ${commitmentText ? `<p style="margin-top: 20px;">${commitmentText}</p>` : ''}
+        ${renderCustomBlocks('afterAmount', layout)}
       </div>
       
-      ${withdrawalsHtml}
+      ${withdrawalsTableVisible ? `${renderCustomBlocks('beforeWithdrawalsTable', layout)}${withdrawalsHtml}${renderCustomBlocks('afterWithdrawalsTable', layout)}` : renderCustomBlocks('afterWithdrawalsTable', layout)}
       
       <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
       
+      ${renderCustomBlocks('beforeSignature', layout)}
       <div style="text-align: right; margin-top: 30px;">
         <p>חתימת הגמ"ח: _______________________</p>
         <p style="margin-top: 20px;">חתימת המפקיד: _______________________</p>
@@ -698,8 +790,40 @@ export function generateDepositDocument(data: {
       <div style="text-align: right; font-size: 12px; color: #666;">
         תאריך הפקת השטר: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
       </div>
+      ${renderCustomBlocks('footer', layout)}
     </div>
   `
+}
+
+
+export function generateDepositDocument(data: {
+  gemachName: string
+  gemachLogo?: string
+  gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
+  depositorName: string
+  amount: number
+  depositDate: string
+  periodType: string
+  dueDate?: string
+  dateFormat?: string
+  customText?: string
+  isRecurring?: boolean
+  recurringDepositNumber?: number
+  recurringDepositCount?: number
+  withdrawals?: Array<{
+    amount: number
+    withdrawal_date: string
+  }>
+}, layout?: DocumentLayoutConfig) {
+  const logoHtml = data.gemachLogo 
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
+    : ''
+
+  const htmlContent = buildDepositDocumentHtml(data, layout)
 
   const finalContent = applyDocumentBranding(htmlContent, { 
     gemachLogo: data.gemachLogo, 
@@ -713,250 +837,12 @@ export function generateDepositDocument(data: {
 }
 
 
-export async function generateBorrowerReport(data: {
-  gemachName: string
-  gemachLogo?: string
-  gemachDocumentFrame?: string
-  frameMarginTop?: number
-  frameMarginBottom?: number
-  frameMarginRight?: number
-  frameMarginLeft?: number
-  borrowerName: string
-  loans: Array<{
-    id: number
-    amount: number
-    loanDate: string
-    remaining: number
-    status: string
-    isRecurring?: boolean
-    recurringLoanNumber?: number
-    recurringLoanCount?: number
-    repayments?: Array<{
-      amount: number
-      payment_date: string
-      isRecurring?: boolean
-      recurringRepaymentNumber?: number
-      recurringRepaymentCount?: number
-      notes?: string
-    }>
-  }>
-  expenses?: Array<{
-    id: number
-    description: string
-    amount: number
-    expense_date: string
-    category: string
-  }>
-  totalDebt: number
-  repaymentsOrder?: 'newest_first' | 'oldest_first'
-}): Promise<void> {
-  const today = new Date().toLocaleDateString('he-IL')
-
-  const logoHtml = data.gemachLogo 
-    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
-    : ''
-
-  // חישוב סטטיסטיקות
-  const totalLoansAmount = data.loans.reduce((sum, loan) => sum + loan.amount, 0)
-  const totalRepayments = data.loans.reduce((sum, loan) => {
-    return sum + (loan.repayments?.reduce((s, r) => s + r.amount, 0) || 0)
-  }, 0)
-  const activeLoansCount = data.loans.filter(l => l.status === 'active').length
-  const completedLoansCount = data.loans.filter(l => l.status === 'completed').length
-
-  // טבלת הלוואות - פשוטה וברורה
-  const loansHtml = data.loans.map(loan => {
-    const recurringInfo = loan.isRecurring && loan.recurringLoanNumber && loan.recurringLoanCount && loan.recurringLoanCount > 1
-      ? `<span class="recurring-badge">🔄 ${loan.recurringLoanNumber}/${loan.recurringLoanCount}</span>`
-      : '-'
-    
-    const statusText = loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'
-    const statusColor = loan.status === 'active' ? '#1976d2' : loan.status === 'planned' ? '#f57c00' : '#2e7d32'
-    const totalPaid = loan.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
-    
-    return `
-    <tr>
-      <td>${loan.id}</td>
-      <td>${new Date(loan.loanDate).toLocaleDateString('he-IL')}</td>
-      <td><strong>${formatCurrency(loan.amount)}</strong></td>
-      <td style="color: #2e7d32;">${formatCurrency(totalPaid)}</td>
-      <td style="color: ${loan.remaining > 0 ? '#d32f2f' : '#2e7d32'}; font-weight: bold;">${formatCurrency(loan.remaining)}</td>
-      <td>${recurringInfo}</td>
-      <td><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></td>
-    </tr>
-  `}).join('')
-
-  // טבלת פרעונות - נפרדת וברורה
-  // חישוב פירעונות - מיון לפי ההגדרה
-  const sortMultiplier = (data.repaymentsOrder || 'newest_first') === 'oldest_first' ? 1 : -1
-  const allRepayments = data.loans.flatMap(loan => 
-    (loan.repayments || []).map(r => ({
-      ...r,
-      loanId: loan.id
-    }))
-  ).sort((a, b) => sortMultiplier * (new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()))
-
-  // זיהוי פרעונות מרובים - פרעונות באותו תאריך עם הערה "פירעון מרובה"
-  const multiRepaymentDates = new Set(
-    allRepayments
-      .filter(r => r.notes?.includes('פירעון מרובה'))
-      .map(r => r.payment_date)
-  )
-
-  const repaymentsHtml = allRepayments.length > 0 ? `
-    <h3 class="section-title" style="color: #2e7d32;">✅ פירוט פרעונות</h3>
-    <table class="data-table">
-      <thead>
-        <tr class="repayments-header">
-          <th style="width: 12%;">מס' הלוואה</th>
-          <th style="width: 20%;">תאריך פרעון</th>
-          <th style="width: 20%;">סכום</th>
-          <th style="width: 48%;">סוג</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${allRepayments.map(r => {
-          const isMultiRepayment = r.notes?.includes('פירעון מרובה')
-          const repRecurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
-            ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
-            : '-'
-          
-          // אם זה פירעון מרובה, נציג אייקון מיוחד
-          const typeInfo = isMultiRepayment 
-            ? '<span class="multi-badge">📊 פירעון מרובה</span>'
-            : `<span class="recurring-badge">${repRecurringInfo}</span>`
-          
-          const rowClass = isMultiRepayment ? 'multi-repayment-row' : ''
-          
-          return `
-          <tr class="${rowClass}">
-            <td>${r.loanId}</td>
-            <td>${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
-            <td><strong>${formatCurrency(r.amount)}</strong></td>
-            <td>${typeInfo}</td>
-          </tr>
-        `}).join('')}
-        <tr class="total-row" style="background: #c8e6c9;">
-          <td colspan="2" style="text-align: right; font-size: 15px;">סה"כ פרעונות</td>
-          <td colspan="2" style="font-size: 16px;">${formatCurrency(totalRepayments)}</td>
-        </tr>
-      </tbody>
-    </table>
-  ` : ''
-
-  const categoryLabels: Record<string, string> = {
-    fee: 'עמלה',
-    office: 'הוצאות משרד',
-    bank: 'עמלת בנק',
-    legal: 'משפטי',
-    other: 'אחר'
-  }
-
-  const expensesHtml = data.expenses && data.expenses.length > 0 ? `
-    <h3 class="section-title" style="color: #f57c00;">💳 הוצאות ששולמו ע"י הלווה</h3>
-    <table class="data-table">
-      <thead>
-        <tr class="expenses-header">
-          <th style="width: 8%;">מס'</th>
-          <th style="width: 30%;">תיאור</th>
-          <th style="width: 17%;">קטגוריה</th>
-          <th style="width: 20%;">סכום</th>
-          <th style="width: 25%;">תאריך</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.expenses.map(exp => `
-          <tr>
-            <td>${exp.id}</td>
-            <td style="text-align: right;">${exp.description}</td>
-            <td>${categoryLabels[exp.category] || exp.category}</td>
-            <td><strong>${formatCurrency(exp.amount)}</strong></td>
-            <td>${new Date(exp.expense_date).toLocaleDateString('he-IL')}</td>
-          </tr>
-        `).join('')}
-        <tr class="total-row" style="background: #fff3e0;">
-          <td colspan="3" style="text-align: right; font-size: 15px;">סה"כ הוצאות</td>
-          <td colspan="2" style="font-size: 16px;"><strong>${formatCurrency(data.expenses.reduce((sum, e) => sum + e.amount, 0))}</strong></td>
-        </tr>
-      </tbody>
-    </table>
-  ` : ''
-
-  const innerContent = `
-    <div style="padding: 20px;">
-      <div class="header">
-        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח לווה</h1>
-        <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
-      </div>
-      
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
-      
-      <div style="text-align: right; font-size: 15px; margin-bottom: 20px;">
-        <p style="margin: 5px 0;"><strong>שם הלווה:</strong> ${data.borrowerName}</p>
-        <p style="margin: 5px 0;"><strong>תאריך הפקה:</strong> ${today}</p>
-      </div>
-
-      <!-- סיכום כללי -->
-      <div class="summary-box">
-        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
-        <table class="summary-table">
-          <tr>
-            <td style="width: 25%;"><strong>הלוואות פעילות:</strong></td>
-            <td style="width: 25%; text-align: left; color: #1976d2; font-size: 16px;"><strong>${activeLoansCount}</strong></td>
-            <td style="width: 25%;"><strong>הלוואות שנפרעו:</strong></td>
-            <td style="width: 25%; text-align: left; color: #2e7d32; font-size: 16px;"><strong>${completedLoansCount}</strong></td>
-          </tr>
-          <tr>
-            <td><strong>סה"כ הלוואות:</strong></td>
-            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalLoansAmount)}</td>
-            <td><strong>סה"כ פרעונות:</strong></td>
-            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalRepayments)}</td>
-          </tr>
-          <tr style="background: ${data.totalDebt > 0 ? '#ffebee' : '#e8f5e9'};">
-            <td colspan="2"><strong style="font-size: 16px;">יתרת חוב נוכחית:</strong></td>
-            <td colspan="2" style="text-align: left;">
-              <span class="debt-amount" style="color: ${data.totalDebt > 0 ? '#d32f2f' : '#2e7d32'};">
-                ${formatCurrency(data.totalDebt)}
-              </span>
-            </td>
-          </tr>
-        </table>
-      </div>
-      
-      <h3 class="section-title">💰 פירוט הלוואות</h3>
-      
-      <table class="data-table">
-        <thead>
-          <tr class="loans-header">
-            <th style="width: 8%;">מס'</th>
-            <th style="width: 15%;">תאריך</th>
-            <th style="width: 15%;">סכום הלוואה</th>
-            <th style="width: 15%;">נפרע</th>
-            <th style="width: 15%;">יתרה</th>
-            <th style="width: 17%;">מחזורית</th>
-            <th style="width: 15%;">סטטוס</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${loansHtml || '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #999;">אין הלוואות</td></tr>'}
-        </tbody>
-      </table>
-      
-      ${repaymentsHtml}
-      ${expensesHtml}
-      
-      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
-        <p>דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
-      </div>
-    </div>
-  `
-
-  const fullHtmlDocument = `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="he">
-    <head>
-      <meta charset="UTF-8">
-      <style>
+/**
+ * גיליון עיצוב משותף לדוח לווה — מוזרק הן לתוך fullHtmlDocument (הדפסה)
+ * והן לתוך htmlContent של האימייל, כדי ששתי הגרסאות ייראו זהה (הן
+ * מסתמכות על אותם class names בתוך buildBorrowerReportHtml).
+ */
+const BORROWER_REPORT_STYLES = `
         body { font-family: Arial, sans-serif; }
         .header { text-align: center; margin-bottom: 20px; }
         .summary-box { 
@@ -1010,6 +896,294 @@ export async function generateBorrowerReport(data: {
         @media print {
           .summary-box { box-shadow: none; border: 1px solid #ddd; }
         }
+`
+
+type BorrowerReportData = {
+  gemachName: string
+  borrowerName: string
+  loans: Array<{
+    id: number
+    amount: number
+    loanDate: string
+    remaining: number
+    status: string
+    isRecurring?: boolean
+    recurringLoanNumber?: number
+    recurringLoanCount?: number
+    repayments?: Array<{
+      amount: number
+      payment_date: string
+      isRecurring?: boolean
+      recurringRepaymentNumber?: number
+      recurringRepaymentCount?: number
+      notes?: string
+    }>
+  }>
+  expenses?: Array<{
+    id: number
+    description: string
+    amount: number
+    expense_date: string
+    category: string
+  }>
+  totalDebt: number
+  repaymentsOrder?: 'newest_first' | 'oldest_first'
+}
+
+/**
+ * מקור אמת יחיד לתוכן דוח הלווה — נקרא הן מ-generateBorrowerReport
+ * (הדפסה/PDF) והן מ-createBorrowerReportEmailData (אימייל).
+ * שינוי מכוון (לא תקלה) — הגדול מבין 4 המסמכים: נתיב האימייל הישן היה
+ * תבנית נפרדת ומינימלית לחלוטין (בלי תיבת סיכום, בלי טבלת פרעונות, בלי
+ * טבלת הוצאות, בלי class-based styling). מ-שלב 2 ואילך אימייל דוח לווה
+ * מציג את אותו דוח מלא בדיוק כמו הגרסה המודפסת. ר' תיעוד קריטריון
+ * הקבלה — "מקור אמת יחיד" גובר על שימור ההתנהגות הישנה של האימייל כאן.
+ */
+export function buildBorrowerReportHtml(data: BorrowerReportData, layout?: DocumentLayoutConfig): string {
+  const today = new Date().toLocaleDateString('he-IL')
+
+  const totalLoansAmount = data.loans.reduce((sum, loan) => sum + loan.amount, 0)
+  const totalRepayments = data.loans.reduce((sum, loan) => {
+    return sum + (loan.repayments?.reduce((s, r) => s + r.amount, 0) || 0)
+  }, 0)
+  const activeLoansCount = data.loans.filter(l => l.status === 'active').length
+  const completedLoansCount = data.loans.filter(l => l.status === 'completed').length
+
+  const loansHtml = data.loans.map(loan => {
+    const recurringInfo = loan.isRecurring && loan.recurringLoanNumber && loan.recurringLoanCount && loan.recurringLoanCount > 1
+      ? `<span class="recurring-badge">🔄 ${loan.recurringLoanNumber}/${loan.recurringLoanCount}</span>`
+      : '-'
+    
+    const statusText = loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'
+    const statusColor = loan.status === 'active' ? '#1976d2' : loan.status === 'planned' ? '#f57c00' : '#2e7d32'
+    const totalPaid = loan.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
+    
+    return `
+    <tr>
+      <td>${loan.id}</td>
+      <td>${new Date(loan.loanDate).toLocaleDateString('he-IL')}</td>
+      <td><strong>${formatCurrency(loan.amount)}</strong></td>
+      <td style="color: #2e7d32;">${formatCurrency(totalPaid)}</td>
+      <td style="color: ${loan.remaining > 0 ? '#d32f2f' : '#2e7d32'}; font-weight: bold;">${formatCurrency(loan.remaining)}</td>
+      <td>${recurringInfo}</td>
+      <td><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></td>
+    </tr>
+  `}).join('')
+
+  const sortMultiplier = (data.repaymentsOrder || 'newest_first') === 'oldest_first' ? 1 : -1
+  const allRepayments = data.loans.flatMap(loan => 
+    (loan.repayments || []).map(r => ({
+      ...r,
+      loanId: loan.id
+    }))
+  ).sort((a, b) => sortMultiplier * (new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()))
+
+  const repaymentsTableVisible = isSystemBlockVisible('repaymentsTable', layout)
+  const repaymentsHtml = repaymentsTableVisible && allRepayments.length > 0 ? `
+    <h3 class="section-title" style="color: #2e7d32;">✅ פירוט פרעונות</h3>
+    <table class="data-table">
+      <thead>
+        <tr class="repayments-header">
+          <th style="width: 12%;">מס' הלוואה</th>
+          <th style="width: 20%;">תאריך פרעון</th>
+          <th style="width: 20%;">סכום</th>
+          <th style="width: 48%;">סוג</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${allRepayments.map(r => {
+          const isMultiRepayment = r.notes?.includes('פירעון מרובה')
+          const repRecurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
+            ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
+            : '-'
+          
+          const typeInfo = isMultiRepayment 
+            ? '<span class="multi-badge">📊 פירעון מרובה</span>'
+            : `<span class="recurring-badge">${repRecurringInfo}</span>`
+          
+          const rowClass = isMultiRepayment ? 'multi-repayment-row' : ''
+          
+          return `
+          <tr class="${rowClass}">
+            <td>${r.loanId}</td>
+            <td>${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
+            <td><strong>${formatCurrency(r.amount)}</strong></td>
+            <td>${typeInfo}</td>
+          </tr>
+        `}).join('')}
+        <tr class="total-row" style="background: #c8e6c9;">
+          <td colspan="2" style="text-align: right; font-size: 15px;">סה"כ פרעונות</td>
+          <td colspan="2" style="font-size: 16px;">${formatCurrency(totalRepayments)}</td>
+        </tr>
+      </tbody>
+    </table>
+  ` : ''
+
+  const categoryLabels: Record<string, string> = {
+    fee: 'עמלה',
+    office: 'הוצאות משרד',
+    bank: 'עמלת בנק',
+    legal: 'משפטי',
+    other: 'אחר'
+  }
+
+  const expensesTableVisible = isSystemBlockVisible('expensesTable', layout)
+  const expensesHtml = expensesTableVisible && data.expenses && data.expenses.length > 0 ? `
+    <h3 class="section-title" style="color: #f57c00;">💳 הוצאות ששולמו ע"י הלווה</h3>
+    <table class="data-table">
+      <thead>
+        <tr class="expenses-header">
+          <th style="width: 8%;">מס'</th>
+          <th style="width: 30%;">תיאור</th>
+          <th style="width: 17%;">קטגוריה</th>
+          <th style="width: 20%;">סכום</th>
+          <th style="width: 25%;">תאריך</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.expenses.map(exp => `
+          <tr>
+            <td>${exp.id}</td>
+            <td style="text-align: right;">${exp.description}</td>
+            <td>${categoryLabels[exp.category] || exp.category}</td>
+            <td><strong>${formatCurrency(exp.amount)}</strong></td>
+            <td>${new Date(exp.expense_date).toLocaleDateString('he-IL')}</td>
+          </tr>
+        `).join('')}
+        <tr class="total-row" style="background: #fff3e0;">
+          <td colspan="3" style="text-align: right; font-size: 15px;">סה"כ הוצאות</td>
+          <td colspan="2" style="font-size: 16px;"><strong>${formatCurrency(data.expenses.reduce((sum, e) => sum + e.amount, 0))}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  ` : ''
+
+  return `
+    <div style="padding: 20px;">
+      ${renderCustomBlocks('header', layout)}
+      <div class="header">
+        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח לווה</h1>
+        <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
+      </div>
+      
+      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+      
+      <div style="text-align: right; font-size: 15px; margin-bottom: 20px;">
+        <p style="margin: 5px 0;"><strong>${label('borrowerReport.borrowerNameLabel', 'שם הלווה:', layout)}</strong> ${data.borrowerName}</p>
+        <p style="margin: 5px 0;"><strong>תאריך הפקה:</strong> ${today}</p>
+      </div>
+
+      <!-- סיכום כללי -->
+      <div class="summary-box">
+        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
+        <table class="summary-table">
+          <tr>
+            <td style="width: 25%;"><strong>הלוואות פעילות:</strong></td>
+            <td style="width: 25%; text-align: left; color: #1976d2; font-size: 16px;"><strong>${activeLoansCount}</strong></td>
+            <td style="width: 25%;"><strong>הלוואות שנפרעו:</strong></td>
+            <td style="width: 25%; text-align: left; color: #2e7d32; font-size: 16px;"><strong>${completedLoansCount}</strong></td>
+          </tr>
+          <tr>
+            <td><strong>סה"כ הלוואות:</strong></td>
+            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalLoansAmount)}</td>
+            <td><strong>סה"כ פרעונות:</strong></td>
+            <td style="text-align: left; font-size: 16px;">${formatCurrency(totalRepayments)}</td>
+          </tr>
+          <tr style="background: ${data.totalDebt > 0 ? '#ffebee' : '#e8f5e9'};">
+            <td colspan="2"><strong style="font-size: 16px;">יתרת חוב נוכחית:</strong></td>
+            <td colspan="2" style="text-align: left;">
+              <span class="debt-amount" style="color: ${data.totalDebt > 0 ? '#d32f2f' : '#2e7d32'};">
+                ${formatCurrency(data.totalDebt)}
+              </span>
+            </td>
+          </tr>
+        </table>
+      </div>
+      ${renderCustomBlocks('afterSummaryBox', layout)}
+      
+      <h3 class="section-title">💰 פירוט הלוואות</h3>
+      
+      ${renderCustomBlocks('beforeLoansTable', layout)}
+      <table class="data-table">
+        <thead>
+          <tr class="loans-header">
+            <th style="width: 8%;">מס'</th>
+            <th style="width: 15%;">תאריך</th>
+            <th style="width: 15%;">סכום הלוואה</th>
+            <th style="width: 15%;">נפרע</th>
+            <th style="width: 15%;">יתרה</th>
+            <th style="width: 17%;">מחזורית</th>
+            <th style="width: 15%;">סטטוס</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${loansHtml || '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #999;">אין הלוואות</td></tr>'}
+        </tbody>
+      </table>
+      ${renderCustomBlocks('afterLoansTable', layout)}
+      
+      ${repaymentsTableVisible ? `${renderCustomBlocks('beforeRepaymentsTable', layout)}${repaymentsHtml}${renderCustomBlocks('afterRepaymentsTable', layout)}` : ''}
+      ${expensesTableVisible ? `${renderCustomBlocks('beforeExpensesTable', layout)}${expensesHtml}${renderCustomBlocks('afterExpensesTable', layout)}` : ''}
+      
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
+        <p>דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
+      </div>
+      ${renderCustomBlocks('footer', layout)}
+    </div>
+  `
+}
+
+
+export async function generateBorrowerReport(data: {
+  gemachName: string
+  gemachLogo?: string
+  gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
+  borrowerName: string
+  loans: Array<{
+    id: number
+    amount: number
+    loanDate: string
+    remaining: number
+    status: string
+    isRecurring?: boolean
+    recurringLoanNumber?: number
+    recurringLoanCount?: number
+    repayments?: Array<{
+      amount: number
+      payment_date: string
+      isRecurring?: boolean
+      recurringRepaymentNumber?: number
+      recurringRepaymentCount?: number
+      notes?: string
+    }>
+  }>
+  expenses?: Array<{
+    id: number
+    description: string
+    amount: number
+    expense_date: string
+    category: string
+  }>
+  totalDebt: number
+  repaymentsOrder?: 'newest_first' | 'oldest_first'
+}, layout?: DocumentLayoutConfig): Promise<void> {
+  const logoHtml = data.gemachLogo 
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
+    : ''
+
+  const innerContent = buildBorrowerReportHtml(data, layout)
+
+  const fullHtmlDocument = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+      <meta charset="UTF-8">
+      <style>
+${BORROWER_REPORT_STYLES}
       </style>
     </head>
     <body>
@@ -1424,6 +1598,7 @@ export async function createLoanEmailData(params: {
   isRecurring?: boolean
   recurringLoanNumber?: number
   recurringLoanCount?: number
+  customText?: string
   repayments?: Array<{
     amount: number
     payment_date: string
@@ -1431,103 +1606,43 @@ export async function createLoanEmailData(params: {
     recurringRepaymentNumber?: number
     recurringRepaymentCount?: number
   }>
-}): Promise<EmailData> {
+}, layout?: DocumentLayoutConfig): Promise<EmailData> {
   const formattedAmount = formatCurrency(params.amount)
   const formattedDate = new Date(params.loanDate).toLocaleDateString('he-IL')
-  const showHebrew = params.dateFormat === 'combined'
-  
-  // Generate HTML for PDF
-  const loanDateHebrew = showHebrew ? toHebrewDate(params.loanDate) : ''
-  const dueDateDisplay = params.dueDate ? new Date(params.dueDate).toLocaleDateString('he-IL') : ''
-  const dueDateHebrew = showHebrew && params.dueDate ? toHebrewDate(params.dueDate) : ''
-  
+
   const logoHtml = params.gemachLogo 
     ? `<img src="${params.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
 
-  // HTML להלוואה מחזורית - רק אם יש יותר מהלוואה אחת בסדרה
-  const recurringLoanHtml = params.isRecurring && params.recurringLoanNumber && params.recurringLoanCount && params.recurringLoanCount > 1 ? `
-    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
-      <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
-        🔄 הלוואה מחזורית - מספר ${params.recurringLoanNumber} מתוך ${params.recurringLoanCount}
-      </p>
-      <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
-        זוהי הלוואה מחזורית מספר ${params.recurringLoanNumber} שניתנה ללווה זה
-      </p>
-    </div>
-  ` : ''
+  // שינוי מכוון (לא תקלה): נתיב האימייל השתמש עד כה בתבנית HTML נפרדת,
+  // עם ניסוח שונה, ללא תמיכה ב-customText וללא שורת חתימה/חתימות ערבים.
+  // מ-שלב 2 ואילך, נתיב האימייל קורא לאותה buildLoanDocumentHtml כמו
+  // נתיב ההדפסה/PDF (מקור אמת יחיד — ר' קריטריוני קבלה). המשמעות בפועל:
+  // אימייל שטר הלוואה מציג מעתה גם משפט התחייבות מותאם (אם הוגדר) וגם
+  // שורות חתימה, בדיוק כמו הגרסה המודפסת.
+  const htmlContent = buildLoanDocumentHtml({
+    gemachName: params.gemachName,
+    borrowerName: params.borrowerName,
+    amount: params.amount,
+    loanDate: params.loanDate,
+    dueDate: params.dueDate,
+    loanType: params.loanType,
+    gemachLogo: params.gemachLogo,
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft,
+    guarantor1Name: params.guarantor1Name,
+    guarantor2Name: params.guarantor2Name,
+    dateFormat: params.dateFormat,
+    isRecurring: params.isRecurring,
+    recurringLoanNumber: params.recurringLoanNumber,
+    recurringLoanCount: params.recurringLoanCount,
+    customText: params.customText,
+    repayments: params.repayments,
+  } as LoanDocumentData, layout)
 
-  const guarantorsHtml = (params.guarantor1Name || params.guarantor2Name) ? `
-    <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px;">
-      <div style="font-weight: bold; margin-bottom: 10px;">ערבים:</div>
-      ${params.guarantor1Name ? `<div style="margin-bottom: 15px;"><span>ערב 1: ${params.guarantor1Name}</span></div>` : ''}
-      ${params.guarantor2Name ? `<div><span>ערב 2: ${params.guarantor2Name}</span></div>` : ''}
-    </div>
-  ` : ''
-
-  // חישוב פירעונות
-  const totalRepaid = params.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
-  const remaining = params.amount - totalRepaid
-  
-  // HTML לפירעונות
-  const repaymentsHtml = params.repayments && params.repayments.length > 0 ? `
-    <div style="margin-top: 30px; padding: 15px; background: #e8f5e9; border-radius: 8px;">
-      <h3 style="margin: 0 0 15px 0; color: #2e7d32;">פירעונות שבוצעו:</h3>
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr style="background: #4caf50;">
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">תאריך פירעון</th>
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">סכום</th>
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center; color: white;">מחזורי</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${params.repayments.map(r => {
-            const recurringInfo = r.isRecurring && r.recurringRepaymentNumber && r.recurringRepaymentCount && r.recurringRepaymentCount > 1
-              ? `🔄 ${r.recurringRepaymentNumber}/${r.recurringRepaymentCount}`
-              : '-'
-            return `
-            <tr>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(r.payment_date).toLocaleDateString('he-IL')}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(r.amount)}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${recurringInfo}</td>
-            </tr>
-          `}).join('')}
-          <tr style="background: #f1f8e9; font-weight: bold;">
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נפרע</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;" colspan="2">${formatCurrency(totalRepaid)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p style="margin-top: 15px; font-size: 18px; font-weight: bold; color: ${remaining > 0 ? '#d32f2f' : '#2e7d32'};">
-        יתרת חוב: ${formatCurrency(remaining)}
-      </p>
-    </div>
-  ` : ''
-
-  const htmlContent = `
-    <div style="text-align: center; padding: 20px;">
-      <h1 style="font-size: 28px; margin: 10px 0;">שטר הלוואה</h1>
-      <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${params.gemachName}</h2>
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
-      ${recurringLoanHtml}
-      <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>אני הח"מ <strong>${params.borrowerName}</strong></p>
-        <p>מאשר בזה כי לוויתי מגמ"ח "<strong>${params.gemachName}</strong>"</p>
-        <p style="font-size: 20px; margin: 20px 0;">סכום הלוואה מקורי: <strong>${formattedAmount}</strong></p>
-        <p>בתאריך: <strong>${formattedDate}</strong>${loanDateHebrew ? ` <span style="color: #666;">(${loanDateHebrew})</span>` : ''}</p>
-        <p style="margin-top: 20px;">
-          ${params.loanType === 'fixed' && dueDateDisplay 
-            ? `אני מתחייב להחזיר את הסכום עד תאריך: <strong>${dueDateDisplay}</strong>${dueDateHebrew ? ` <span style="color: #666;">(${dueDateHebrew})</span>` : ''}`
-            : 'אני מתחייב להחזיר את הסכום לפי התראה'
-          }
-        </p>
-      </div>
-      ${repaymentsHtml}
-      ${guarantorsHtml}
-    </div>
-  `
-  
   const finalHtmlContent = applyDocumentBranding(htmlContent, { 
     gemachLogo: params.gemachLogo, 
     gemachDocumentFrame: params.gemachDocumentFrame,
@@ -1603,76 +1718,27 @@ export function createDepositEmailData(params: {
   frameMarginRight?: number
   frameMarginLeft?: number
   dateFormat?: string
+  customText?: string
+  isRecurring?: boolean
+  recurringDepositNumber?: number
+  recurringDepositCount?: number
   withdrawals?: Array<{
     amount: number
     withdrawal_date: string
   }>
-}): EmailData {
+}, layout?: DocumentLayoutConfig): EmailData {
   const formattedAmount = formatCurrency(params.amount)
   const formattedDate = new Date(params.depositDate).toLocaleDateString('he-IL')
-  const showHebrew = params.dateFormat === 'combined'
-  
-  const depositDateHebrew = showHebrew ? toHebrewDate(params.depositDate) : ''
-  const dueDateDisplay = params.dueDate ? new Date(params.dueDate).toLocaleDateString('he-IL') : ''
-  const dueDateHebrew = showHebrew && params.dueDate ? toHebrewDate(params.dueDate) : ''
-  
+
   const logoHtml = params.gemachLogo 
     ? `<img src="${params.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
-  
-  // חישוב משיכות
-  const totalWithdrawn = params.withdrawals?.reduce((sum, w) => sum + w.amount, 0) || 0
-  const remaining = params.amount - totalWithdrawn
-  
-  // HTML למשיכות
-  const withdrawalsHtml = params.withdrawals && params.withdrawals.length > 0 ? `
-    <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 8px;">
-      <h3 style="margin: 0 0 15px 0; color: #856404;">משיכות שבוצעו:</h3>
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr style="background: #ffc107;">
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">תאריך משיכה</th>
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">סכום</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${params.withdrawals.map(w => `
-            <tr>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${new Date(w.withdrawal_date).toLocaleDateString('he-IL')}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(w.amount)}</td>
-            </tr>
-          `).join('')}
-          <tr style="background: #f8f9fa; font-weight: bold;">
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">סה"כ נמשך</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${formatCurrency(totalWithdrawn)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p style="margin-top: 15px; font-size: 18px; font-weight: bold; color: ${remaining > 0 ? '#28a745' : '#6c757d'};">
-        יתרה נוכחית: ${formatCurrency(remaining)}
-      </p>
-    </div>
-  ` : ''
 
-  const htmlContent = `
-    <div style="text-align: center; padding: 20px;">
-      <h1 style="font-size: 28px; margin: 10px 0;">שטר הפקדה</h1>
-      <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${params.gemachName}</h2>
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
-      <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>אני הח"מ מנהל גמ"ח "<strong>${params.gemachName}</strong>"</p>
-        <p>מאשר בזה כי קיבלתי הפקדה מאת: <strong>${params.depositorName}</strong></p>
-        <p style="font-size: 20px; margin: 20px 0;">סכום הפקדה מקורי: <strong>${formattedAmount}</strong></p>
-        <p>בתאריך: <strong>${formattedDate}</strong>${depositDateHebrew ? ` <span style="color: #666;">(${depositDateHebrew})</span>` : ''}</p>
-        <p style="margin-top: 20px;">
-          סוג הפקדה: <strong>${params.periodType === 'fixed' ? 'קבועה' : 'גמישה'}</strong>
-          ${dueDateDisplay ? `<br/>תאריך סיום: <strong>${dueDateDisplay}</strong>${dueDateHebrew ? ` <span style="color: #666;">(${dueDateHebrew})</span>` : ''}` : ''}
-        </p>
-      </div>
-      ${withdrawalsHtml}
-    </div>
-  `
-  
+  // שינוי מכוון (לא תקלה): הגרסה הישנה לא כללה שורות חתימה ולא תמכה
+  // ב-customText/הפקדה מחזורית. כעת קוראת לאותה buildDepositDocumentHtml
+  // כמו נתיב ההדפסה — מקור אמת יחיד.
+  const htmlContent = buildDepositDocumentHtml(params, layout)
+
   const finalHtmlContent = applyDocumentBranding(htmlContent, { 
     gemachLogo: params.gemachLogo, 
     gemachDocumentFrame: params.gemachDocumentFrame,
@@ -1712,35 +1778,42 @@ export function createDonationEmailData(params: {
   donationDate: string
   receiptNumber: string
   gemachLogo?: string
+  gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
   dateFormat?: string
-}): EmailData {
+}, layout?: DocumentLayoutConfig): EmailData {
   const formattedAmount = formatCurrency(params.amount)
   const formattedDate = new Date(params.donationDate).toLocaleDateString('he-IL')
-  const showHebrew = params.dateFormat === 'combined'
-  const dateHebrew = showHebrew ? toHebrewDate(params.donationDate) : ''
-  
+
   const logoHtml = params.gemachLogo 
     ? `<img src="${params.gemachLogo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
     : ''
 
-  const htmlContent = `
-    <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
-      ${logoHtml}
-      <h1 style="font-size: 24px; margin: 10px 0;">קבלה על תרומה</h1>
-      <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${params.gemachName}</h2>
-      <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
-      <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>מספר קבלה: <strong>${params.receiptNumber}</strong></p>
-        <p>התקבל מאת: <strong>${params.donorName}</strong></p>
-        <p style="font-size: 20px; margin: 15px 0;">סכום: <strong>${formattedAmount}</strong></p>
-        <p>תאריך: <strong>${formattedDate}</strong>${dateHebrew ? ` <span style="color: #666;">(${dateHebrew})</span>` : ''}</p>
-      </div>
-      <div style="margin: 30px 0; text-align: center;">
-        <p style="font-size: 18px; font-weight: bold;">תודה רבה על תרומתך!</p>
-        <p style="font-size: 16px;">יישר כח!</p>
-      </div>
-    </div>
-  `
+  // שינוי מכוון (לא תקלה): הגרסה הישנה לא עברה דרך applyDocumentBranding
+  // (לא תמכה במסגרת, לוגו הוזרק ידנית לתוך ה-div) ולא כללה שורת חתימה.
+  // כעת קוראת לאותה buildDonationReceiptHtml כמו נתיב ההדפסה — מקור אמת
+  // יחיד. המשמעות בפועל: אימייל קבלת תרומה מציג מעתה גם שורת חתימת הגמ"ח,
+  // וגם תומך במסגרת אם הוגדרה (בדיוק כמו הגרסה המודפסת).
+  const htmlContent = buildDonationReceiptHtml({
+    gemachName: params.gemachName,
+    donorName: params.donorName,
+    amount: params.amount,
+    donationDate: params.donationDate,
+    receiptNumber: params.receiptNumber,
+    dateFormat: params.dateFormat,
+  }, layout)
+
+  const finalHtmlContent = applyDocumentBranding(htmlContent, {
+    gemachLogo: params.gemachLogo,
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft,
+  }, logoHtml)
   
   return {
     to: params.donorEmail,
@@ -1760,62 +1833,43 @@ export function createDonationEmailData(params: {
 בברכה,
 ${params.gemachName}`,
     documentType: 'donation',
-    htmlContent,
+    htmlContent: finalHtmlContent,
     filename: `קבלה-${params.receiptNumber}-${params.donorName}`
   }
 }
 
 // Email data for borrower report
-export function createBorrowerReportEmailData(params: {
-  gemachName: string
-  borrowerName: string
+export function createBorrowerReportEmailData(params: BorrowerReportData & {
   borrowerEmail: string
-  totalDebt: number
-  loans: Array<{ id: number; amount: number; loanDate: string; remaining: number; status: string }>
-}): EmailData {
+  gemachLogo?: string
+  gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
+}, layout?: DocumentLayoutConfig): EmailData {
   const formattedDebt = formatCurrency(params.totalDebt)
-  
-  const loansHtml = params.loans.map(loan => `
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">${loan.id}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(loan.amount)}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${new Date(loan.loanDate).toLocaleDateString('he-IL')}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(loan.remaining)}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'}</td>
-    </tr>
-  `).join('')
 
-  const htmlContent = `
-    <div style="padding: 20px;">
-      <div style="text-align: center;">
-        <h1 style="font-size: 24px; margin: 10px 0;">דוח לווה</h1>
-        <h2 style="font-size: 16px; color: #666;">${params.gemachName}</h2>
-      </div>
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
-      <div style="text-align: right; font-size: 16px;">
-        <p><strong>שם הלווה:</strong> ${params.borrowerName}</p>
-        <p><strong>תאריך הפקה:</strong> ${new Date().toLocaleDateString('he-IL')}</p>
-        <p style="font-size: 18px; margin-top: 15px;"><strong>סה"כ חוב:</strong> ${formattedDebt}</p>
-      </div>
-      <h3 style="text-align: right; margin-top: 30px;">פירוט הלוואות:</h3>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: right;">
-        <thead>
-          <tr style="background: #f5f5f5;">
-            <th style="padding: 10px; border: 1px solid #ddd;">מס'</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">תאריך</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">יתרה</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">מחזורית</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סטטוס</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${loansHtml || '<tr><td colspan="6" style="padding: 20px; text-align: center;">אין הלוואות</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  `
-  
+  const logoHtml = params.gemachLogo 
+    ? `<img src="${params.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    : ''
+
+  // שינוי מכוון (לא תקלה) — הגדול מבין 4 המסמכים: הגרסה הישנה הייתה
+  // תבנית מינימלית נפרדת (בלי תיבת סיכום/פרעונות/הוצאות/CSS classes,
+  // ובלי תמיכה בלוגו או מסגרת בכלל). כעת קוראת לאותה buildBorrowerReportHtml
+  // כמו נתיב ההדפסה, כולל אותו גיליון עיצוב (BORROWER_REPORT_STYLES) —
+  // מקור אמת יחיד. אימייל דוח לווה מציג מעתה דוח מלא זהה לגרסה המודפסת.
+  const innerContent = buildBorrowerReportHtml(params, layout)
+  const brandedContent = applyDocumentBranding(innerContent, {
+    gemachLogo: params.gemachLogo,
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft,
+  }, logoHtml)
+  const htmlContent = `<style>${BORROWER_REPORT_STYLES}</style>${brandedContent}`
+
   return {
     to: params.borrowerEmail,
     subject: `דוח הלוואות - ${params.gemachName}`,

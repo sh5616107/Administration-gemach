@@ -47,6 +47,7 @@ import {
 import { borrowersService, guarantorsService, loansService, repaymentsService, guarantorLoansService, blacklistService, waitlistService, type Borrower, type Guarantor, type Loan, type Repayment, type WaitlistEntry } from '../../services/database'
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
+import { getDocumentLayout } from '../../utils/documentLayoutHelper'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
 import PaymentMethodSelect, { PaymentMethodData, getPaymentMethodLabel } from '../PaymentMethodSelect'
 import { calculateNextRepaymentNumber, isFirstLoanInFamily } from '../../services/recurringRepaymentsService'
@@ -75,6 +76,7 @@ interface LoansTabProps {
 
 export default function LoansTab({ initialBorrowerId, initialLoanId, initialWaitlistId, hideLoansTable = false, hideHeader = false, onSaved }: LoansTabProps) {
   const { settings } = useSettings()
+  const loanDocumentLayout = getDocumentLayout(settings.document_layouts, 'loan')
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
@@ -963,7 +965,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         recurringRepaymentNumber: r.recurring_repayment_number,
         recurringRepaymentCount: r.recurring_repayment_count
       })),
-    })
+    }, loanDocumentLayout)
   }
 
   // הפקת שטר ישירות מהטבלה
@@ -1003,7 +1005,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         recurringRepaymentNumber: r.recurring_repayment_number,
         recurringRepaymentCount: r.recurring_repayment_count
       })),
-    })
+    }, loanDocumentLayout)
   }
 
   const handleSendEmail = async () => {
@@ -1047,7 +1049,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         recurringRepaymentNumber: r.recurring_repayment_number,
         recurringRepaymentCount: r.recurring_repayment_count
       })),
-    })
+    }, loanDocumentLayout)
     
     const provider = (settings.email_provider || 'gmail') as EmailProvider
     const result = await openEmailWithDocument(emailData, provider)
@@ -1100,7 +1102,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         recurringRepaymentNumber: r.recurring_repayment_number,
         recurringRepaymentCount: r.recurring_repayment_count
       })),
-    })
+    }, loanDocumentLayout)
     
     const provider = (settings.email_provider || 'gmail') as EmailProvider
     const result = await openEmailWithDocument(emailData, provider)

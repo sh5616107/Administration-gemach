@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Box,
@@ -69,6 +70,7 @@ const defaultFieldLabels = {
 }
 
 export default function Settings() {
+  const navigate = useNavigate()
   const { settings, updateSetting, refreshSettings } = useSettings()
   const { t, i18n } = useTranslation()
   
@@ -316,6 +318,19 @@ export default function Settings() {
 
   return (
     <Box>
+      <Card sx={{ mb: 3, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.light' }}>
+        <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Typography variant="h6">פאנל עיצוב שטרות ודוחות</Typography>
+            <Typography variant="body2" color="text.secondary">
+              עריכה מתקדמת ל-4 המסמכים (שטר הלוואה, דו"ח לווה, קבלה על תרומה, קבלה על הפקדה) — בלוקים, יישור, גופן, מסגרת ותצוגה מקדימה חיה.
+            </Typography>
+          </Box>
+          <Button variant="contained" onClick={() => navigate('/settings/document-designer')}>
+            פתח את הפאנל
+          </Button>
+        </CardContent>
+      </Card>
       <Grid container spacing={3}>
         {/* General Settings */}
         <Grid item xs={12} md={6}>
@@ -758,6 +773,15 @@ export default function Settings() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 ניתן לערוך את הנוסח המשפטי בשטרות. הפרטים (שם, סכום, תאריך) יוצגו אוטומטית.
               </Typography>
+
+              <Alert severity="info" sx={{ mb: 3 }}>
+                לעריכה מתקדמת יותר (בלוקים מרובים, יישור/עיצוב, מסגרת לכל מסמך, תצוגה מקדימה חיה)
+                — נסה את{' '}
+                <Button size="small" variant="text" onClick={() => navigate('/settings/document-designer')} sx={{ p: 0, minWidth: 0, verticalAlign: 'baseline' }}>
+                  פאנל עיצוב שטרות ודוחות
+                </Button>
+                . השדות למטה ממשיכים לעבוד כרגיל, והועברו אוטומטית לפאנל החדש בהפעלה הראשונה אחרי השדרוג (עריכה נוספת כאן לא מסתנכרנת עם הפאנל באופן שוטף).
+              </Alert>
               
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
                 שטר הלוואה - נוסח ההתחייבות:

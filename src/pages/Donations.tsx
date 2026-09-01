@@ -42,6 +42,7 @@ import {
   EmailProvider 
 } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
+import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import { formatDisplayDate, toHebrewDate } from '../utils/dateUtils';
 import AmountInput from '../components/AmountInput';
 import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
@@ -78,6 +79,7 @@ interface Donation {
  */
 export default function Donations() {
   const { settings } = useSettings();
+  const donationReceiptLayout = getDocumentLayout(settings.document_layouts, 'donationReceipt');
   const [searchParams, setSearchParams] = useSearchParams();
   const [donors, setDonors] = useState<Donor[]>([]);
   const [selectedDonor, setSelectedDonor] = useState<Donor | null>(null);
@@ -439,7 +441,7 @@ export default function Donations() {
       donationDate: donation.donation_date,
       receiptNumber: donation.receipt_number || donation.id.toString(),
       dateFormat: settings.date_format,
-    });
+    }, donationReceiptLayout);
   };
 
   const handleSendReceiptEmail = async (donation: Donation) => {
@@ -457,8 +459,13 @@ export default function Donations() {
         donationDate: donation.donation_date,
         receiptNumber: donation.receipt_number || donation.id.toString(),
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
         dateFormat: settings.date_format,
-      });
+      }, donationReceiptLayout);
       
       const provider = (settings.email_provider || 'gmail') as EmailProvider;
       const result = await openEmailWithDocument(emailData, provider);

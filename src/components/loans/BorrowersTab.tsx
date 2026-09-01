@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material'
 import { borrowersService, loansService, guarantorLoansService, repaymentsService } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
+import { getDocumentLayout } from '../../utils/documentLayoutHelper'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import DuplicatePhoneWarningDialog from '../DuplicatePhoneWarningDialog'
 import { checkNewBorrower, type CrossCheckResult } from '../../services/crossCheck'
@@ -50,6 +51,7 @@ interface BorrowersTabProps {
 
 export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
   const { settings } = useSettings()
+  const borrowerReportLayout = getDocumentLayout(settings.document_layouts, 'borrowerReport')
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
   const [formData, setFormData] = useState<Omit<Borrower, 'id' | 'created_at'>>(emptyBorrower)
@@ -289,7 +291,7 @@ export default function BorrowersTab({ onBorrowerSelect }: BorrowersTabProps) {
         loans: loansWithRepayments,
         totalDebt,
         repaymentsOrder: settings.report_repayments_order,
-      })
+      }, borrowerReportLayout)
       
       setSnackbar({ open: true, message: 'הדוח הופק בהצלחה', severity: 'success' })
     } catch (error) {

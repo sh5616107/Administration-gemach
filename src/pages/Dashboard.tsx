@@ -44,6 +44,7 @@ import { statsService, borrowersService, loansService, db, waitlistService, atta
 import { clearEntireArchive } from '../services/attachmentsStorage'
 import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmailData, EmailProvider } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
+import { getDocumentLayout } from '../utils/documentLayoutHelper'
 import ItemsListDialog from '../components/ItemsListDialog'
 
 interface DashboardStats {
@@ -73,6 +74,7 @@ interface ActiveBorrower {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { settings } = useSettings()
+  const borrowerReportLayout = getDocumentLayout(settings.document_layouts, 'borrowerReport')
   const { t } = useTranslation()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [waitlistStats, setWaitlistStats] = useState<WaitlistStats | null>(null)
@@ -222,7 +224,7 @@ export default function Dashboard() {
         })),
         totalDebt: borrower.total_debt,
         repaymentsOrder: settings.report_repayments_order,
-      })
+      }, borrowerReportLayout)
       setSnackbar({ open: true, message: 'הדו"ח הופק בהצלחה', severity: 'success' })
     } catch (error) {
       console.error('Error generating report:', error)
@@ -311,7 +313,7 @@ export default function Dashboard() {
           remaining: l.remaining || 0,
           status: l.status
         })),
-      })
+      }, borrowerReportLayout)
       
       const provider = (settings.email_provider || 'gmail') as EmailProvider
       const result = await openEmailWithDocument(emailData, provider)

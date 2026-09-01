@@ -21,6 +21,7 @@ const Calendar = lazy(() => import('./pages/Calendar'))
 const Contacts = lazy(() => import('./pages/Contacts'))
 const AdvancedTools = lazy(() => import('./pages/AdvancedTools'))
 const Settings = lazy(() => import('./pages/Settings'))
+const DocumentDesignerPanel = lazy(() => import('./pages/DocumentDesignerPanel'))
 const Help = lazy(() => import('./pages/Help'))
 
 // Bank integration pages
@@ -173,6 +174,7 @@ function App() {
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/tools" element={<AdvancedTools />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/document-designer" element={<DocumentDesignerPanel />} />
               <Route path="/help" element={<Help />} />
               
               {/* Bank Integration Routes - מוסתר מהמשתמשים עד להשלמת הפיתוח */}

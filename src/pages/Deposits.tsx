@@ -53,6 +53,7 @@ import { db, depositWithdrawalsService } from '../services/database';
 import { confirmAction } from '../utils/confirmDialog';
 import { generateDepositorReport, generateDepositDocument, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
+import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import DepositorSidePanel from '../components/donations/DepositorSidePanel';
 import DepositSidePanel from '../components/donations/DepositSidePanel';
 import { EditRecurringDialog } from '../components/recurring/EditRecurringDialog';
@@ -99,6 +100,7 @@ interface Deposit {
  */
 export default function Deposits() {
   const { settings } = useSettings();
+  const depositReceiptLayout = getDocumentLayout(settings.document_layouts, 'depositReceipt');
   const [searchParams, setSearchParams] = useSearchParams();
   const [depositors, setDepositors] = useState<Depositor[]>([]);
   const [selectedDepositor, setSelectedDepositor] = useState<Depositor | null>(null);
@@ -553,7 +555,7 @@ export default function Deposits() {
         recurringDepositNumber: deposit.recurring_deposit_number,
         recurringDepositCount: deposit.recurring_deposit_count,
         withdrawals: withdrawals.map(w => ({ amount: w.amount, withdrawal_date: w.withdrawal_date })),
-      });
+      }, depositReceiptLayout);
 
       setSnackbar({ open: true, message: 'הקבלה הופקה בהצלחה', severity: 'success' });
     } catch (error) {
