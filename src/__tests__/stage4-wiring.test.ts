@@ -14,7 +14,7 @@ import { createEmptyDocumentLayoutsMap } from '../types/documentLayout'
 vi.mock('html2canvas', () => ({ default: vi.fn() }))
 vi.mock('jspdf', () => ({ default: vi.fn() }))
 
-const { buildLoanDocumentHtml, buildDonationReceiptHtml, buildDepositDocumentHtml } = await import('../services/documents')
+const { buildLoanDocumentHtml, buildDonationReceiptHtml, buildDepositDocumentHtml, resolveDocumentBranding } = await import('../services/documents')
 
 describe('שלב 4: wiring אמיתי — settings.document_layouts משפיע בפועל על הפלט', () => {
   it('שטר הלוואה: בלוק מותאם בעוגן afterAmount מופיע בפועל ב-HTML', () => {
@@ -82,5 +82,35 @@ describe('שלב 4: wiring אמיתי — settings.document_layouts משפיע �
       loanDate: '2026-01-01', loanType: 'flexible',
     } as any, layout)
     expect(html).toContain('ישראל ישראלי')
+  })
+
+  it('מסגרת של מסמך ספציפי גוברת על המסגרת הגלובלית הישנה, ומסמך ללא מסגרת מבטל אותה', () => {
+    const legacy = {
+      gemachLogo: 'logo', gemachDocumentFrame: 'legacy-frame',
+      frameMarginTop: 35, frameMarginBottom: 48, frameMarginRight: 20, frameMarginLeft: 20,
+    }
+    const layouts = createEmptyDocumentLayoutsMap()
+    layouts.loan.frame = { imageBase64: 'loan-frame', marginTop: 1, marginBottom: 2, marginRight: 3, marginLeft: 4 }
+
+    expect(resolveDocumentBranding(legacy, layouts.loan)).toMatchObject({
+      gemachDocumentFrame: 'loan-frame', frameMarginTop: 1, frameMarginBottom: 2, frameMarginRight: 3, frameMarginLeft: 4,
+    })
+    expect(resolveDocumentBranding(legacy, layouts.donationReceipt).gemachDocumentFrame).toBeUndefined()
+    expect(resolveDocumentBranding(legacy, undefined).gemachDocumentFrame).toBe('legacy-frame')
+  })
+
+  it('בלוק נוסח התחייבות ממוגר מחליף את הנוסח הישן ואינו מוצג פעמיים', () => {
+    const layouts = createEmptyDocumentLayoutsMap()
+    const migratedText = 'נוסח-התחייבות-ממוגר-ייחודי'
+    layouts.loan.customBlocks = [
+      { id: 'migrated', anchorId: 'commitmentText', text: migratedText, align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15, order: 0 },
+    ]
+
+    const html = buildLoanDocumentHtml({
+      gemachName: 'גמ"ח בדיקה', borrowerName: 'ישראל ישראלי', amount: 1000,
+      loanDate: '2026-01-01', loanType: 'flexible', customText: migratedText,
+    } as any, layouts.loan)
+
+    expect(html.match(new RegExp(migratedText, 'g'))).toHaveLength(1)
   })
 })

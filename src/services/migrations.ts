@@ -1294,11 +1294,11 @@ export function migrateDocumentLayouts(oldValues: {
     order: 0,
   })
 
-  // loan_document_text: החל היום כתחליף מלא למשפט ההתחייבות, מיד אחרי שם
-  // הלווה ולפני סכום ההלוואה בזרימת HTML הקיימת — עוגן ברירת המחדל ההגיוני
-  // הוא afterBorrowerName.
+  // loan_document_text היה תחליף מלא למשפט ההתחייבות. לכן הוא עובר לעוגן
+  // ייעודי שמחליף את הנוסח הרגיל, ולא לבלוק "אחרי שם הלווה" שהיה גורם
+  // להצגת אותו טקסט פעמיים.
   if (oldValues.loan_document_text && oldValues.loan_document_text.trim()) {
-    result.loan.customBlocks.push(makeBlock('afterBorrowerName', oldValues.loan_document_text))
+    result.loan.customBlocks.push(makeBlock('commitmentText', oldValues.loan_document_text))
   }
 
   // deposit_document_text: מוצג היום מיד אחרי בלוק סוג/תאריך ההפקדה,

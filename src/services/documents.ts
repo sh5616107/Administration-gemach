@@ -261,6 +261,28 @@ interface DocumentBrandingOptions {
 }
 
 /**
+ * document_layouts הוא מקור האמת אחרי המיגרציה. אם הוא קיים, גם מסמך
+ * ללא frame מבטל במפורש את המסגרת הגלובלית הישנה עבור אותו מסמך.
+ * בהיעדר layout נשמרת התאימות להגדרות הישנות.
+ */
+export function resolveDocumentBranding(
+  legacy: DocumentBrandingOptions,
+  layout?: DocumentLayoutConfig
+): DocumentBrandingOptions {
+  if (!layout) return legacy
+
+  const frame = layout.frame
+  return {
+    gemachLogo: legacy.gemachLogo,
+    gemachDocumentFrame: frame?.imageBase64,
+    frameMarginTop: frame?.marginTop,
+    frameMarginBottom: frame?.marginBottom,
+    frameMarginRight: frame?.marginRight,
+    frameMarginLeft: frame?.marginLeft,
+  }
+}
+
+/**
  * עוטף תוכן HTML של מסמך עם מיתוג הגמ"ח.
  * החלטה בלבד אם להציג לוגו רגיל או לא - ללא ציור מסגרת ב-CSS.
  * אם קיימת gemachDocumentFrame — מחזיר רק את innerHtml (ללא לוגו, המסגרת תצויר ב-downloadPdf).
@@ -403,6 +425,7 @@ export function buildLoanDocumentHtml(data: LoanDocumentData, layout?: DocumentL
     ${renderCustomBlocks('afterGuarantors', layout)}
   ` : renderCustomBlocks('afterGuarantors', layout)
 
+  const migratedCommitmentText = renderCustomBlocks('commitmentText', layout)
   const isValidCustomText = data.customText && !data.customText.includes('{שם_') && !data.customText.includes('{סכום}')
   const commitmentText = isValidCustomText ? data.customText : 'מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע.'
 
@@ -461,7 +484,7 @@ export function buildLoanDocumentHtml(data: LoanDocumentData, layout?: DocumentL
       <div style="text-align: right; font-size: 15px; line-height: 1.6;">
         <p style="margin: 8px 0;">${label('loan.commitmentIntro', 'אני הח"מ', layout)} <strong>${data.borrowerName}</strong></p>
         ${renderCustomBlocks('afterBorrowerName', layout)}
-        <p style="margin: 8px 0;">${commitmentText}</p>
+        ${migratedCommitmentText || `<p style="margin: 8px 0;">${commitmentText}</p>`}
         <p style="font-size: 18px; margin: 15px 0;">
           ${label('loan.originalAmount', 'סכום הלוואה מקורי:', layout)} <strong>${formatCurrency(data.amount)}</strong>
         </p>
@@ -504,16 +527,23 @@ export async function generateLoanDocument(data: LoanDocumentData, layout?: Docu
 
   const htmlContent = buildLoanDocumentHtml(data, layout)
 
-  const finalContent = applyDocumentBranding(htmlContent, { 
+  const branding = resolveDocumentBranding({
     gemachLogo: data.gemachLogo, 
     gemachDocumentFrame: data.gemachDocumentFrame,
     frameMarginTop: data.frameMarginTop,
     frameMarginBottom: data.frameMarginBottom,
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
-  }, logoHtml)
+  }, layout)
+  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
   
-  // הערה: תמיכה במסגרות תופסק בגרסה זו
+  if (branding.gemachDocumentFrame) {
+    await downloadPdf(finalContent, `שטר-הלוואה-${data.borrowerName}`, branding.gemachDocumentFrame, {
+      top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
+    })
+    return
+  }
   printHtml(finalContent, `שטר הלוואה - ${data.borrowerName}`)
 }
 
@@ -662,16 +692,23 @@ export async function generateDonationReceipt(data: {
 
   const htmlContent = buildDonationReceiptHtml(data, layout)
 
-  const finalContent = applyDocumentBranding(htmlContent, { 
+  const branding = resolveDocumentBranding({
     gemachLogo: data.gemachLogo, 
     gemachDocumentFrame: data.gemachDocumentFrame,
     frameMarginTop: data.frameMarginTop,
     frameMarginBottom: data.frameMarginBottom,
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
-  }, logoHtml)
+  }, layout)
+  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
   
-  // הערה: תמיכה במסגרות תופסק בגרסה זו
+  if (branding.gemachDocumentFrame) {
+    await downloadPdf(finalContent, `קבלה-${data.receiptNumber}`, branding.gemachDocumentFrame, {
+      top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
+    })
+    return
+  }
   printHtml(finalContent, `קבלה ${data.receiptNumber}`)
 }
 
@@ -796,7 +833,7 @@ export function buildDepositDocumentHtml(data: {
 }
 
 
-export function generateDepositDocument(data: {
+export async function generateDepositDocument(data: {
   gemachName: string
   gemachLogo?: string
   gemachDocumentFrame?: string
@@ -825,14 +862,22 @@ export function generateDepositDocument(data: {
 
   const htmlContent = buildDepositDocumentHtml(data, layout)
 
-  const finalContent = applyDocumentBranding(htmlContent, { 
+  const branding = resolveDocumentBranding({
     gemachLogo: data.gemachLogo, 
     gemachDocumentFrame: data.gemachDocumentFrame,
     frameMarginTop: data.frameMarginTop,
     frameMarginBottom: data.frameMarginBottom,
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
-  }, logoHtml)
+  }, layout)
+  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
+  if (branding.gemachDocumentFrame) {
+    await downloadPdf(finalContent, `שטר-הפקדה-${data.depositorName}`, branding.gemachDocumentFrame, {
+      top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
+    })
+    return
+  }
   printHtml(finalContent, `שטר הפקדה - ${data.depositorName}`)
 }
 
@@ -1176,6 +1221,14 @@ export async function generateBorrowerReport(data: {
     : ''
 
   const innerContent = buildBorrowerReportHtml(data, layout)
+  const branding = resolveDocumentBranding({
+    gemachLogo: data.gemachLogo,
+    gemachDocumentFrame: data.gemachDocumentFrame,
+    frameMarginTop: data.frameMarginTop,
+    frameMarginBottom: data.frameMarginBottom,
+    frameMarginRight: data.frameMarginRight,
+    frameMarginLeft: data.frameMarginLeft,
+  }, layout)
 
   const fullHtmlDocument = `
     <!DOCTYPE html>
@@ -1187,19 +1240,18 @@ ${BORROWER_REPORT_STYLES}
       </style>
     </head>
     <body>
-    ${applyDocumentBranding(innerContent, { 
-      gemachLogo: data.gemachLogo, 
-      gemachDocumentFrame: data.gemachDocumentFrame,
-      frameMarginTop: data.frameMarginTop,
-      frameMarginBottom: data.frameMarginBottom,
-      frameMarginRight: data.frameMarginRight,
-      frameMarginLeft: data.frameMarginLeft
-    }, logoHtml)}
+    ${applyDocumentBranding(innerContent, branding, logoHtml)}
     </body>
     </html>
   `
 
-  // הערה: תמיכה במסגרות תופסק בגרסה זו
+  if (branding.gemachDocumentFrame) {
+    await downloadPdf(fullHtmlDocument, `דוח-לווה-${data.borrowerName}`, branding.gemachDocumentFrame, {
+      top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
+    })
+    return
+  }
   printHtml(fullHtmlDocument, `דוח לווה - ${data.borrowerName}`)
 }
 
@@ -1542,6 +1594,8 @@ export interface EmailData {
   htmlContent?: string
   filename?: string
   attachmentPath?: string
+  frameImageBase64?: string
+  frameMargins?: { top: number; bottom: number; right: number; left: number }
 }
 
 export async function openEmailWithDocument(data: EmailData, provider: EmailProvider = 'gmail'): Promise<{ success: boolean; message: string }> {
@@ -1557,7 +1611,7 @@ export async function openEmailWithDocument(data: EmailData, provider: EmailProv
 
   // Download PDF first if HTML content provided
   if (data.htmlContent && data.filename) {
-    await downloadPdf(data.htmlContent, data.filename)
+    await downloadPdf(data.htmlContent, data.filename, data.frameImageBase64, data.frameMargins)
   }
 
   let url: string
@@ -1643,43 +1697,15 @@ export async function createLoanEmailData(params: {
     repayments: params.repayments,
   } as LoanDocumentData, layout)
 
-  const finalHtmlContent = applyDocumentBranding(htmlContent, { 
+  const branding = resolveDocumentBranding({
     gemachLogo: params.gemachLogo, 
     gemachDocumentFrame: params.gemachDocumentFrame,
     frameMarginTop: params.frameMarginTop,
     frameMarginBottom: params.frameMarginBottom,
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft
-  }, logoHtml)
-  
-  let attachmentPath: string | undefined = undefined
-  
-  // אם יש מסגרת, ניצור PDF עם downloadPdf
-  if (params.gemachDocumentFrame) {
-    const margins = {
-      top: params.frameMarginTop ?? 35,
-      bottom: params.frameMarginBottom ?? 48,
-      right: params.frameMarginRight ?? 20,
-      left: params.frameMarginLeft ?? 20
-    }
-    
-    const fullHtmlDocument = `
-      <!DOCTYPE html>
-      <html dir="rtl" lang="he">
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; }
-        </style>
-      </head>
-      <body>
-        ${finalHtmlContent}
-      </body>
-      </html>
-    `
-    
-    attachmentPath = await downloadPdf(fullHtmlDocument, `שטר-הלוואה-${params.borrowerName}`, params.gemachDocumentFrame, margins)
-  }
+  }, layout)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml)
   
   return {
     to: params.borrowerEmail,
@@ -1699,7 +1725,13 @@ ${params.gemachName}`,
     documentType: 'loan',
     htmlContent: finalHtmlContent,
     filename: `שטר-הלוואה-${params.borrowerName}`,
-    attachmentPath
+    frameImageBase64: branding.gemachDocumentFrame,
+    frameMargins: branding.gemachDocumentFrame ? {
+      top: branding.frameMarginTop ?? 35,
+      bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20,
+      left: branding.frameMarginLeft ?? 20,
+    } : undefined,
   }
 }
 
@@ -1739,14 +1771,15 @@ export function createDepositEmailData(params: {
   // כמו נתיב ההדפסה — מקור אמת יחיד.
   const htmlContent = buildDepositDocumentHtml(params, layout)
 
-  const finalHtmlContent = applyDocumentBranding(htmlContent, { 
+  const branding = resolveDocumentBranding({
     gemachLogo: params.gemachLogo, 
     gemachDocumentFrame: params.gemachDocumentFrame,
     frameMarginTop: params.frameMarginTop,
     frameMarginBottom: params.frameMarginBottom,
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft
-  }, logoHtml)
+  }, layout)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml)
   
   return {
     to: params.depositorEmail,
@@ -1765,7 +1798,14 @@ export function createDepositEmailData(params: {
 ${params.gemachName}`,
     documentType: 'deposit',
     htmlContent: finalHtmlContent,
-    filename: `שטר-הפקדה-${params.depositorName}`
+    filename: `שטר-הפקדה-${params.depositorName}`,
+    frameImageBase64: branding.gemachDocumentFrame,
+    frameMargins: branding.gemachDocumentFrame ? {
+      top: branding.frameMarginTop ?? 35,
+      bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20,
+      left: branding.frameMarginLeft ?? 20,
+    } : undefined,
   }
 }
 
@@ -1806,14 +1846,15 @@ export function createDonationEmailData(params: {
     dateFormat: params.dateFormat,
   }, layout)
 
-  const finalHtmlContent = applyDocumentBranding(htmlContent, {
+  const branding = resolveDocumentBranding({
     gemachLogo: params.gemachLogo,
     gemachDocumentFrame: params.gemachDocumentFrame,
     frameMarginTop: params.frameMarginTop,
     frameMarginBottom: params.frameMarginBottom,
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft,
-  }, logoHtml)
+  }, layout)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml)
   
   return {
     to: params.donorEmail,
@@ -1834,7 +1875,14 @@ export function createDonationEmailData(params: {
 ${params.gemachName}`,
     documentType: 'donation',
     htmlContent: finalHtmlContent,
-    filename: `קבלה-${params.receiptNumber}-${params.donorName}`
+    filename: `קבלה-${params.receiptNumber}-${params.donorName}`,
+    frameImageBase64: branding.gemachDocumentFrame,
+    frameMargins: branding.gemachDocumentFrame ? {
+      top: branding.frameMarginTop ?? 35,
+      bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20,
+      left: branding.frameMarginLeft ?? 20,
+    } : undefined,
   }
 }
 
@@ -1860,14 +1908,15 @@ export function createBorrowerReportEmailData(params: BorrowerReportData & {
   // כמו נתיב ההדפסה, כולל אותו גיליון עיצוב (BORROWER_REPORT_STYLES) —
   // מקור אמת יחיד. אימייל דוח לווה מציג מעתה דוח מלא זהה לגרסה המודפסת.
   const innerContent = buildBorrowerReportHtml(params, layout)
-  const brandedContent = applyDocumentBranding(innerContent, {
+  const branding = resolveDocumentBranding({
     gemachLogo: params.gemachLogo,
     gemachDocumentFrame: params.gemachDocumentFrame,
     frameMarginTop: params.frameMarginTop,
     frameMarginBottom: params.frameMarginBottom,
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft,
-  }, logoHtml)
+  }, layout)
+  const brandedContent = applyDocumentBranding(innerContent, branding, logoHtml)
   const htmlContent = `<style>${BORROWER_REPORT_STYLES}</style>${brandedContent}`
 
   return {
@@ -1883,7 +1932,14 @@ export function createBorrowerReportEmailData(params: BorrowerReportData & {
 ${params.gemachName}`,
     documentType: 'borrower_report',
     htmlContent,
-    filename: `דוח-לווה-${params.borrowerName}`
+    filename: `דוח-לווה-${params.borrowerName}`,
+    frameImageBase64: branding.gemachDocumentFrame,
+    frameMargins: branding.gemachDocumentFrame ? {
+      top: branding.frameMarginTop ?? 35,
+      bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20,
+      left: branding.frameMarginLeft ?? 20,
+    } : undefined,
   }
 }
 

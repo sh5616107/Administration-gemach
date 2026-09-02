@@ -30,7 +30,7 @@ describe('migrateDocumentLayouts', () => {
     console.log('תרחיש 2 (customText בלבד):', JSON.stringify(result))
 
     expect(result.loan.customBlocks).toHaveLength(1)
-    expect(result.loan.customBlocks[0].anchorId).toBe('afterBorrowerName')
+    expect(result.loan.customBlocks[0].anchorId).toBe('commitmentText')
     expect(result.loan.customBlocks[0].text).toBe('אני הח"מ מתחייב להחזיר את ההלוואה תוך 30 יום.')
     expect(result.loan.customBlocks[0].order).toBe(0)
 

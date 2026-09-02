@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import localforage from 'localforage'
-import { createEmptyDocumentLayoutsMap } from '../types/documentLayout'
 
 const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
 
@@ -60,7 +59,9 @@ const defaultSettings: Settings = {
   deposit_document_text: 'ואני מתחייב להחזיר את הסכום בתנאים שנקבעו.',
   language: 'he',
   report_repayments_order: 'newest_first',
-  document_layouts: JSON.stringify(createEmptyDocumentLayoutsMap()),
+  // מחרוזת ריקה מציינת שעדיין לא בוצעה מיגרציה. כך מסמכים ישנים ממשיכים
+  // להשתמש בהגדרות המיתוג הישנות עד שהמיגרציה יוצרת document_layouts.
+  document_layouts: '',
 }
 
 // Custom event for settings changes

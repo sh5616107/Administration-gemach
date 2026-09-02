@@ -77,6 +77,7 @@ export const DOCUMENT_ANCHORS: Record<DocumentType, AnchorDefinition[]> = {
   loan: [
     { id: 'header', label: 'כותרת המסמך (לפני הכל)' },
     { id: 'afterBorrowerName', label: 'אחרי שם הלווה', description: 'אחרי "אני הח״מ [שם הלווה]"' },
+    { id: 'commitmentText', label: 'נוסח ההתחייבות', description: 'מחליף את נוסח ההתחייבות הרגיל בשטר' },
     { id: 'afterAmount', label: 'אחרי סכום ההלוואה' },
     { id: 'beforeRepaymentsTable', label: 'לפני טבלת הפירעונות' },
     {

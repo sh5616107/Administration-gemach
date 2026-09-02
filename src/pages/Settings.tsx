@@ -228,8 +228,6 @@ export default function Settings() {
       await updateSetting('date_format', localSettings.date_format)
       await updateSetting('show_payment_method', localSettings.show_payment_method)
       await updateSetting('email_provider', localSettings.email_provider)
-      await updateSetting('loan_document_text', localSettings.loan_document_text)
-      await updateSetting('deposit_document_text', localSettings.deposit_document_text)
       await updateSetting('language', i18n.language)
       await updateSetting('report_repayments_order', localSettings.report_repayments_order)
       if (localSettings.gemach_logo !== settings.gemach_logo) {
@@ -716,12 +714,12 @@ export default function Settings() {
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <EditIcon /> התאמת שמות שדות
+                <EditIcon /> שמות שדות בטפסי קליטה
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                ניתן לשנות את שמות השדות המוצגים בטפסים
+                הגדרות אלו משנות רק את השדות בטפסי הקליטה. לעריכת טקסטים במסמכים מודפסים יש להשתמש בפאנל עיצוב המסמכים.
               </Typography>
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
@@ -761,79 +759,23 @@ export default function Settings() {
           </Accordion>
         </Grid>
 
-        {/* Document Templates - Accordion */}
+        {/* Document designer is the single source of truth for printed documents. */}
         <Grid item xs={12}>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <DescriptionIcon /> עריכת נוסח שטרות
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                ניתן לערוך את הנוסח המשפטי בשטרות. הפרטים (שם, סכום, תאריך) יוצגו אוטומטית.
-              </Typography>
-
-              <Alert severity="info" sx={{ mb: 3 }}>
-                לעריכה מתקדמת יותר (בלוקים מרובים, יישור/עיצוב, מסגרת לכל מסמך, תצוגה מקדימה חיה)
-                — נסה את{' '}
-                <Button size="small" variant="text" onClick={() => navigate('/settings/document-designer')} sx={{ p: 0, minWidth: 0, verticalAlign: 'baseline' }}>
-                  פאנל עיצוב שטרות ודוחות
-                </Button>
-                . השדות למטה ממשיכים לעבוד כרגיל, והועברו אוטומטית לפאנל החדש בהפעלה הראשונה אחרי השדרוג (עריכה נוספת כאן לא מסתנכרנת עם הפאנל באופן שוטף).
-              </Alert>
-              
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
-                שטר הלוואה - נוסח ההתחייבות:
-              </Typography>
-              <Box sx={{ mb: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+          <Card>
+            <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DescriptionIcon /> טקסטים ועיצוב במסמכים מודפסים
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  אני הח"מ <strong>[שם הלווה]</strong> ...
+                  נוסחי שטרות, תוויות, בלוקים ומסגרות מנוהלים במקום אחד בפאנל עיצוב המסמכים.
                 </Typography>
               </Box>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                value={localSettings.loan_document_text}
-                onChange={(e) => setLocalSettings({ ...localSettings, loan_document_text: e.target.value })}
-                placeholder="מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע."
-                helperText="מומלץ לשמור על נוסח קצר (עד 2 שורות) כדי שהשטר יישאר בדף אחד"
-                sx={{ mb: 3 }}
-              />
-              
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
-                שטר הפקדה - נוסח ההתחייבות:
-              </Typography>
-              <Box sx={{ mb: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  אני הח"מ מנהל הגמ"ח מאשר כי קיבלתי הפקדה מאת <strong>[שם המפקיד]</strong> ...
-                </Typography>
-              </Box>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                value={localSettings.deposit_document_text}
-                onChange={(e) => setLocalSettings({ ...localSettings, deposit_document_text: e.target.value })}
-                placeholder="ואני מתחייב להחזיר את הסכום בתנאים שנקבעו."
-                helperText="מומלץ לשמור על נוסח קצר (עד 2 שורות) כדי שהשטר יישאר בדף אחד"
-                sx={{ mb: 2 }}
-              />
-              
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => setLocalSettings({
-                  ...localSettings,
-                  loan_document_text: 'מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע.',
-                  deposit_document_text: 'ואני מתחייב להחזיר את הסכום בתנאים שנקבעו.',
-                })}
-              >
-                אפס לברירת מחדל
+              <Button variant="contained" onClick={() => navigate('/settings/document-designer')}>
+                פתח את הפאנל
               </Button>
-            </AccordionDetails>
-          </Accordion>
+            </CardContent>
+          </Card>
         </Grid>
 
         {/* Save Button */}
