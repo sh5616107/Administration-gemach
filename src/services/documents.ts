@@ -49,7 +49,7 @@ const openUrl = async (url: string) => {
 }
 
 // Download HTML content as PDF
-const downloadPdf = async (
+export const downloadPdf = async (
   htmlContent: string, 
   filename: string, 
   frameImageBase64?: string,
@@ -73,6 +73,14 @@ const downloadPdf = async (
         
         const pageWidth = 210 // A4 width in mm
         const pageHeight = 297 // A4 height in mm
+
+        // margins קובעים כמה "מרווח בטיחות" יש לתוכן מקצוות הדף, כדי
+        // שלא יתנגש ויזואלית עם עיצוב תמונת המסגרת (שמצוירת כרקע מלא-עמוד,
+        // ר' drawFrameOnCurrentPage). בלי מסגרת אין סיבה לצמצם את התוכן.
+        const m = frameImageBase64 ? (margins ?? { top: 0, bottom: 0, right: 0, left: 0 }) : { top: 0, bottom: 0, right: 0, left: 0 }
+        const contentX = m.left
+        const contentWidth = pageWidth - m.left - m.right
+        const usablePageHeight = pageHeight - m.top - m.bottom
         
         // Use html2canvas with better settings
         const canvas = await html2canvas(container, {
@@ -83,22 +91,33 @@ const downloadPdf = async (
         })
         
         const imgData = canvas.toDataURL('image/png', 0.95)
-        const imgWidth = pageWidth
-        const imgHeight = (canvas.height * pageWidth) / canvas.width
+        const imgWidth = contentWidth
+        const imgHeight = (canvas.height * contentWidth) / canvas.width
+
+        const drawFrameOnCurrentPage = () => {
+          // תמונת רקע מלאה מאחורי כל התוכן (עמוד שלם) — נמתחת לכיסוי כל
+          // הדף (0,0 עד pageWidth/pageHeight), מצוירת לפני התוכן כך שהתוכן
+          // תמיד גלוי מעליה.
+          if (frameImageBase64) {
+            pdf.addImage(frameImageBase64, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
+          }
+        }
         
         let heightLeft = imgHeight
         let position = 0
         
         // Add first page
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
-        heightLeft -= pageHeight
+        drawFrameOnCurrentPage()
+        pdf.addImage(imgData, 'PNG', contentX, m.top + position, imgWidth, imgHeight, undefined, 'FAST')
+        heightLeft -= usablePageHeight
         
         // Add additional pages if content is longer
         while (heightLeft > 0) {
-          position -= pageHeight
+          position -= usablePageHeight
           pdf.addPage()
-          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
-          heightLeft -= pageHeight
+          drawFrameOnCurrentPage()
+          pdf.addImage(imgData, 'PNG', contentX, m.top + position, imgWidth, imgHeight, undefined, 'FAST')
+          heightLeft -= usablePageHeight
         }
         
         pdf.save(`${filename}.pdf`)

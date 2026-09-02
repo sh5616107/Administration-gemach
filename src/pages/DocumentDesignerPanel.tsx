@@ -128,13 +128,33 @@ function buildPreviewHtml(docType: DocumentType, layout: DocumentLayoutConfig, w
       content = buildBorrowerReportHtml(withVariant ? MOCK_BORROWER_REPORT_WITH_REPAY : MOCK_BORROWER_REPORT_NO_REPAY, layout)
       break
   }
+
+  // אם יש מסגרת מוגדרת למסמך: עוטפים את התוכן ב"עמוד" בגודל A4 (יחסי,
+  // 210x297mm — אותו יחס גובה-רוחב כמו ב-downloadPdf) עם תמונת המסגרת
+  // כרקע מלא-עמוד (background-size: 100% 100%), ומרווח פנימי כמרווחי
+  // המשתמש כדי שהתוכן לא יתנגש עם עיצוב המסגרת — תואם ויזואלית לאיך
+  // שהמסגרת מצוירת בפועל ב-PDF. הערה: אם התוכן ארוך מעמוד אחד (בעיקר
+  // דוח לווה), הרקע נמתח לגובה ה"עמוד" הראשון בלבד ולא חוזר על עצמו
+  // מעמוד לעמוד כמו ב-PDF האמיתי — זו תצוגה מקדימה מקורבת, לא פיצול
+  // עמודים מדויק.
+  const frame = layout.frame
+  const pageContent = frame?.imageBase64 ? `
+    <div style="
+      width: 210mm; min-height: 297mm; margin: 0 auto; position: relative;
+      background-image: url('${frame.imageBase64}'); background-size: 100% 100%; background-repeat: no-repeat;
+      box-sizing: border-box;
+      padding-top: ${frame.marginTop}mm; padding-bottom: ${frame.marginBottom}mm;
+      padding-right: ${frame.marginRight}mm; padding-left: ${frame.marginLeft}mm;
+    ">${content}</div>
+  ` : content
+
   // "נייר לבן" קבוע — לא var(--surface-*)/var(--text-*), גם אם האפליקציה במצב כהה
   // (ר' עקרונות עיצוב בשלב 3). מוזרק ל-iframe srcDoc, לא dangerouslySetInnerHTML
   // בעץ הראשי — בידוד סגנונות/סקריפטים מהטקסט החופשי.
   return `<!DOCTYPE html>
 <html dir="rtl" lang="he">
-<head><meta charset="UTF-8"><style>body{background:#ffffff;color:#000000;margin:0;font-family:Arial,sans-serif;}</style></head>
-<body>${content}</body>
+<head><meta charset="UTF-8"><style>body{background:#e0e0e0;color:#000000;margin:0;font-family:Arial,sans-serif;}</style></head>
+<body>${pageContent}</body>
 </html>`
 }
 
