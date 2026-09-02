@@ -423,7 +423,10 @@ export function buildLoanDocumentHtml(data: LoanDocumentData, layout?: DocumentL
       ` : ''}
     </div>
     ${renderCustomBlocks('afterGuarantors', layout)}
-  ` : renderCustomBlocks('afterGuarantors', layout)
+  ` : ''
+  // 'afterGuarantors' מוגדר כעוגן מותנה (ר' DOCUMENT_ANCHORS.loan) —
+  // "מוצג רק אם יש ערב 1 ו/או ערב 2". התיקון: הענף בלי ערבים לא מרנדר
+  // את הבלוק בכלל, בהתאם להגדרה (קודם רונדר גם כשאין אף ערב).
 
   const migratedCommitmentText = renderCustomBlocks('commitmentText', layout)
   const isValidCustomText = data.customText && !data.customText.includes('{שם_') && !data.customText.includes('{סכום}')
@@ -1073,6 +1076,13 @@ export function buildBorrowerReportHtml(data: BorrowerReportData, layout?: Docum
   }
 
   const expensesTableVisible = isSystemBlockVisible('expensesTable', layout)
+
+  // 'beforeRepaymentsTable'/'afterRepaymentsTable'/'beforeExpensesTable'/
+  // 'afterExpensesTable' מוגדרים כעוגנים מותנים בדוח לווה (ר' DOCUMENT_ANCHORS.
+  // borrowerReport) — "מוצג רק אם יש פירעונות/הוצאות כלשהם". התיקון למטה:
+  // תלוי גם בנתונים בפועל (allRepayments.length / data.expenses.length),
+  // לא רק במתג ההצגה (showSystemBlocks), שברירת המחדל שלו true בכל מקרה
+  // (קודם הבלוק היה מופיע גם ללווה בלי אף פירעון/הוצאה).
   const expensesHtml = expensesTableVisible && data.expenses && data.expenses.length > 0 ? `
     <h3 class="section-title" style="color: #f57c00;">💳 הוצאות ששולמו ע"י הלווה</h3>
     <table class="data-table">
@@ -1167,8 +1177,8 @@ export function buildBorrowerReportHtml(data: BorrowerReportData, layout?: Docum
       </table>
       ${renderCustomBlocks('afterLoansTable', layout)}
       
-      ${repaymentsTableVisible ? `${renderCustomBlocks('beforeRepaymentsTable', layout)}${repaymentsHtml}${renderCustomBlocks('afterRepaymentsTable', layout)}` : ''}
-      ${expensesTableVisible ? `${renderCustomBlocks('beforeExpensesTable', layout)}${expensesHtml}${renderCustomBlocks('afterExpensesTable', layout)}` : ''}
+      ${(repaymentsTableVisible && allRepayments.length > 0) ? `${renderCustomBlocks('beforeRepaymentsTable', layout)}${repaymentsHtml}${renderCustomBlocks('afterRepaymentsTable', layout)}` : ''}
+      ${(expensesTableVisible && (data.expenses?.length || 0) > 0) ? `${renderCustomBlocks('beforeExpensesTable', layout)}${expensesHtml}${renderCustomBlocks('afterExpensesTable', layout)}` : ''}
       
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
         <p>דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>

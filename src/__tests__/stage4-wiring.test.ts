@@ -14,7 +14,7 @@ import { createEmptyDocumentLayoutsMap } from '../types/documentLayout'
 vi.mock('html2canvas', () => ({ default: vi.fn() }))
 vi.mock('jspdf', () => ({ default: vi.fn() }))
 
-const { buildLoanDocumentHtml, buildDonationReceiptHtml, buildDepositDocumentHtml, resolveDocumentBranding } = await import('../services/documents')
+const { buildLoanDocumentHtml, buildDonationReceiptHtml, buildDepositDocumentHtml, buildBorrowerReportHtml, resolveDocumentBranding } = await import('../services/documents')
 
 describe('שלב 4: wiring אמיתי — settings.document_layouts משפיע בפועל על הפלט', () => {
   it('שטר הלוואה: בלוק מותאם בעוגן afterAmount מופיע בפועל ב-HTML', () => {
@@ -112,5 +112,56 @@ describe('שלב 4: wiring אמיתי — settings.document_layouts משפיע �
     } as any, layouts.loan)
 
     expect(html.match(new RegExp(migratedText, 'g'))).toHaveLength(1)
+  })
+
+  it('עוגן מותנה "afterGuarantors": בלוק מותאם לא מוצג כשאין אף ערב', () => {
+    const layouts = createEmptyDocumentLayoutsMap()
+    layouts.loan.customBlocks = [
+      { id: 'x', anchorId: 'afterGuarantors', text: 'טקסט-אחרי-ערבים', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15, order: 0 },
+    ]
+
+    const htmlNoGuarantor = buildLoanDocumentHtml({
+      gemachName: 'גמ"ח בדיקה', borrowerName: 'ישראל ישראלי', amount: 1000,
+      loanDate: '2026-01-01', loanType: 'flexible',
+    } as any, layouts.loan)
+    expect(htmlNoGuarantor).not.toContain('טקסט-אחרי-ערבים')
+
+    const htmlWithGuarantor = buildLoanDocumentHtml({
+      gemachName: 'גמ"ח בדיקה', borrowerName: 'ישראל ישראלי', amount: 1000,
+      loanDate: '2026-01-01', loanType: 'flexible', guarantor1Name: 'ערב אחד',
+    } as any, layouts.loan)
+    expect(htmlWithGuarantor).toContain('טקסט-אחרי-ערבים')
+  })
+
+  it('עוגנים מותנים בדוח לווה: בלוקי פירעונות/הוצאות לא מוצגים כשאין נתונים בפועל', () => {
+    const layouts = createEmptyDocumentLayoutsMap()
+    layouts.borrowerReport.customBlocks = [
+      { id: 'r1', anchorId: 'beforeRepaymentsTable', text: 'טקסט-לפני-פירעונות', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15, order: 0 },
+      { id: 'r2', anchorId: 'afterRepaymentsTable', text: 'טקסט-אחרי-פירעונות', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15, order: 0 },
+      { id: 'e1', anchorId: 'beforeExpensesTable', text: 'טקסט-לפני-הוצאות', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15, order: 0 },
+      { id: 'e2', anchorId: 'afterExpensesTable', text: 'טקסט-אחרי-הוצאות', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15, order: 0 },
+    ]
+    const layout = getDocumentLayout(JSON.stringify(layouts), 'borrowerReport')
+
+    const htmlNoData = buildBorrowerReportHtml({
+      gemachName: 'גמ"ח בדיקה', borrowerName: 'ישראל ישראלי', loans: [], totalDebt: 0,
+    } as any, layout)
+    expect(htmlNoData).not.toContain('טקסט-לפני-פירעונות')
+    expect(htmlNoData).not.toContain('טקסט-אחרי-פירעונות')
+    expect(htmlNoData).not.toContain('טקסט-לפני-הוצאות')
+    expect(htmlNoData).not.toContain('טקסט-אחרי-הוצאות')
+
+    const htmlWithData = buildBorrowerReportHtml({
+      gemachName: 'גמ"ח בדיקה', borrowerName: 'ישראל ישראלי', totalDebt: 800,
+      loans: [{
+        id: 1, amount: 1000, loanDate: '2026-01-01', remaining: 800, status: 'active',
+        repayments: [{ amount: 200, payment_date: '2026-02-01' }],
+      }],
+      expenses: [{ id: 1, description: 'עמלה', amount: 50, expense_date: '2026-02-01', category: 'fee' }],
+    } as any, layout)
+    expect(htmlWithData).toContain('טקסט-לפני-פירעונות')
+    expect(htmlWithData).toContain('טקסט-אחרי-פירעונות')
+    expect(htmlWithData).toContain('טקסט-לפני-הוצאות')
+    expect(htmlWithData).toContain('טקסט-אחרי-הוצאות')
   })
 })
