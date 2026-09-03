@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import localforage from 'localforage'
 import {
@@ -265,14 +265,28 @@ export default function DocumentDesignerPanel() {
   const navigate = useNavigate()
   const { settings, loading } = useSettings()
 
-  const [layouts, setLayouts] = useState<DocumentLayoutsMap>(() => {
+  // באג אמיתי שנמצא בבדיקה ידנית: useSettings() טוען מ-localforage
+  // באופן א-סינכרוני — ברגע ה-mount הראשון settings.document_layouts
+  // עדיין ריק (ברירת המחדל), ורק כמה מילישניות אח"כ נטען הערך האמיתי.
+  // useState(() => parse(settings.document_layouts)) קורא רק פעם אחת,
+  // בדיוק באותו רגע ריק — כך שהמסגרת "נעלמת" בכל mount מחדש (למשל אחרי
+  // ניווט למסך אחר וחזרה), למרות שהיא כן שמורה בפועל באחסון. התיקון:
+  // מתחילים מקונפיג ריק תמיד, ומסנכרנים מ-settings פעם אחת ויחידה —
+  // ברגע שה-loading האמיתי מסתיים (לא לפני, ולא שוב אחרי, כדי לא לדרוס
+  // עריכות מקומיות לא-שמורות אם settings מתעדכן מסיבה אחרת בהמשך).
+  const [layouts, setLayouts] = useState<DocumentLayoutsMap>(createEmptyDocumentLayoutsMap())
+  const hasSyncedFromSettingsRef = useRef(false)
+
+  useEffect(() => {
+    if (loading || hasSyncedFromSettingsRef.current) return
+    hasSyncedFromSettingsRef.current = true
     try {
-      return settings.document_layouts ? JSON.parse(settings.document_layouts) : createEmptyDocumentLayoutsMap()
+      setLayouts(settings.document_layouts ? JSON.parse(settings.document_layouts) : createEmptyDocumentLayoutsMap())
     } catch {
       // קונפיג פגום לעולם לא חוסם את הפאנל — נופל לריק (ר' באג #7)
-      return createEmptyDocumentLayoutsMap()
+      setLayouts(createEmptyDocumentLayoutsMap())
     }
-  })
+  }, [loading, settings.document_layouts])
   const [activeTab, setActiveTab] = useState<DocumentType>('loan')
   const [previewVariant, setPreviewVariant] = useState<'plain' | 'withData'>('plain')
   const [saveState, setSaveState] = useState<{ open: boolean; ok: boolean; message: string }>({ open: false, ok: true, message: '' })
@@ -457,26 +471,77 @@ export default function DocumentDesignerPanel() {
                 label="הפעל מסגרת למסמך זה"
               />
               {activeLayout.frame && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                  <Button component="label" size="small" variant="outlined">
-                    בחר תמונת מסגרת
-                    <input hidden type="file" accept="image/*" onChange={e => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      const reader = new FileReader()
-                      reader.onload = () => updateActiveLayout({ frame: { ...activeLayout.frame!, imageBase64: String(reader.result) } })
-                      reader.readAsDataURL(file)
-                    }} />
-                  </Button>
-                  {(['marginTop', 'marginBottom', 'marginRight', 'marginLeft'] as const).map(m => (
-                    <TextField
-                      key={m} size="small" type="number" sx={{ width: 100 }}
-                      label={{ marginTop: 'שוליים עליון', marginBottom: 'שוליים תחתון', marginRight: 'שוליים ימין', marginLeft: 'שוליים שמאל' }[m]}
-                      value={activeLayout.frame[m]}
-                      onChange={e => updateActiveLayout({ frame: { ...activeLayout.frame!, [m]: Number(e.target.value) || 0 } })}
-                    />
-                  ))}
-                </Box>
+                <>
+                  {activeLayout.frame.imageBase64 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2, mb: 2 }}>
+                      <Box
+                        component="img"
+                        src={activeLayout.frame.imageBase64}
+                        sx={{ 
+                          width: 100, 
+                          height: 140, 
+                          objectFit: 'contain', 
+                          border: '1px solid #ddd',
+                          borderRadius: 1,
+                          bgcolor: '#f5f5f5'
+                        }}
+                        alt="תצוגה מקדימה של המסגרת"
+                      />
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                          מסגרת נוכחית
+                        </Typography>
+                        <Button 
+                          component="label" 
+                          size="small" 
+                          variant="outlined"
+                          sx={{ mr: 1 }}
+                        >
+                          החלף מסגרת
+                          <input hidden type="file" accept="image/*" onChange={e => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            const reader = new FileReader()
+                            reader.onload = () => updateActiveLayout({ frame: { ...activeLayout.frame!, imageBase64: String(reader.result) } })
+                            reader.readAsDataURL(file)
+                          }} />
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="text"
+                          color="error"
+                          onClick={() => updateActiveLayout({ frame: { ...activeLayout.frame!, imageBase64: '' } })}
+                        >
+                          הסר מסגרת
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
+                  {!activeLayout.frame.imageBase64 && (
+                    <Box sx={{ mt: 2, mb: 2 }}>
+                      <Button component="label" size="small" variant="outlined">
+                        בחר תמונת מסגרת
+                        <input hidden type="file" accept="image/*" onChange={e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const reader = new FileReader()
+                          reader.onload = () => updateActiveLayout({ frame: { ...activeLayout.frame!, imageBase64: String(reader.result) } })
+                          reader.readAsDataURL(file)
+                        }} />
+                      </Button>
+                    </Box>
+                  )}
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {(['marginTop', 'marginBottom', 'marginRight', 'marginLeft'] as const).map(m => (
+                      <TextField
+                        key={m} size="small" type="number" sx={{ width: 100 }}
+                        label={{ marginTop: 'שוליים עליון', marginBottom: 'שוליים תחתון', marginRight: 'שוליים ימין', marginLeft: 'שוליים שמאל' }[m]}
+                        value={activeLayout.frame[m]}
+                        onChange={e => updateActiveLayout({ frame: { ...activeLayout.frame!, [m]: Number(e.target.value) || 0 } })}
+                      />
+                    ))}
+                  </Box>
+                </>
               )}
             </CardContent>
           </Card>

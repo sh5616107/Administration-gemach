@@ -428,20 +428,29 @@ export default function Donations() {
   const handleGenerateReceipt = async (donation: Donation) => {
     if (!selectedDonor) return;
     
-    await generateDonationReceipt({
-      gemachName: settings.gemach_name || 'גמ"ח',
-      gemachLogo: settings.gemach_logo,
-      gemachDocumentFrame: settings.gemach_document_frame,
-      frameMarginTop: settings.gemach_frame_margin_top,
-      frameMarginBottom: settings.gemach_frame_margin_bottom,
-      frameMarginRight: settings.gemach_frame_margin_right,
-      frameMarginLeft: settings.gemach_frame_margin_left,
-      donorName: `${selectedDonor.first_name} ${selectedDonor.last_name}`,
-      amount: donation.amount,
-      donationDate: donation.donation_date,
-      receiptNumber: donation.receipt_number || donation.id.toString(),
-      dateFormat: settings.date_format,
-    }, donationReceiptLayout);
+    try {
+      await generateDonationReceipt({
+        gemachName: settings.gemach_name || 'גמ"ח',
+        gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
+        donorName: `${selectedDonor.first_name} ${selectedDonor.last_name}`,
+        amount: donation.amount,
+        donationDate: donation.donation_date,
+        receiptNumber: donation.receipt_number || donation.id.toString(),
+        dateFormat: settings.date_format,
+      }, donationReceiptLayout);
+      // באג אמיתי שנמצא בבדיקה ידנית: בלי המשוב הזה, הפקת קבלה עם מסגרת
+      // הייתה יכולה להיכשל בשקט (downloadPdf בולעת שגיאות פנימיות) בלי
+      // שום סימן למשתמש — "הכפתור לא עובד" בלי שום שגיאה גלויה.
+      setSnackbar({ open: true, message: 'הקבלה הופקה בהצלחה', severity: 'success' });
+    } catch (error) {
+      console.error('Error generating donation receipt:', error);
+      setSnackbar({ open: true, message: 'שגיאה בהפקת הקבלה — נסה שוב, ואם זה חוזר בדוק את תמונת המסגרת בפאנל העיצוב', severity: 'error' });
+    }
   };
 
   const handleSendReceiptEmail = async (donation: Donation) => {

@@ -22,14 +22,16 @@ vi.mock('jspdf', () => ({
   default: vi.fn().mockImplementation(() => pdfInstance),
 }))
 
-vi.mock('html2canvas', () => ({
+const html2canvasMock = vi.fn().mockResolvedValue({
   // canvas "גבוה" בכוונה (1500px ~= ~4 מסך A4 ברוחב 750px) כדי לבדוק
   // גם את מסלול ריבוי-העמודים (addPage + ציור המסגרת מחדש בכל עמוד)
-  default: vi.fn().mockResolvedValue({
-    width: 750,
-    height: 3600,
-    toDataURL: () => 'data:image/png;base64,FAKE_CONTENT_IMG',
-  }),
+  width: 750,
+  height: 3600,
+  toDataURL: () => 'data:image/png;base64,FAKE_CONTENT_IMG',
+})
+
+vi.mock('html2canvas', () => ({
+  default: (...args: any[]) => html2canvasMock(...args),
 }))
 
 const { downloadPdf } = await import('../services/documents')
@@ -42,6 +44,7 @@ describe('downloadPdf: ציור מסגרת בפועל (לא רק wiring)', () =>
     pdfInstance.addImage.mockClear()
     pdfInstance.addPage.mockClear()
     pdfInstance.save.mockClear()
+    html2canvasMock.mockClear()
   })
 
   it('בלי מסגרת: מצייר רק את התוכן, בלי לגעת ב-margins', async () => {
@@ -92,5 +95,46 @@ describe('downloadPdf: ציור מסגרת בפועל (לא רק wiring)', () =>
   it('שומר את הקובץ עם השם הנכון', async () => {
     await downloadPdf('<p>שלום</p>', 'שם-קובץ-ייחודי')
     expect(pdfInstance.save).toHaveBeenCalledWith('שם-קובץ-ייחודי.pdf')
+  })
+
+  it('מסגרת בפורמט JPEG: מוצהר כ-JPEG ל-jsPDF, לא PNG קשיח', async () => {
+    const jpegFrame = 'data:image/jpeg;base64,FAKE_JPEG_FRAME'
+    await downloadPdf('<p>שלום</p>', 'קובץ-בדיקה', jpegFrame, MARGINS)
+
+    const frameCalls = pdfInstance.addImage.mock.calls.filter(c => c[0] === jpegFrame)
+    expect(frameCalls.length).toBeGreaterThan(0)
+    for (const call of frameCalls) {
+      expect(call[1]).toBe('JPEG') // format param, לא 'PNG'
+    }
+  })
+
+  it('מסגרת בפורמט PNG (ברירת המחדל): מוצהרת כ-PNG', async () => {
+    await downloadPdf('<p>שלום</p>', 'קובץ-בדיקה', FRAME, MARGINS)
+    const frameCalls = pdfInstance.addImage.mock.calls.filter(c => c[0] === FRAME)
+    expect(frameCalls.length).toBeGreaterThan(0)
+    for (const call of frameCalls) {
+      expect(call[1]).toBe('PNG')
+    }
+  })
+
+  it('באג "כרטיס לבן צף": עם מסגרת, ה-container שקוף (לא רקע לבן אטום) וה-html2canvas מקבל backgroundColor:null', async () => {
+    await downloadPdf('<p>שלום</p>', 'קובץ-בדיקה', FRAME, MARGINS)
+
+    expect(html2canvasMock).toHaveBeenCalledTimes(1)
+    const [container, options] = html2canvasMock.mock.calls[0]
+    // באג אמיתי שנמצא בבדיקה ידנית (צילום מסך): לפני התיקון הרקע היה
+    // 'white' תמיד, גם עם מסגרת — מה שגרם למלבן לבן צף מעל תמונת המסגרת.
+    expect(container.style.background).toBe('transparent')
+    expect(container.style.padding).toBe('0px')
+    expect(options.backgroundColor).toBeNull()
+  })
+
+  it('בלי מסגרת: ה-container נשאר עם רקע לבן אטום כמו קודם (ללא שינוי התנהגות)', async () => {
+    await downloadPdf('<p>שלום</p>', 'קובץ-בדיקה')
+
+    const [container, options] = html2canvasMock.mock.calls[0]
+    expect(container.style.background).toBe('white')
+    expect(container.style.padding).toBe('20px')
+    expect(options.backgroundColor).toBe('#ffffff')
   })
 })

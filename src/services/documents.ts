@@ -49,6 +49,16 @@ const openUrl = async (url: string) => {
 }
 
 // Download HTML content as PDF
+// מזהה את פורמט התמונה (PNG/JPEG/וכו') מתוך data URL, כי jsPDF דורש
+// שהפורמט המוצהר יתאים לתמונה בפועל, אחרת הציור עלול להיכשל בשקט או
+// להיראות פגום. תמונת מסגרת שמנהל מעלה יכולה להיות כל פורמט — לא רק
+// PNG (בניגוד לתוכן המסמך עצמו, שתמיד PNG כי מגיע מ-html2canvas).
+const detectImageFormat = (dataUrl: string): string => {
+  const match = dataUrl.match(/^data:image\/(\w+);/)
+  const ext = match?.[1]?.toUpperCase()
+  return ext === 'JPG' ? 'JPEG' : (ext || 'PNG')
+}
+
 export const downloadPdf = async (
   htmlContent: string, 
   filename: string, 
@@ -56,9 +66,17 @@ export const downloadPdf = async (
   margins?: { top: number; bottom: number; right: number; left: number }
 ): Promise<string | null> => {
   return new Promise((resolve) => {
-    // Create a temporary container
+    const hasFrame = !!frameImageBase64
+
+    // באג אמיתי שנמצא בבדיקה ידנית: הרקע הלבן האטום + ה-padding כאן היו
+    // מוחלים תמיד, גם כשיש מסגרת — וה-PNG שיצא מ-html2canvas "בלע" את
+    // הרקע הלבן כחלק מהתמונה עצמה. התוצאה: מלבן לבן צף מעל המסגרת, לא
+    // תוכן שמתמזג איתה. כשיש מסגרת: רקע שקוף לגמרי (גם ב-CSS וגם דרך
+    // backgroundColor:null ב-html2canvas, כדי לקבל ערוץ אלפא אמיתי ב-PNG)
+    // כך שהמסגרת שמצוירת מתחת (ר' drawFrameOnCurrentPage) נראית דרך
+    // האזורים שאין בהם טקסט. בלי מסגרת — בדיוק כמו קודם (רקע לבן רגיל).
     const container = document.createElement('div')
-    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:750px;direction:rtl;font-family:Arial,sans-serif;background:white;padding:20px;'
+    container.style.cssText = `position:absolute;left:-9999px;top:0;width:750px;direction:rtl;font-family:Arial,sans-serif;background:${hasFrame ? 'transparent' : 'white'};padding:${hasFrame ? '0' : '20px'};`
     container.innerHTML = htmlContent
     document.body.appendChild(container)
     
@@ -77,7 +95,7 @@ export const downloadPdf = async (
         // margins קובעים כמה "מרווח בטיחות" יש לתוכן מקצוות הדף, כדי
         // שלא יתנגש ויזואלית עם עיצוב תמונת המסגרת (שמצוירת כרקע מלא-עמוד,
         // ר' drawFrameOnCurrentPage). בלי מסגרת אין סיבה לצמצם את התוכן.
-        const m = frameImageBase64 ? (margins ?? { top: 0, bottom: 0, right: 0, left: 0 }) : { top: 0, bottom: 0, right: 0, left: 0 }
+        const m = hasFrame ? (margins ?? { top: 0, bottom: 0, right: 0, left: 0 }) : { top: 0, bottom: 0, right: 0, left: 0 }
         const contentX = m.left
         const contentWidth = pageWidth - m.left - m.right
         const usablePageHeight = pageHeight - m.top - m.bottom
@@ -88,18 +106,20 @@ export const downloadPdf = async (
           useCORS: true,
           logging: false,
           windowWidth: 750,
+          backgroundColor: hasFrame ? null : '#ffffff',
         })
         
         const imgData = canvas.toDataURL('image/png', 0.95)
         const imgWidth = contentWidth
         const imgHeight = (canvas.height * contentWidth) / canvas.width
 
+        const frameImageFormat = frameImageBase64 ? detectImageFormat(frameImageBase64) : 'PNG'
         const drawFrameOnCurrentPage = () => {
           // תמונת רקע מלאה מאחורי כל התוכן (עמוד שלם) — נמתחת לכיסוי כל
           // הדף (0,0 עד pageWidth/pageHeight), מצוירת לפני התוכן כך שהתוכן
           // תמיד גלוי מעליה.
           if (frameImageBase64) {
-            pdf.addImage(frameImageBase64, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
+            pdf.addImage(frameImageBase64, frameImageFormat, 0, 0, pageWidth, pageHeight, undefined, 'FAST')
           }
         }
         
@@ -560,10 +580,14 @@ export async function generateLoanDocument(data: LoanDocumentData, layout?: Docu
   const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
   
   if (branding.gemachDocumentFrame) {
-    await downloadPdf(finalContent, `שטר-הלוואה-${data.borrowerName}`, branding.gemachDocumentFrame, {
+    const result = await downloadPdf(finalContent, `שטר-הלוואה-${data.borrowerName}`, branding.gemachDocumentFrame, {
       top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
       right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
     })
+    // downloadPdf בולעת שגיאות פנימיות ומחזירה null בשקט (ר' הבאג שנתפס
+    // בבדיקה ידנית — כפתור שנראה "לא עושה כלום"). זורקים כאן כדי שהקריאה
+    // הקוראת (handler במסך) תוכל לתפוס ולהציג הודעת שגיאה למשתמש.
+    if (!result) throw new Error('שגיאה ביצירת קובץ ה-PDF של שטר ההלוואה')
     return
   }
   printHtml(finalContent, `שטר הלוואה - ${data.borrowerName}`)
@@ -725,10 +749,11 @@ export async function generateDonationReceipt(data: {
   const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
   
   if (branding.gemachDocumentFrame) {
-    await downloadPdf(finalContent, `קבלה-${data.receiptNumber}`, branding.gemachDocumentFrame, {
+    const result = await downloadPdf(finalContent, `קבלה-${data.receiptNumber}`, branding.gemachDocumentFrame, {
       top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
       right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
     })
+    if (!result) throw new Error('שגיאה ביצירת קובץ ה-PDF של הקבלה')
     return
   }
   printHtml(finalContent, `קבלה ${data.receiptNumber}`)
