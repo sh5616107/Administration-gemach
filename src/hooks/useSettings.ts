@@ -28,6 +28,10 @@ interface Settings {
   deposit_document_text: string
   language: string
   report_repayments_order: 'newest_first' | 'oldest_first'
+  // JSON.stringify<Record<DocumentType, DocumentLayoutConfig>> — ר' src/types/documentLayout.ts.
+  // לא נמחקים שדות ישנים (gemach_document_frame/frameMargin*/loan_document_text/deposit_document_text) —
+  // הם נשארים ל-backward compatibility וממוגרים לכאן ע"י migrateDocumentLayouts (migrations.ts).
+  document_layouts: string
 }
 
 const defaultSettings: Settings = {
@@ -55,6 +59,9 @@ const defaultSettings: Settings = {
   deposit_document_text: 'ואני מתחייב להחזיר את הסכום בתנאים שנקבעו.',
   language: 'he',
   report_repayments_order: 'newest_first',
+  // מחרוזת ריקה מציינת שעדיין לא בוצעה מיגרציה. כך מסמכים ישנים ממשיכים
+  // להשתמש בהגדרות המיתוג הישנות עד שהמיגרציה יוצרת document_layouts.
+  document_layouts: '',
 }
 
 // Custom event for settings changes

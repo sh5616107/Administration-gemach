@@ -1,10 +1,24 @@
 // Migration scripts for database schema changes
 
+import localforage from 'localforage'
 import { guarantorLoansService, guarantorLoanRepaymentsService, loansService, exportAllData, importAllData, stores } from './database'
+import {
+  DocumentLayoutsMap,
+  CustomTextBlock,
+  createEmptyDocumentLayoutsMap,
+} from '../types/documentLayout'
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 14 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 15 // Increment this when adding new migrations
+
+// הערה חשובה: stores.settings (מ-database.ts) הוא store נפרד וסינכרוני,
+// המשמש כאן רק למעקב אחר migration_version — הוא *לא* אותו store שממנו
+// useSettings.ts קורא/כותב את הגדרות ה-UI (document_layouts, gemach_document_frame
+// וכו'). הגדרות ה-UI נשמרות ב-localforage instance נפרד ('gemach'/'settings').
+// לכן מיגרציית document_layouts פונה ישירות ל-localforage instance הזה,
+// באותו שם בדיוק כמו ב-useSettings.ts, ולא דרך stores.settings.
+const uiSettingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
 
 /**
  * Get the current migration version from storage
@@ -1244,6 +1258,137 @@ export async function fixRecurringRepaymentNumbersForFamilies(): Promise<{
 /**
  * Run all pending migrations
  */
+/**
+ * Migration v15: bootstrap document_layouts from the old, scattered
+ * document-customization fields.
+ *
+ * קלט: הערכים הישנים (loan_document_text, deposit_document_text,
+ * gemach_document_frame, 4 שדות מרווח).
+ * פלט: DocumentLayoutsMap ראשוני — customText הופך לבלוק יחיד בעוגן
+ * ברירת מחדל הגיוני לכל מסמך, וה-frame (אם קיים) משוכפל ל-4 המסמכים
+ * (במקור הוא היה גלובלי, מוחל על כל מסמך דרך applyDocumentBranding).
+ *
+ * זוהי פונקציה טהורה (pure) שאינה נוגעת באחסון — כך שניתן לבדוק אותה
+ * ישירות ב-Vitest על 3 התרחישים הנדרשים, בלי תלות ב-localforage/jsdom.
+ */
+export function migrateDocumentLayouts(oldValues: {
+  loan_document_text?: string
+  deposit_document_text?: string
+  gemach_document_frame?: string
+  gemach_frame_margin_top?: number
+  gemach_frame_margin_bottom?: number
+  gemach_frame_margin_right?: number
+  gemach_frame_margin_left?: number
+}): DocumentLayoutsMap {
+  const result = createEmptyDocumentLayoutsMap()
+
+  const makeBlock = (anchorId: string, text: string): CustomTextBlock => ({
+    id: `migrated-${anchorId}-${Date.now()}`,
+    anchorId,
+    text,
+    align: 'right',
+    bold: false,
+    underline: false,
+    fontFamily: 'Arial',
+    fontSize: 15,
+    order: 0,
+  })
+
+  // loan_document_text היה תחליף מלא למשפט ההתחייבות. לכן הוא עובר לעוגן
+  // ייעודי שמחליף את הנוסח הרגיל, ולא לבלוק "אחרי שם הלווה" שהיה גורם
+  // להצגת אותו טקסט פעמיים.
+  if (oldValues.loan_document_text && oldValues.loan_document_text.trim()) {
+    result.loan.customBlocks.push(makeBlock('commitmentText', oldValues.loan_document_text))
+  }
+
+  // deposit_document_text: מוצג היום מיד אחרי בלוק סוג/תאריך ההפקדה,
+  // שהוא חלק מאזור "afterAmount" בזרימה הקיימת של generateDepositDocument.
+  if (oldValues.deposit_document_text && oldValues.deposit_document_text.trim()) {
+    result.depositReceipt.customBlocks.push(makeBlock('afterAmount', oldValues.deposit_document_text))
+  }
+
+  // gemach_document_frame: היה גלובלי (מוחל על כל מסמך דרך
+  // applyDocumentBranding), לכן משוכפל כאן לכל 4 סוגי המסמכים כברירת
+  // מחדל התחלתית זהה — המשתמש יכול לבטל/לשנות לכל מסמך בנפרד בפאנל החדש.
+  if (oldValues.gemach_document_frame && oldValues.gemach_document_frame.trim()) {
+    const frame = {
+      imageBase64: oldValues.gemach_document_frame,
+      marginTop: oldValues.gemach_frame_margin_top ?? 35,
+      marginBottom: oldValues.gemach_frame_margin_bottom ?? 48,
+      marginRight: oldValues.gemach_frame_margin_right ?? 20,
+      marginLeft: oldValues.gemach_frame_margin_left ?? 20,
+    }
+    result.loan.frame = { ...frame }
+    result.borrowerReport.frame = { ...frame }
+    result.donationReceipt.frame = { ...frame }
+    result.depositReceipt.frame = { ...frame }
+  }
+
+  return result
+}
+
+/**
+ * עוטפת את migrateDocumentLayouts בקריאה/כתיבה בפועל מול ה-localforage
+ * store שממנו useSettings.ts קורא (לא stores.settings — ר' הערה למעלה).
+ *
+ * חובה: קרא בחזרה ואמת, אל תניח הצלחה מ-setItem — יש לזה תקדים אמיתי
+ * (migrateRecurringRepaymentNumbers, ר' תיעוד בקובץ זה) של עדכון שנפל
+ * בשקט. עטוף ב-try/catch: מיגרציה כושלת לעולם לא חוסמת הדפסת מסמכים —
+ * במקרה כזה משאירים קונפיג ריק תקין.
+ */
+export async function runDocumentLayoutsMigration(): Promise<{
+  migrated: boolean
+  verified: boolean
+  error?: string
+}> {
+  try {
+    const existing = await uiSettingsStore.getItem<string>('document_layouts')
+    if (existing) {
+      // כבר קיים ערך — לא דורסים מיגרציה שכבר רצה או קונפיג שהמשתמש שמר בעצמו.
+      return { migrated: false, verified: true }
+    }
+
+    const oldValues = {
+      loan_document_text: (await uiSettingsStore.getItem<string>('loan_document_text')) ?? undefined,
+      deposit_document_text: (await uiSettingsStore.getItem<string>('deposit_document_text')) ?? undefined,
+      gemach_document_frame: (await uiSettingsStore.getItem<string>('gemach_document_frame')) ?? undefined,
+      gemach_frame_margin_top: toNumberOrUndefined(await uiSettingsStore.getItem('gemach_frame_margin_top')),
+      gemach_frame_margin_bottom: toNumberOrUndefined(await uiSettingsStore.getItem('gemach_frame_margin_bottom')),
+      gemach_frame_margin_right: toNumberOrUndefined(await uiSettingsStore.getItem('gemach_frame_margin_right')),
+      gemach_frame_margin_left: toNumberOrUndefined(await uiSettingsStore.getItem('gemach_frame_margin_left')),
+    }
+
+    const layouts = migrateDocumentLayouts(oldValues)
+    const serialized = JSON.stringify(layouts)
+
+    await uiSettingsStore.setItem('document_layouts', serialized)
+
+    // אימות בקריאה חוזרת — לא הנחה מהצלחת setItem.
+    const readBack = await uiSettingsStore.getItem<string>('document_layouts')
+    const verified = readBack === serialized
+
+    if (!verified) {
+      console.error('❌ document_layouts migration: read-back mismatch, retrying once')
+      await uiSettingsStore.setItem('document_layouts', serialized)
+      const readBack2 = await uiSettingsStore.getItem<string>('document_layouts')
+      return { migrated: true, verified: readBack2 === serialized }
+    }
+
+    return { migrated: true, verified: true }
+  } catch (error) {
+    // מיגרציה כושלת אסור שתמנע הדפסת מסמכים — נופלים לקונפיג ריק תקין
+    // (useSettings.ts כבר מספק ברירת מחדל תקינה אם document_layouts חסר/פגום).
+    console.error('❌ document_layouts migration failed, falling back to empty config:', error)
+    return { migrated: false, verified: false, error: String(error) }
+  }
+}
+
+function toNumberOrUndefined(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined
+  const n = Number(value)
+  return Number.isFinite(n) ? n : undefined
+}
+
 export async function runPendingMigrations(): Promise<void> {
   const currentVersion = getMigrationVersion()
   
@@ -1364,6 +1509,13 @@ export async function runPendingMigrations(): Promise<void> {
     console.log(`✅ Migration v14 complete: ${result.migrated} repayments fixed across ${result.families} families`)
   }
   
+  // Migration v15: Bootstrap document_layouts from old document-customization fields
+  if (currentVersion < 15) {
+    console.log('📋 Running migration v15: Bootstrap document_layouts')
+    const result = await runDocumentLayoutsMigration()
+    console.log(`✅ Migration v15 complete: migrated=${result.migrated}, verified=${result.verified}${result.error ? `, error=${result.error}` : ''}`)
+  }
+
   // Update migration version
   setMigrationVersion(CURRENT_MIGRATION_VERSION)
   console.log(`✅ All migrations complete. Version updated to ${CURRENT_MIGRATION_VERSION}`)

@@ -43,6 +43,7 @@ import {
 import { borrowersService, loansService, guarantorLoansService, repaymentsService, guarantorsService, type Borrower, type Loan, type Guarantor } from '../services/database';
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
+import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import { getLoanFamily, calculateNextRepaymentNumber } from '../services/recurringRepaymentsService';
 import { createRepaymentWithNumbering } from '../services/repaymentHelpers';
 import LoanCard from '../components/loans/LoanCard';
@@ -98,6 +99,7 @@ interface UnifiedLoansPageProps {
 
 export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId }: UnifiedLoansPageProps = {}) {
   const { settings } = useSettings();
+  const loanDocumentLayout = getDocumentLayout(settings.document_layouts, 'loan');
   const [borrowers, setBorrowers] = useState<Borrower[]>([]);
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -426,7 +428,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       const guarantor1 = loan.guarantor1_id ? await guarantorsService.getById(loan.guarantor1_id) as Guarantor : null;
       const guarantor2 = loan.guarantor2_id ? await guarantorsService.getById(loan.guarantor2_id) as Guarantor : null;
       
-      generateLoanDocument({
+      await generateLoanDocument({
         borrowerName: `${selectedBorrower.first_name} ${selectedBorrower.last_name}`,
         borrowerId: selectedBorrower.id_number || '',
         amount: loan.amount,
@@ -442,7 +444,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
         frameMarginLeft: settings.gemach_frame_margin_left,
         guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
         guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
-      });
+      }, loanDocumentLayout);
       
       setSnackbar({ open: true, message: 'השטר הופק בהצלחה', severity: 'success' });
     } catch (error) {
@@ -474,9 +476,9 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
         frameMarginLeft: settings.gemach_frame_margin_left,
         guarantor1Name: guarantor1 ? `${guarantor1.first_name} ${guarantor1.last_name}` : undefined,
         guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
-      });
+      }, loanDocumentLayout);
       
-      openEmailWithDocument(emailData, settings.email_provider as EmailProvider || 'gmail');
+      await openEmailWithDocument(emailData, settings.email_provider as EmailProvider || 'gmail');
       setSnackbar({ open: true, message: 'המייל נפתח', severity: 'success' });
     } catch (error) {
       console.error('Error sending email:', error);

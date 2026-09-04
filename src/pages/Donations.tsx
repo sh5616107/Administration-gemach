@@ -26,6 +26,7 @@ import {
   Email as EmailIcon,
   Description as DocIcon,
   Receipt as ReceiptIcon,
+  Download as DownloadIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   CardGiftcard as DonationIcon,
@@ -42,6 +43,7 @@ import {
   EmailProvider 
 } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
+import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import { formatDisplayDate, toHebrewDate } from '../utils/dateUtils';
 import AmountInput from '../components/AmountInput';
 import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
@@ -78,6 +80,7 @@ interface Donation {
  */
 export default function Donations() {
   const { settings } = useSettings();
+  const donationReceiptLayout = getDocumentLayout(settings.document_layouts, 'donationReceipt');
   const [searchParams, setSearchParams] = useSearchParams();
   const [donors, setDonors] = useState<Donor[]>([]);
   const [selectedDonor, setSelectedDonor] = useState<Donor | null>(null);
@@ -426,20 +429,29 @@ export default function Donations() {
   const handleGenerateReceipt = async (donation: Donation) => {
     if (!selectedDonor) return;
     
-    await generateDonationReceipt({
-      gemachName: settings.gemach_name || 'גמ"ח',
-      gemachLogo: settings.gemach_logo,
-      gemachDocumentFrame: settings.gemach_document_frame,
-      frameMarginTop: settings.gemach_frame_margin_top,
-      frameMarginBottom: settings.gemach_frame_margin_bottom,
-      frameMarginRight: settings.gemach_frame_margin_right,
-      frameMarginLeft: settings.gemach_frame_margin_left,
-      donorName: `${selectedDonor.first_name} ${selectedDonor.last_name}`,
-      amount: donation.amount,
-      donationDate: donation.donation_date,
-      receiptNumber: donation.receipt_number || donation.id.toString(),
-      dateFormat: settings.date_format,
-    });
+    try {
+      await generateDonationReceipt({
+        gemachName: settings.gemach_name || 'גמ"ח',
+        gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
+        donorName: `${selectedDonor.first_name} ${selectedDonor.last_name}`,
+        amount: donation.amount,
+        donationDate: donation.donation_date,
+        receiptNumber: donation.receipt_number || donation.id.toString(),
+        dateFormat: settings.date_format,
+      }, donationReceiptLayout);
+      // באג אמיתי שנמצא בבדיקה ידנית: בלי המשוב הזה, הפקת קבלה עם מסגרת
+      // הייתה יכולה להיכשל בשקט (downloadPdf בולעת שגיאות פנימיות) בלי
+      // שום סימן למשתמש — "הכפתור לא עובד" בלי שום שגיאה גלויה.
+      setSnackbar({ open: true, message: 'הקבלה הופקה בהצלחה', severity: 'success' });
+    } catch (error) {
+      console.error('Error generating donation receipt:', error);
+      setSnackbar({ open: true, message: 'שגיאה בהפקת הקבלה — נסה שוב, ואם זה חוזר בדוק את תמונת המסגרת בפאנל העיצוב', severity: 'error' });
+    }
   };
 
   const handleSendReceiptEmail = async (donation: Donation) => {
@@ -457,8 +469,13 @@ export default function Donations() {
         donationDate: donation.donation_date,
         receiptNumber: donation.receipt_number || donation.id.toString(),
         gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
         dateFormat: settings.date_format,
-      });
+      }, donationReceiptLayout);
       
       const provider = (settings.email_provider || 'gmail') as EmailProvider;
       const result = await openEmailWithDocument(emailData, provider);
@@ -764,7 +781,7 @@ export default function Donations() {
                             boxShadow: 2,
                           }}
                         >
-                          <Tooltip title="הפק קבלה">
+                          <Tooltip title={donationReceiptLayout?.frame ? 'הפק והורד קבלה (PDF עם מסגרת)' : 'הדפס קבלה'}>
                             <IconButton
                               size="small"
                               color="primary"
@@ -774,7 +791,7 @@ export default function Donations() {
                               }}
                               sx={{ '&:hover': { bgcolor: 'grey.200' } }}
                             >
-                              <ReceiptIcon fontSize="small" />
+                              {donationReceiptLayout?.frame ? <DownloadIcon fontSize="small" /> : <ReceiptIcon fontSize="small" />}
                             </IconButton>
                           </Tooltip>
 

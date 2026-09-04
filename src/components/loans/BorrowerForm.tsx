@@ -19,6 +19,7 @@ import {
 } from '@mui/icons-material'
 import { borrowersService, loansService, guarantorLoansService, repaymentsService } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
+import { getDocumentLayout } from '../../utils/documentLayoutHelper'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import DuplicatePhoneWarningDialog from '../DuplicatePhoneWarningDialog'
 import { checkNewBorrower, type CrossCheckResult } from '../../services/crossCheck'
@@ -45,6 +46,7 @@ interface BorrowerFormProps {
 
 export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
   const { settings } = useSettings()
+  const borrowerReportLayout = getDocumentLayout(settings.document_layouts, 'borrowerReport')
   const [formData, setFormData] = useState<Omit<Borrower, 'id' | 'created_at'>>(emptyBorrower)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const [duplicateNameDialog, setDuplicateNameDialog] = useState<{ open: boolean; existingBorrower: Borrower | null }>({ open: false, existingBorrower: null })
@@ -232,7 +234,7 @@ export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
         loans: loansWithRepayments,
         totalDebt,
         repaymentsOrder: settings.report_repayments_order,
-      })
+      }, borrowerReportLayout)
 
       setSnackbar({ open: true, message: 'הדוח הופק בהצלחה', severity: 'success' })
     } catch (error) {
