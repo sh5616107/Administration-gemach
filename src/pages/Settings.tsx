@@ -707,6 +707,59 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
+
+          {/* About & Updates */}
+          <Card sx={{ mt: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <InfoIcon /> מידע על האפליקציה
+              </Typography>
+              
+              <Typography variant="body2" color="text.secondary">
+                מינהל הגמ"ח
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 1 }}>
+                גרסה {appVersion}
+              </Typography>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleOpenKofi}
+                startIcon={<span style={{ fontSize: 16 }}>☕</span>}
+                sx={{
+                  mt: 1,
+                  borderColor: '#72a4f2',
+                  color: '#72a4f2',
+                  '&:hover': { borderColor: '#5b8ee0', bgcolor: 'rgba(114,164,242,0.08)' },
+                }}
+              >
+                תמכו בהמשך הפיתוח
+              </Button>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <UpdateIcon /> עדכונים אוטומטיים
+              </Typography>
+              <Button
+                variant="contained"
+                fullWidth
+                startIcon={<UpdateIcon />}
+                onClick={handleCheckForUpdates}
+                disabled={checkingUpdate}
+                sx={{ mb: 1 }}
+              >
+                {checkingUpdate ? 'בודק עדכונים...' : 'בדוק עדכונים'}
+              </Button>
+              <Typography variant="caption" color="text.secondary" display="block" textAlign="center">
+                האפליקציה בודקת עדכונים אוטומטית בכל הפעלה
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
 
         {/* Field Customization - Accordion */}
@@ -719,7 +772,10 @@ export default function Settings() {
             </AccordionSummary>
             <AccordionDetails>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                הגדרות אלו משנות רק את השדות בטפסי הקליטה. לעריכת טקסטים במסמכים מודפסים יש להשתמש בפאנל עיצוב המסמכים.
+                <strong>מה זה "טפסי קליטה"?</strong> אלו הטפסים שבהם אתה מקליד נתונים במערכת — הלוואה חדשה, לווה חדש, תרומה, הפקדה וכו'. השינויים כאן משפיעים רק על שמות השדות <strong>בממשק המערכת</strong>, ולא על המסמכים המודפסים.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                לעריכת טקסטים במסמכים מודפסים (שטרות וקבלות) יש להשתמש בפאנל עיצוב המסמכים.
               </Typography>
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
@@ -770,65 +826,6 @@ export default function Settings() {
           >
             {t('common.save')} {t('settings.title')}
           </Button>
-        </Grid>
-
-        {/* About & Updates */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <InfoIcon /> מידע על האפליקציה
-              </Typography>
-              
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    מינהל הגמ"ח
-                  </Typography>
-                  <Typography variant="h6" sx={{ mt: 1 }}>
-                    גרסה {appVersion}
-                  </Typography>
-                  <Divider sx={{ my: 2 }} />
-                  <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleOpenKofi}
-                    startIcon={<span style={{ fontSize: 16 }}>☕</span>}
-                    sx={{
-                      mt: 1,
-                      borderColor: '#72a4f2',
-                      color: '#72a4f2',
-                      '&:hover': { borderColor: '#5b8ee0', bgcolor: 'rgba(114,164,242,0.08)' },
-                    }}
-                  >
-                    תמכו בהמשך הפיתוח
-                  </Button>
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <UpdateIcon /> עדכונים אוטומטיים
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    startIcon={<UpdateIcon />}
-                    onClick={handleCheckForUpdates}
-                    disabled={checkingUpdate}
-                    sx={{ mb: 1 }}
-                  >
-                    {checkingUpdate ? 'בודק עדכונים...' : 'בדוק עדכונים'}
-                  </Button>
-                  <Typography variant="caption" color="text.secondary" display="block" textAlign="center">
-                    האפליקציה בודקת עדכונים אוטומטית בכל הפעלה
-                  </Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
         </Grid>
       </Grid>
 
