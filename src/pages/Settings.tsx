@@ -759,25 +759,6 @@ export default function Settings() {
           </Accordion>
         </Grid>
 
-        {/* Document designer is the single source of truth for printed documents. */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-              <Box>
-                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <DescriptionIcon /> טקסטים ועיצוב במסמכים מודפסים
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  נוסחי שטרות, תוויות, בלוקים ומסגרות מנוהלים במקום אחד בפאנל עיצוב המסמכים.
-                </Typography>
-              </Box>
-              <Button variant="contained" onClick={() => navigate('/settings/document-designer')}>
-                פתח את הפאנל
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
         {/* Save Button */}
         <Grid item xs={12}>
           <Button
