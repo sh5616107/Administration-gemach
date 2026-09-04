@@ -40,6 +40,7 @@ import {
   Delete as DeleteIcon,
   Email as EmailIcon,
   Description as DocIcon,
+  Download as DownloadIcon,
   History as HistoryIcon,
   Autorenew as AutorenewIcon,
   EditNote as EditNoteIcon,
@@ -953,7 +954,7 @@ export default function Deposits() {
                               </IconButton>
                             </Tooltip>
 
-                            <Tooltip title="הפק קבלה">
+                            <Tooltip title={depositReceiptLayout?.frame ? 'הפק והורד שטר (PDF עם מסגרת)' : 'הדפס קבלה'}>
                               <IconButton
                                 size="small"
                                 color="primary"
@@ -963,7 +964,7 @@ export default function Deposits() {
                                 }}
                                 sx={{ '&:hover': { bgcolor: 'grey.200' } }}
                               >
-                                <DocIcon fontSize="small" />
+                                {depositReceiptLayout?.frame ? <DownloadIcon fontSize="small" /> : <DocIcon fontSize="small" />}
                               </IconButton>
                             </Tooltip>
                             

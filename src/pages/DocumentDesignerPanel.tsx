@@ -16,7 +16,7 @@ import { useSettings } from '../hooks/useSettings'
 import {
   DocumentType, DocumentLayoutConfig, DocumentLayoutsMap, CustomTextBlock,
   DOCUMENT_ANCHORS, DOCUMENT_FONT_FAMILIES, DocumentFontFamily,
-  createEmptyDocumentLayoutConfig, createEmptyDocumentLayoutsMap,
+  createEmptyDocumentLayoutConfig, createEmptyDocumentLayoutsMap, copyFrameImageToAllDocuments,
 } from '../types/documentLayout'
 import {
   buildLoanDocumentHtml, buildDonationReceiptHtml, buildDepositDocumentHtml, buildBorrowerReportHtml,
@@ -513,6 +513,17 @@ export default function DocumentDesignerPanel() {
                           onClick={() => updateActiveLayout({ frame: { ...activeLayout.frame!, imageBase64: '' } })}
                         >
                           הסר מסגרת
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="text"
+                          sx={{ mt: 1, display: 'block' }}
+                          onClick={() => {
+                            setLayouts(prev => copyFrameImageToAllDocuments(prev, activeTab))
+                            setSaveState({ open: true, ok: true, message: 'תמונת המסגרת הועתקה ל-3 המסמכים האחרים (השוליים של כל מסמך נשארו כפי שהיו) — לחץ "שמור" כדי לשמור' })
+                          }}
+                        >
+                          העתק תמונת מסגרת זו לכל המסמכים
                         </Button>
                       </Box>
                     </Box>

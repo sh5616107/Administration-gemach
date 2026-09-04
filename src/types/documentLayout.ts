@@ -62,6 +62,34 @@ export function createEmptyDocumentLayoutsMap(): DocumentLayoutsMap {
   }
 }
 
+/**
+ * מעתיקה רק את תמונת המסגרת (imageBase64) מ-sourceDocType לכל שאר סוגי
+ * המסמכים — לא נוגעת בשוליים. אם למסמך יעד כבר יש מסגרת משלו, השוליים
+ * שלו נשארים בלתי-נגועים (כל מסמך שונה בכמות/צפיפות תוכן, אין ערך שוליים
+ * אחיד הגיוני). רק מסמך שעדיין אין לו מסגרת בכלל מקבל שוליים התחלתיים
+ * (35/48/20/20), לכיוונון נפרד בהמשך דרך הפאנל.
+ */
+export function copyFrameImageToAllDocuments(
+  layouts: DocumentLayoutsMap,
+  sourceDocType: DocumentType
+): DocumentLayoutsMap {
+  const sourceFrame = layouts[sourceDocType].frame
+  if (!sourceFrame?.imageBase64) return layouts
+
+  const next = { ...layouts }
+  for (const docType of Object.keys(next) as DocumentType[]) {
+    if (docType === sourceDocType) continue
+    const existingFrame = next[docType].frame
+    next[docType] = {
+      ...next[docType],
+      frame: existingFrame
+        ? { ...existingFrame, imageBase64: sourceFrame.imageBase64 }
+        : { imageBase64: sourceFrame.imageBase64, marginTop: 35, marginBottom: 48, marginRight: 20, marginLeft: 20 },
+    }
+  }
+  return next
+}
+
 // עוגנים קבועים לכל סוג מסמך, מדויקים למבנה ה-HTML בפועל ב-documents.ts
 // (לא קטגוריות כלליות). ר' סעיף "מקרה קצה" במסמך ההוראות לגבי afterRepaymentsTable
 // ו-loanFullyRepaid: העוגן חייב להתקיים תמיד בזרימה גם כשהתוכן המותנה לא מוצג.

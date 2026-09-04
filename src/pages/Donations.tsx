@@ -26,6 +26,7 @@ import {
   Email as EmailIcon,
   Description as DocIcon,
   Receipt as ReceiptIcon,
+  Download as DownloadIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   CardGiftcard as DonationIcon,
@@ -780,7 +781,7 @@ export default function Donations() {
                             boxShadow: 2,
                           }}
                         >
-                          <Tooltip title="הפק קבלה">
+                          <Tooltip title={donationReceiptLayout?.frame ? 'הפק והורד קבלה (PDF עם מסגרת)' : 'הדפס קבלה'}>
                             <IconButton
                               size="small"
                               color="primary"
@@ -790,7 +791,7 @@ export default function Donations() {
                               }}
                               sx={{ '&:hover': { bgcolor: 'grey.200' } }}
                             >
-                              <ReceiptIcon fontSize="small" />
+                              {donationReceiptLayout?.frame ? <DownloadIcon fontSize="small" /> : <ReceiptIcon fontSize="small" />}
                             </IconButton>
                           </Tooltip>
 
