@@ -123,12 +123,40 @@ export const downloadPdf = async (
           }
         }
         
+        // מצייר את פלח התוכן של העמוד הנוכחי (מתוך התמונה הרציפה האחת,
+        // שמוזזת כלפי מעלה ב-position לכל עמוד נוסף) כשהוא חתוך (clip)
+        // בדיוק לאזור השמיש שבין השוליים.
+        //
+        // באג אמיתי שנמצא בבדיקה ידנית (דו"ח לווה רב-עמודים): בלי ה-clip
+        // הזה, מהעמוד השני ואילך position שלילי דוחף את תחילת התמונה אל
+        // מעל לגבול העליון של העמוד (y<0) — ומכיוון שאין שום דבר שחותך את
+        // מה שמעל y=0, בפועל רואים תוכן ממש מ-y=0 של העמוד, בלי שום רווח
+        // שוליים עליון. בעמוד הראשון כן רואים רווח כזה (כי שם position=0
+        // ותחילת התמונה ב-y=m.top בדיוק), ולכן ההתנהגות נראית כאילו כל
+        // עמוד נוסף "שוכח" את השוליים/המסגרת שהוגדרו ומתחיל מתחילת העמוד
+        // ממש. ה-clip מבטיח שרק האזור [m.top, pageHeight-m.bottom] אי-פעם
+        // מוצג, בכל עמוד כולל הראשון, כך שהתוכן העודף מעל/מתחת לאזור הזה
+        // (שנובע מהזזת התמונה השלמה) פשוט לא מצויר — בדיוק כמו שהעמוד
+        // הראשון מתנהג היום.
+        const drawContentClipped = () => {
+          if (hasFrame) {
+            pdf.saveGraphicsState()
+            pdf.rect(contentX, m.top, contentWidth, usablePageHeight, null)
+            pdf.clip()
+            pdf.discardPath()
+          }
+          pdf.addImage(imgData, 'PNG', contentX, m.top + position, imgWidth, imgHeight, undefined, 'FAST')
+          if (hasFrame) {
+            pdf.restoreGraphicsState()
+          }
+        }
+
         let heightLeft = imgHeight
         let position = 0
         
         // Add first page
         drawFrameOnCurrentPage()
-        pdf.addImage(imgData, 'PNG', contentX, m.top + position, imgWidth, imgHeight, undefined, 'FAST')
+        drawContentClipped()
         heightLeft -= usablePageHeight
         
         // Add additional pages if content is longer
@@ -136,7 +164,7 @@ export const downloadPdf = async (
           position -= usablePageHeight
           pdf.addPage()
           drawFrameOnCurrentPage()
-          pdf.addImage(imgData, 'PNG', contentX, m.top + position, imgWidth, imgHeight, undefined, 'FAST')
+          drawContentClipped()
           heightLeft -= usablePageHeight
         }
         

@@ -16,6 +16,14 @@ const pdfInstance = {
   addImage: vi.fn(),
   addPage: vi.fn(),
   save: vi.fn(),
+  // נוספו עבור תיקון באג ה-clip (ר' documents.ts / drawContentClipped):
+  // בלי אלה, downloadPdf היה קורס כש-hasFrame=true כי jsPDF האמיתי כן
+  // תומך בהם אבל ה-mock כאן לא הכיל אותם.
+  saveGraphicsState: vi.fn(),
+  restoreGraphicsState: vi.fn(),
+  rect: vi.fn(),
+  clip: vi.fn(),
+  discardPath: vi.fn(),
 }
 
 vi.mock('jspdf', () => ({
@@ -44,6 +52,11 @@ describe('downloadPdf: ציור מסגרת בפועל (לא רק wiring)', () =>
     pdfInstance.addImage.mockClear()
     pdfInstance.addPage.mockClear()
     pdfInstance.save.mockClear()
+    pdfInstance.saveGraphicsState.mockClear()
+    pdfInstance.restoreGraphicsState.mockClear()
+    pdfInstance.rect.mockClear()
+    pdfInstance.clip.mockClear()
+    pdfInstance.discardPath.mockClear()
     html2canvasMock.mockClear()
   })
 
@@ -90,6 +103,43 @@ describe('downloadPdf: ציור מסגרת בפועל (לא רק wiring)', () =>
     const frameCalls = pdfInstance.addImage.mock.calls.filter(c => c[0] === FRAME)
     // מסגרת מצוירת גם בעמוד הראשון וגם בכל עמוד נוסף
     expect(frameCalls.length).toBeGreaterThan(1)
+  })
+
+  it('מסמך רב-עמודים עם מסגרת: כל עמוד (כולל השני ואילך) נחתך (clip) בדיוק לאזור שבין השוליים, כדי שהשוליים לא "ייעלמו" מהעמוד השני', async () => {
+    await downloadPdf('<p>תוכן ארוך</p>', 'קובץ-בדיקה', FRAME, MARGINS)
+
+    const usablePageHeight = 297 - MARGINS.top - MARGINS.bottom
+    const contentWidth = 210 - MARGINS.left - MARGINS.right
+
+    // באג שתוקן: בלי ה-clip, מהעמוד השני ואילך position השלילי דחף את
+    // תחילת התמונה מעל ל-y=0, כך שנראה שהתוכן "מתחיל מתחילת העמוד" בלי
+    // שום רווח שוליים עליון. ה-clip מבטיח שרק [m.top, pageHeight-m.bottom]
+    // מוצג בפועל, בכל עמוד — כולל הראשון.
+    expect(pdfInstance.rect).toHaveBeenCalled()
+    for (const call of pdfInstance.rect.mock.calls) {
+      const [x, y, width, height, style] = call
+      expect(x).toBe(MARGINS.left)
+      expect(y).toBe(MARGINS.top)
+      expect(width).toBe(contentWidth)
+      expect(height).toBe(usablePageHeight)
+      expect(style).toBeNull()
+    }
+    expect(pdfInstance.clip).toHaveBeenCalled()
+    // מספר הפעמים ש-rect/clip נקראו חייב להיות זהה למספר קריאות addImage
+    // של תוכן העמוד עצמו (כל עמוד חתוך בנפרד, לא רק העמוד הראשון)
+    const contentCalls = pdfInstance.addImage.mock.calls.filter(c => c[0] === 'data:image/png;base64,FAKE_CONTENT_IMG')
+    expect(pdfInstance.rect.mock.calls.length).toBe(contentCalls.length)
+    expect(pdfInstance.clip.mock.calls.length).toBe(contentCalls.length)
+    expect(pdfInstance.saveGraphicsState.mock.calls.length).toBe(contentCalls.length)
+    expect(pdfInstance.restoreGraphicsState.mock.calls.length).toBe(contentCalls.length)
+  })
+
+  it('בלי מסגרת: אף פעם לא קורא ל-clip/rect (אין שינוי התנהגות למסמך בלי מסגרת)', async () => {
+    await downloadPdf('<p>שלום</p>', 'קובץ-בדיקה')
+    expect(pdfInstance.rect).not.toHaveBeenCalled()
+    expect(pdfInstance.clip).not.toHaveBeenCalled()
+    expect(pdfInstance.saveGraphicsState).not.toHaveBeenCalled()
+    expect(pdfInstance.restoreGraphicsState).not.toHaveBeenCalled()
   })
 
   it('שומר את הקובץ עם השם הנכון', async () => {
