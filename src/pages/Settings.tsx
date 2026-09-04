@@ -715,49 +715,53 @@ export default function Settings() {
                 <InfoIcon /> מידע על האפליקציה
               </Typography>
               
-              <Typography variant="body2" color="text.secondary">
-                מינהל הגמ"ח
-              </Typography>
-              <Typography variant="h6" sx={{ mt: 1 }}>
-                גרסה {appVersion}
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
-              </Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleOpenKofi}
-                startIcon={<span style={{ fontSize: 16 }}>☕</span>}
-                sx={{
-                  mt: 1,
-                  borderColor: '#72a4f2',
-                  color: '#72a4f2',
-                  '&:hover': { borderColor: '#5b8ee0', bgcolor: 'rgba(114,164,242,0.08)' },
-                }}
-              >
-                תמכו בהמשך הפיתוח
-              </Button>
-
-              <Divider sx={{ my: 2 }} />
-
-              <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <UpdateIcon /> עדכונים אוטומטיים
-              </Typography>
-              <Button
-                variant="contained"
-                fullWidth
-                startIcon={<UpdateIcon />}
-                onClick={handleCheckForUpdates}
-                disabled={checkingUpdate}
-                sx={{ mb: 1 }}
-              >
-                {checkingUpdate ? 'בודק עדכונים...' : 'בדוק עדכונים'}
-              </Button>
-              <Typography variant="caption" color="text.secondary" display="block" textAlign="center">
-                האפליקציה בודקת עדכונים אוטומטית בכל הפעלה
-              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary">
+                    מינהל הגמ"ח
+                  </Typography>
+                  <Typography variant="h6" sx={{ mt: 1 }}>
+                    גרסה {appVersion}
+                  </Typography>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <EmailIcon sx={{ fontSize: 16 }} /> {t('settings.developerEmail')}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleOpenKofi}
+                    startIcon={<span style={{ fontSize: 16 }}>☕</span>}
+                    sx={{
+                      mt: 1,
+                      borderColor: '#72a4f2',
+                      color: '#72a4f2',
+                      '&:hover': { borderColor: '#5b8ee0', bgcolor: 'rgba(114,164,242,0.08)' },
+                    }}
+                  >
+                    תמכו בהמשך הפיתוח
+                  </Button>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <UpdateIcon /> עדכונים אוטומטיים
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    startIcon={<UpdateIcon />}
+                    onClick={handleCheckForUpdates}
+                    disabled={checkingUpdate}
+                    sx={{ mb: 1 }}
+                  >
+                    {checkingUpdate ? 'בודק עדכונים...' : 'בדוק עדכונים'}
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" display="block" textAlign="center">
+                    האפליקציה בודקת עדכונים אוטומטית בכל הפעלה
+                  </Typography>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>
