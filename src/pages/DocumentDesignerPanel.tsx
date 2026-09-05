@@ -11,6 +11,9 @@ import {
   ArrowBack as ArrowBackIcon, Add as AddIcon, Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon, ArrowUpward as ArrowUpwardIcon,
   ArrowDownward as ArrowDownwardIcon, Save as SaveIcon, Info as InfoIcon,
+  FormatAlignRight as FormatAlignRightIcon, FormatAlignCenter as FormatAlignCenterIcon,
+  FormatAlignLeft as FormatAlignLeftIcon, FormatBold as FormatBoldIcon,
+  FormatUnderlined as FormatUnderlinedIcon,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
 import {
@@ -222,38 +225,126 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
       ))}
 
       {adding && (
-        <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <TextField
-            multiline minRows={2} size="small" placeholder="טקסט חופשי..."
-            value={draft.text} onChange={e => setDraft({ ...draft, text: e.target.value })}
-            inputProps={{ dir: draft.align === 'left' ? 'ltr' : 'rtl' }}
-          />
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: 90 }}>
-              <InputLabel>יישור</InputLabel>
-              <Select label="יישור" value={draft.align} onChange={e => setDraft({ ...draft, align: e.target.value as any })}>
-                <MenuItem value="right">ימין</MenuItem>
-                <MenuItem value="center">מרכז</MenuItem>
-                <MenuItem value="left">שמאל</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
+        <Box sx={{ mt: 1.5, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, bgcolor: '#fafafa' }}>
+          {/* סרגל כלים עליון */}
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 0.5, 
+            mb: 1.5, 
+            pb: 1, 
+            borderBottom: '1px solid #e0e0e0',
+            flexWrap: 'wrap',
+            alignItems: 'center'
+          }}>
+            {/* יישור */}
+            <Box sx={{ display: 'flex', gap: 0.5, borderRight: '1px solid #e0e0e0', pr: 1, mr: 0.5 }}>
+              <Tooltip title="יישור ימין">
+                <IconButton 
+                  size="small" 
+                  onClick={() => setDraft({ ...draft, align: 'right' })}
+                  sx={{ 
+                    bgcolor: draft.align === 'right' ? 'primary.light' : 'transparent',
+                    '&:hover': { bgcolor: draft.align === 'right' ? 'primary.light' : 'grey.200' }
+                  }}
+                >
+                  <FormatAlignRightIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="יישור מרכז">
+                <IconButton 
+                  size="small" 
+                  onClick={() => setDraft({ ...draft, align: 'center' })}
+                  sx={{ 
+                    bgcolor: draft.align === 'center' ? 'primary.light' : 'transparent',
+                    '&:hover': { bgcolor: draft.align === 'center' ? 'primary.light' : 'grey.200' }
+                  }}
+                >
+                  <FormatAlignCenterIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="יישור שמאל">
+                <IconButton 
+                  size="small" 
+                  onClick={() => setDraft({ ...draft, align: 'left' })}
+                  sx={{ 
+                    bgcolor: draft.align === 'left' ? 'primary.light' : 'transparent',
+                    '&:hover': { bgcolor: draft.align === 'left' ? 'primary.light' : 'grey.200' }
+                  }}
+                >
+                  <FormatAlignLeftIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {/* עיצוב טקסט */}
+            <Box sx={{ display: 'flex', gap: 0.5, borderRight: '1px solid #e0e0e0', pr: 1, mr: 0.5 }}>
+              <Tooltip title="בולד">
+                <IconButton 
+                  size="small" 
+                  onClick={() => setDraft({ ...draft, bold: !draft.bold })}
+                  sx={{ 
+                    bgcolor: draft.bold ? 'primary.light' : 'transparent',
+                    fontWeight: 'bold',
+                    '&:hover': { bgcolor: draft.bold ? 'primary.light' : 'grey.200' }
+                  }}
+                >
+                  <FormatBoldIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="קו תחתון">
+                <IconButton 
+                  size="small" 
+                  onClick={() => setDraft({ ...draft, underline: !draft.underline })}
+                  sx={{ 
+                    bgcolor: draft.underline ? 'primary.light' : 'transparent',
+                    '&:hover': { bgcolor: draft.underline ? 'primary.light' : 'grey.200' }
+                  }}
+                >
+                  <FormatUnderlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {/* גופן וגודל */}
+            <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>גופן</InputLabel>
-              <Select label="גופן" value={draft.fontFamily} onChange={e => setDraft({ ...draft, fontFamily: e.target.value as DocumentFontFamily })}>
+              <Select 
+                label="גופן" 
+                value={draft.fontFamily} 
+                onChange={e => setDraft({ ...draft, fontFamily: e.target.value as DocumentFontFamily })}
+              >
                 {DOCUMENT_FONT_FAMILIES.map(f => <MenuItem key={f} value={f}>{f}</MenuItem>)}
               </Select>
             </FormControl>
+            
             <TextField
-              size="small" type="number" label="גודל" sx={{ width: 90 }}
-              value={draft.fontSize} inputProps={{ min: 10, max: 36 }}
+              size="small" 
+              type="number" 
+              label="גודל" 
+              sx={{ width: 80 }}
+              value={draft.fontSize} 
+              inputProps={{ min: 10, max: 36 }}
               onChange={e => setDraft({ ...draft, fontSize: Math.min(36, Math.max(10, Number(e.target.value) || 15)) })}
             />
-            <FormControlLabel control={<Switch size="small" checked={draft.bold} onChange={e => setDraft({ ...draft, bold: e.target.checked })} />} label="בולד" />
-            <FormControlLabel control={<Switch size="small" checked={draft.underline} onChange={e => setDraft({ ...draft, underline: e.target.checked })} />} label="קו תחתון" />
           </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button size="small" variant="contained" onClick={addBlock}>הוסף</Button>
+
+          {/* שדה טקסט */}
+          <TextField
+            fullWidth
+            multiline 
+            minRows={3} 
+            size="small" 
+            placeholder="טקסט חופשי..."
+            value={draft.text} 
+            onChange={e => setDraft({ ...draft, text: e.target.value })}
+            inputProps={{ dir: draft.align === 'left' ? 'ltr' : 'rtl' }}
+            sx={{ mb: 1.5 }}
+          />
+
+          {/* כפתורי פעולה */}
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
             <Button size="small" onClick={() => setAdding(false)}>ביטול</Button>
+            <Button size="small" variant="contained" onClick={addBlock}>הוסף</Button>
           </Box>
         </Box>
       )}
