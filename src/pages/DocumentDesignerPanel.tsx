@@ -20,9 +20,11 @@ import {
   DocumentType, DocumentLayoutConfig, DocumentLayoutsMap, CustomTextBlock,
   DOCUMENT_ANCHORS, DOCUMENT_FONT_FAMILIES, DocumentFontFamily,
   createEmptyDocumentLayoutConfig, createEmptyDocumentLayoutsMap, copyFrameImageToAllDocuments,
+  normalizeDocumentLayoutsMap,
 } from '../types/documentLayout'
 import {
   buildLoanDocumentHtml, buildDonationReceiptHtml, buildDepositDocumentHtml, buildBorrowerReportHtml,
+  buildDepositorReportHtml,
 } from '../services/documents'
 
 // אותו localforage instance בדיוק כמו useSettings.ts ו-migrations.ts — ר' הערה
@@ -34,6 +36,7 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   borrowerReport: 'דו"ח לווה',
   donationReceipt: 'קבלה על תרומה',
   depositReceipt: 'קבלה על הפקדה',
+  depositorReport: 'דו"ח מפקיד',
 }
 
 // תוויות ברירת מחדל שניתנות לדריסה דרך labelOverrides, לפי מסמך (תואם לקריאות
@@ -57,6 +60,9 @@ const LABEL_KEYS: Record<DocumentType, Array<{ key: string; fallback: string }>>
     { key: 'deposit.receivedFrom', fallback: 'מאשר בזה כי קיבלתי הפקדה מאת:' },
     { key: 'deposit.originalAmount', fallback: 'סכום הפקדה מקורי:' },
   ],
+  depositorReport: [
+    { key: 'depositorReport.depositorNameLabel', fallback: 'שם המפקיד:' },
+  ],
 }
 
 // showSystemBlocks הרלוונטיים לכל מסמך (טבלאות שניתן להסתיר, ר' באג #9 —
@@ -69,6 +75,7 @@ const SYSTEM_BLOCKS: Record<DocumentType, Array<{ key: string; label: string; wa
   ],
   donationReceipt: [],
   depositReceipt: [{ key: 'withdrawalsTable', label: 'טבלת משיכות', warn: true }],
+  depositorReport: [{ key: 'withdrawalsDetails', label: 'פירוט משיכות בתוך הטבלה', warn: true }],
 }
 
 // נתוני דמה קבועים לתצוגה מקדימה — שני מצבים: בלי פירעונות/משיכות, ועם
@@ -115,6 +122,23 @@ const MOCK_BORROWER_REPORT_WITH_REPAY = {
   expenses: [{ id: 1, description: 'עמלת פתיחה', amount: 30, expense_date: '2026-01-05', category: 'fee' }],
 }
 
+const MOCK_DEPOSITOR_REPORT_NO_WITHDRAW = {
+  gemachName: 'גמ"ח לדוגמה', depositorName: 'יעקב לוי', totalActive: 10000, totalWithdrawn: 0,
+  deposits: [
+    { id: 1, amount: 10000, deposit_date: '2026-01-01', period_type: 'fixed', status: 'active', is_recurring: 0, remaining: 10000, withdrawn_amount: 0 },
+  ],
+}
+const MOCK_DEPOSITOR_REPORT_WITH_WITHDRAW = {
+  gemachName: 'גמ"ח לדוגמה', depositorName: 'יעקב לוי', totalActive: 6000, totalWithdrawn: 4000,
+  deposits: [
+    {
+      id: 1, amount: 10000, deposit_date: '2026-01-01', period_type: 'fixed', status: 'active', is_recurring: 0,
+      remaining: 6000, withdrawn_amount: 4000,
+      withdrawals: [{ amount: 4000, withdrawal_date: '2026-05-01' }],
+    },
+  ],
+}
+
 function buildPreviewHtml(docType: DocumentType, layout: DocumentLayoutConfig, withVariant: boolean): string {
   let content = ''
   switch (docType) {
@@ -129,6 +153,9 @@ function buildPreviewHtml(docType: DocumentType, layout: DocumentLayoutConfig, w
       break
     case 'borrowerReport':
       content = buildBorrowerReportHtml(withVariant ? MOCK_BORROWER_REPORT_WITH_REPAY : MOCK_BORROWER_REPORT_NO_REPAY, layout)
+      break
+    case 'depositorReport':
+      content = buildDepositorReportHtml(withVariant ? MOCK_DEPOSITOR_REPORT_WITH_WITHDRAW : MOCK_DEPOSITOR_REPORT_NO_WITHDRAW, layout)
       break
   }
 
@@ -372,7 +399,14 @@ export default function DocumentDesignerPanel() {
     if (loading || hasSyncedFromSettingsRef.current) return
     hasSyncedFromSettingsRef.current = true
     try {
-      setLayouts(settings.document_layouts ? JSON.parse(settings.document_layouts) : createEmptyDocumentLayoutsMap())
+      // normalizeDocumentLayoutsMap ולא JSON.parse ישיר: מבטיח קונפיג מלא
+      // (customBlocks/labelOverrides/showSystemBlocks) לכל סוגי המסמכים
+      // הידועים היום, גם אם settings.document_layouts נשמר לפני שנוסף סוג
+      // מסמך חדש (למשל depositorReport) ולכן חסר לו לגמרי כמפתח ב-runtime —
+      // ר' תיעוד מלא ב-normalizeDocumentLayoutsMap. מרפא גם קונפיגים חלקיים
+      // שכבר נשמרו בעבר עקב הבאג (למשל frame בלי customBlocks).
+      const parsed = settings.document_layouts ? JSON.parse(settings.document_layouts) : undefined
+      setLayouts(normalizeDocumentLayoutsMap(parsed))
     } catch {
       // קונפיג פגום לעולם לא חוסם את הפאנל — נופל לריק (ר' באג #7)
       setLayouts(createEmptyDocumentLayoutsMap())
@@ -386,7 +420,10 @@ export default function DocumentDesignerPanel() {
   const activeLayout = layouts[activeTab] ?? createEmptyDocumentLayoutConfig()
 
   const updateActiveLayout = useCallback((patch: Partial<DocumentLayoutConfig>) => {
-    setLayouts(prev => ({ ...prev, [activeTab]: { ...prev[activeTab], ...patch } }))
+    setLayouts(prev => ({
+      ...prev,
+      [activeTab]: { ...createEmptyDocumentLayoutConfig(), ...prev[activeTab], ...patch },
+    }))
   }, [activeTab])
 
   const previewHtml = useMemo(
@@ -395,9 +432,9 @@ export default function DocumentDesignerPanel() {
   )
 
   const hasBlocksOnAnchor = (anchorId: string) =>
-    activeLayout.customBlocks.filter(b => b.anchorId === anchorId)
+    (activeLayout.customBlocks ?? []).filter(b => b.anchorId === anchorId)
 
-  const anchorsWithBlocksCount = activeLayout.customBlocks.length
+  const anchorsWithBlocksCount = (activeLayout.customBlocks ?? []).length
 
   const handleSave = async () => {
     // באג #9: אזהרה מפורשת לפני שמירה אם טבלת פירעונות מוסתרת באחד המסמכים

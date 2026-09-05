@@ -2,7 +2,7 @@
 // ר' src/hooks/useSettings.ts (השדה document_layouts) ו-src/services/documents.ts
 // (buildXxxDocumentHtml, שלב 2 בתהליך המימוש).
 
-export type DocumentType = 'loan' | 'borrowerReport' | 'donationReceipt' | 'depositReceipt'
+export type DocumentType = 'loan' | 'borrowerReport' | 'donationReceipt' | 'depositReceipt' | 'depositorReport'
 
 export interface CustomTextBlock {
   id: string
@@ -59,7 +59,47 @@ export function createEmptyDocumentLayoutsMap(): DocumentLayoutsMap {
     borrowerReport: createEmptyDocumentLayoutConfig(),
     donationReceipt: createEmptyDocumentLayoutConfig(),
     depositReceipt: createEmptyDocumentLayoutConfig(),
+    depositorReport: createEmptyDocumentLayoutConfig(),
   }
+}
+
+/**
+ * מנרמלת אובייקט layouts שנטען מהאחסון (JSON.parse על settings.document_layouts)
+ * לכדי DocumentLayoutsMap תקין ומלא לכל סוגי המסמכים הידועים היום.
+ *
+ * למה זה קריטי: settings.document_layouts שנשמר לפני שנוסף סוג מסמך חדש
+ * (למשל depositorReport) פשוט לא מכיל את המפתח הזה ב-runtime — הטיפוס
+ * DocumentLayoutsMap לא קיים בפועל, הוא רק ברמת קומפילציה. `parsed.depositorReport`
+ * במקרה כזה הוא `undefined` ממש, לא רק אובייקט ריק. זה שבר שני מקומות:
+ * (1) copyFrameImageToAllDocuments שרץ על Object.keys(layouts) בפועל — פשוט
+ *     דילג על מפתח שלא קיים, ולכן "העתק מסגרת לכל המסמכים" לא הגיע לסוג
+ *     המסמך החדש.
+ * (2) ברגע שנוגעים בבקרה כלשהי בטאב של סוג מסמך חדש (למשל הפעלת מסגרת),
+ *     updateActiveLayout עושה `{ ...prev[activeTab], ...patch }` — כש-
+ *     prev[activeTab] הוא undefined זה פשוט משאיר רק את ה-patch עצמו, בלי
+ *     customBlocks/labelOverrides/showSystemBlocks. התוצאה נשמרת ב-state
+ *     כאובייקט חלקי, ואז activeLayout.customBlocks.length קורס כי
+ *     customBlocks הוא undefined (וזה כבר לא נופל ל-`?? createEmptyDocumentLayoutConfig()`
+ *     כי האובייקט עצמו כן קיים, רק חלקי).
+ *
+ * הפתרון: תמיד לעבור על *כל* סוגי המסמכים הידועים (מ-createEmptyDocumentLayoutsMap,
+ * לא מ-Object.keys של הקלט), ולמלא עבור כל אחד קונפיג מלא — אם קיים ב-parsed
+ * ממזגים אותו מעל ברירת המחדל (כדי לא לאבד שדות שכן נשמרו, כמו frame), ואם
+ * לא קיים בכלל נותנים קונפיג ריק מלא. ריפוי-עצמי גם לאובייקטים חלקיים שכבר
+ * נשמרו בעבר עקב הבאג הזה (frame נשמר, לא נמחק — רק מתמלאים השדות החסרים).
+ */
+export function normalizeDocumentLayoutsMap(parsed: unknown): DocumentLayoutsMap {
+  const empty = createEmptyDocumentLayoutsMap()
+  const source = (parsed && typeof parsed === 'object' ? parsed : {}) as Partial<Record<DocumentType, Partial<DocumentLayoutConfig>>>
+
+  const result = {} as DocumentLayoutsMap
+  for (const docType of Object.keys(empty) as DocumentType[]) {
+    const existing = source[docType]
+    result[docType] = existing
+      ? { ...createEmptyDocumentLayoutConfig(), ...existing }
+      : createEmptyDocumentLayoutConfig()
+  }
+  return result
 }
 
 /**
@@ -68,20 +108,26 @@ export function createEmptyDocumentLayoutsMap(): DocumentLayoutsMap {
  * שלו נשארים בלתי-נגועים (כל מסמך שונה בכמות/צפיפות תוכן, אין ערך שוליים
  * אחיד הגיוני). רק מסמך שעדיין אין לו מסגרת בכלל מקבל שוליים התחלתיים
  * (35/48/20/20), לכיוונון נפרד בהמשך דרך הפאנל.
+ *
+ * חשוב: עוברים על *כל* סוגי המסמכים הידועים היום (מ-createEmptyDocumentLayoutsMap),
+ * לא רק על Object.keys(layouts) בפועל — אחרת סוג מסמך שנוסף אחרי ש-layouts
+ * כבר נשמר באחסון (למשל depositorReport) פשוט לא קיים כמפתח ב-runtime,
+ * והלולאה מדלגת עליו בשקט (ר' הבאג שתועד ב-normalizeDocumentLayoutsMap).
  */
 export function copyFrameImageToAllDocuments(
   layouts: DocumentLayoutsMap,
   sourceDocType: DocumentType
 ): DocumentLayoutsMap {
-  const sourceFrame = layouts[sourceDocType].frame
+  const sourceFrame = layouts[sourceDocType]?.frame
   if (!sourceFrame?.imageBase64) return layouts
 
   const next = { ...layouts }
-  for (const docType of Object.keys(next) as DocumentType[]) {
+  for (const docType of Object.keys(createEmptyDocumentLayoutsMap()) as DocumentType[]) {
     if (docType === sourceDocType) continue
-    const existingFrame = next[docType].frame
+    const current = next[docType] ?? createEmptyDocumentLayoutConfig()
+    const existingFrame = current.frame
     next[docType] = {
-      ...next[docType],
+      ...current,
       frame: existingFrame
         ? { ...existingFrame, imageBase64: sourceFrame.imageBase64 }
         : { imageBase64: sourceFrame.imageBase64, marginTop: 35, marginBottom: 48, marginRight: 20, marginLeft: 20 },
@@ -89,6 +135,7 @@ export function copyFrameImageToAllDocuments(
   }
   return next
 }
+
 
 // עוגנים קבועים לכל סוג מסמך, מדויקים למבנה ה-HTML בפועל ב-documents.ts
 // (לא קטגוריות כלליות). ר' סעיף "מקרה קצה" במסמך ההוראות לגבי afterRepaymentsTable
@@ -155,5 +202,12 @@ export const DOCUMENT_ANCHORS: Record<DocumentType, AnchorDefinition[]> = {
     },
     { id: 'beforeSignature', label: 'לפני שורות החתימה' },
     { id: 'footer', label: 'תחתית המסמך (אחרי תאריך הפקה)' },
+  ],
+  depositorReport: [
+    { id: 'header', label: 'כותרת הדוח' },
+    { id: 'afterSummaryBox', label: 'אחרי תיבת הסיכום הכללי' },
+    { id: 'beforeDepositsTable', label: 'לפני טבלת ההפקדות' },
+    { id: 'afterDepositsTable', label: 'אחרי טבלת ההפקדות' },
+    { id: 'footer', label: 'תחתית הדוח' },
   ],
 }

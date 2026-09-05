@@ -35,6 +35,7 @@ import {
 import { db, depositWithdrawalsService } from '../../services/database'
 import { generateDepositorReport, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
+import { getDocumentLayout } from '../../utils/documentLayoutHelper'
 import { confirmAction } from '../../utils/confirmDialog'
 
 interface Depositor {
@@ -68,6 +69,7 @@ interface DepositorsTabProps {
 
 export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }: DepositorsTabProps) {
   const { settings } = useSettings()
+  const depositorReportLayout = getDocumentLayout(settings.document_layouts, 'depositorReport')
   const [depositors, setDepositors] = useState<Depositor[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState(emptyDepositor)
@@ -258,7 +260,7 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
         totalActive,
         totalWithdrawn,
         dateFormat: settings.date_format,
-      })
+      }, depositorReportLayout)
     } catch (error) {
       console.error('Error generating report:', error)
       setSnackbar({ open: true, message: 'שגיאה בהפקת דו"ח', severity: 'error' })
@@ -273,36 +275,49 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
     
     try {
       const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [depositor.id]) as any[]
-      
-      // חישוב יתרה פעילה (כולל מחזוריות ומשיכות)
-      let totalActive = 0
-      for (const d of deposits) {
-        if (d.status === 'active') {
-          let depositAmount = d.amount
-          if (d.is_recurring === 1 && d.recurring_deposit_number) {
-            depositAmount = d.amount * d.recurring_deposit_number
-          }
-          
-          // הפחתת משיכות
-          const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+
+      // טעינת היסטוריית משיכות לכל הפקדה — אותו חישוב כמו handleGenerateReport,
+      // כדי שדוח האימייל יהיה זהה לגמרי לדוח המודפס/PDF (מקור אמת יחיד).
+      const depositsWithWithdrawals = await Promise.all(
+        deposits.map(async (deposit) => {
+          const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id)
           const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
-          totalActive += (depositAmount - totalWithdrawn)
-        }
-      }
-      
+
+          let depositAmount = deposit.amount
+          if (deposit.is_recurring === 1 && deposit.recurring_deposit_number) {
+            depositAmount = deposit.amount * deposit.recurring_deposit_number
+          }
+
+          return {
+            ...deposit,
+            withdrawals,
+            withdrawn_amount: totalWithdrawn,
+            remaining: depositAmount - totalWithdrawn
+          }
+        })
+      )
+
+      const activeDeposits = depositsWithWithdrawals.filter(d => d.remaining > 0)
+      const totalActive = activeDeposits.reduce((sum, d) => sum + d.remaining, 0)
+      const totalWithdrawn = depositsWithWithdrawals.reduce((sum, d) => sum + (d.withdrawn_amount || 0), 0)
+
       const emailData = createDepositorReportEmailData({
         gemachName: settings.gemach_name || 'גמ"ח',
+        gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
         depositorName: `${depositor.first_name} ${depositor.last_name}`,
+        depositorPhone: depositor.phone,
+        depositorIdNumber: depositor.id_number,
         depositorEmail: depositor.email,
+        deposits: depositsWithWithdrawals.sort((a, b) => new Date(b.deposit_date).getTime() - new Date(a.deposit_date).getTime()),
         totalActive,
-        deposits: deposits.map(d => ({
-          id: d.id,
-          amount: d.amount,
-          deposit_date: d.deposit_date,
-          period_type: d.period_type,
-          status: d.status
-        })),
-      })
+        totalWithdrawn,
+        dateFormat: settings.date_format,
+      }, depositorReportLayout)
       
       const provider = (settings.email_provider || 'gmail') as EmailProvider
       const result = await openEmailWithDocument(emailData, provider)

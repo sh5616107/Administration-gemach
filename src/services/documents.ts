@@ -1501,6 +1501,225 @@ export function generateFullReport(data: {
   printHtml(htmlContent, 'דוח כללי')
 }
 
+/**
+ * גיליון עיצוב לדוח מפקיד — במבנה זהה ל-BORROWER_REPORT_STYLES (אותה
+ * שיטת class names), כדי שדוח מפקיד יזכה לאותה גמישות ותמיכה במסגרות
+ * כמו דוח לווה. מוזרק הן לתוך fullHtmlDocument (הדפסה/PDF) והן לתוך
+ * htmlContent של האימייל, כדי ששתי הגרסאות ייראו זהה.
+ */
+const DEPOSITOR_REPORT_STYLES = `
+        body { font-family: Arial, sans-serif; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .summary-box { 
+          background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%); 
+          padding: 20px; 
+          border-radius: 10px; 
+          margin: 20px 0; 
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .summary-table { width: 100%; border-collapse: collapse; }
+        .summary-table td { padding: 10px; border-bottom: 1px solid #ddd; }
+        .summary-table tr:last-child td { border-bottom: none; }
+        .balance-amount { font-size: 20px; font-weight: bold; }
+        .section-title { 
+          margin-top: 30px; 
+          padding-bottom: 8px; 
+          border-bottom: 2px solid #1976d2; 
+          color: #1976d2;
+          font-size: 18px;
+        }
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .data-table th { 
+          padding: 12px; 
+          border: 1px solid #ddd; 
+          font-weight: bold;
+          font-size: 14px;
+        }
+        .data-table td { 
+          padding: 10px; 
+          border: 1px solid #ddd; 
+          text-align: center;
+          font-size: 13px;
+        }
+        .deposits-header { background: #e3f2fd; }
+        .withdrawals-subheader { background: #ffc107; }
+        .withdrawals-row { background: #fff3e0; }
+        .recurring-badge {
+          color: #2e7d32;
+          font-weight: bold;
+        }
+        @media print {
+          .summary-box { box-shadow: none; border: 1px solid #ddd; }
+        }
+`
+
+type DepositorReportData = {
+  gemachName: string
+  depositorName: string
+  depositorPhone?: string
+  depositorIdNumber?: string
+  deposits: Array<{
+    id: number
+    amount: number
+    deposit_date: string
+    period_type: string
+    due_date?: string
+    status: string
+    withdrawal_date?: string
+    is_recurring: number
+    recurring_deposit_number?: number
+    recurring_deposit_count?: number
+    withdrawals?: Array<{
+      amount: number
+      withdrawal_date: string
+    }>
+    withdrawn_amount?: number
+    remaining?: number
+  }>
+  totalActive: number
+  totalWithdrawn: number
+  dateFormat?: string
+}
+
+/**
+ * מקור אמת יחיד לתוכן דוח המפקיד — נקרא הן מ-generateDepositorReport
+ * (הדפסה/PDF) והן מ-createDepositorReportEmailData (אימייל), באותו
+ * מבנה כמו buildBorrowerReportHtml: עוגני טקסט חופשי, דריסת תוויות,
+ * הצגה/הסתרה של רכיבי מערכת, ותמיכה במסגרת מסמך.
+ */
+export function buildDepositorReportHtml(data: DepositorReportData, layout?: DocumentLayoutConfig): string {
+  const today = new Date().toLocaleDateString('he-IL')
+  const showHebrew = data.dateFormat === 'combined'
+  const withdrawalsDetailsVisible = isSystemBlockVisible('withdrawalsDetails', layout)
+
+  const depositsHtml = data.deposits.map(dep => {
+    // BUG FIX: removed `* recurring_deposit_number` multiplication (and the
+    // "amount × N" caption it fed below) — see Deposits.tsx for the full
+    // explanation. Each recurring deposit row is its own independent monthly
+    // contribution, not a running cumulative total.
+    const depositAmount = dep.amount
+
+    const withdrawn = dep.withdrawn_amount || 0
+    const remaining = dep.remaining !== undefined ? dep.remaining : (depositAmount - withdrawn)
+    const hasWithdrawals = withdrawalsDetailsVisible && dep.withdrawals && dep.withdrawals.length > 0
+    const lastWithdrawalDate = dep.withdrawals && dep.withdrawals.length > 0
+      ? new Date(dep.withdrawals[0].withdrawal_date).toLocaleDateString('he-IL')
+      : '-'
+
+    // מידע מחזורי
+    const recurringInfo = dep.is_recurring && dep.recurring_deposit_number && dep.recurring_deposit_count && dep.recurring_deposit_count > 1
+      ? `<span class="recurring-badge">🔄 ${dep.recurring_deposit_number}/${dep.recurring_deposit_count}</span>`
+      : dep.is_recurring ? `<span class="recurring-badge">🔄</span>` : ''
+
+    const amountDisplay = formatCurrency(depositAmount)
+
+    return `
+    <tr style="background: ${remaining === 0 ? '#f5f5f5' : 'white'};">
+      <td>${dep.id}</td>
+      <td>${amountDisplay}</td>
+      <td>${withdrawn > 0 ? `<span style="color: #f57c00;">${formatCurrency(withdrawn)}</span>` : '-'}</td>
+      <td>${remaining > 0 ? `<span style="color: #2e7d32; font-weight: bold;">${formatCurrency(remaining)}</span>` : `<span style="color: #666;">-</span>`}</td>
+      <td>${new Date(dep.deposit_date).toLocaleDateString('he-IL')}${showHebrew ? `<br/><small style="color:#666;">${toHebrewDate(dep.deposit_date)}</small>` : ''}</td>
+      <td>${dep.period_type === 'flexible' ? 'גמישה' : 'קבועה'}${recurringInfo ? ` ${recurringInfo}` : ''}</td>
+      <td>${lastWithdrawalDate}</td>
+      <td>${remaining > 0 ? '<span style="color: green; font-weight: bold;">פעילה</span>' : '<span style="color: gray;">נמשכה</span>'}</td>
+    </tr>
+    ${hasWithdrawals ? `
+    <tr class="withdrawals-row">
+      <td colspan="8" style="text-align: right;">
+        <strong>פירוט משיכות:</strong>
+        <table style="width: 100%; margin-top: 5px; border-collapse: collapse;">
+          <thead>
+            <tr class="withdrawals-subheader">
+              <th style="padding: 4px; border: 1px solid #ddd; font-size: 12px;">תאריך</th>
+              <th style="padding: 4px; border: 1px solid #ddd; font-size: 12px;">סכום</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dep.withdrawals!.map(w => `
+              <tr>
+                <td style="padding: 4px; border: 1px solid #ddd; font-size: 12px; text-align: center;">${new Date(w.withdrawal_date).toLocaleDateString('he-IL')}</td>
+                <td style="padding: 4px; border: 1px solid #ddd; font-size: 12px; text-align: center;">${formatCurrency(w.amount)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+    ` : ''}
+  `}).join('')
+
+  return `
+    <div style="padding: 20px;">
+      ${renderCustomBlocks('header', layout)}
+      <div class="header">
+        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח מפקיד</h1>
+        <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
+      </div>
+
+      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+
+      <div style="text-align: right; font-size: 15px; margin-bottom: 20px;">
+        <p style="margin: 5px 0;"><strong>${label('depositorReport.depositorNameLabel', 'שם המפקיד:', layout)}</strong> ${data.depositorName}</p>
+        ${data.depositorPhone ? `<p style="margin: 5px 0;"><strong>טלפון:</strong> ${data.depositorPhone}</p>` : ''}
+        ${data.depositorIdNumber ? `<p style="margin: 5px 0;"><strong>מ.ז.:</strong> ${data.depositorIdNumber}</p>` : ''}
+        <p style="margin: 5px 0;"><strong>תאריך הפקה:</strong> ${today}</p>
+      </div>
+
+      <!-- סיכום כללי -->
+      <div class="summary-box">
+        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
+        <table class="summary-table">
+          <tr>
+            <td style="width: 50%;"><strong style="font-size: 16px;">יתרה פעילה:</strong></td>
+            <td style="width: 50%; text-align: left;">
+              <span class="balance-amount" style="color: #2e7d32;">${formatCurrency(data.totalActive)}</span>
+            </td>
+          </tr>
+          <tr>
+            <td><strong style="font-size: 16px;">סה"כ נמשך:</strong></td>
+            <td style="text-align: left;">
+              <span class="balance-amount" style="color: #f57c00;">${formatCurrency(data.totalWithdrawn)}</span>
+            </td>
+          </tr>
+        </table>
+      </div>
+      ${renderCustomBlocks('afterSummaryBox', layout)}
+
+      <h3 class="section-title">💰 פירוט הפקדות</h3>
+
+      ${renderCustomBlocks('beforeDepositsTable', layout)}
+      <table class="data-table">
+        <thead>
+          <tr class="deposits-header">
+            <th style="width: 6%;">מס'</th>
+            <th style="width: 13%;">סכום מקורי</th>
+            <th style="width: 11%;">נמשך</th>
+            <th style="width: 12%;">יתרה</th>
+            <th style="width: 17%;">תאריך הפקדה</th>
+            <th style="width: 15%;">סוג</th>
+            <th style="width: 14%;">משיכה אחרונה</th>
+            <th style="width: 12%;">סטטוס</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${depositsHtml || '<tr><td colspan="8" style="padding: 20px; text-align: center; color: #999;">אין הפקדות</td></tr>'}
+        </tbody>
+      </table>
+      ${renderCustomBlocks('afterDepositsTable', layout)}
+
+      <div style="margin-top: 30px; text-align: right; font-size: 12px; color: #666;">
+        <p>🔄 = הפקדה מחזורית</p>
+      </div>
+
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
+        <p>דוח זה הופק אוטומטית ממערכת ניהול הגמ"ח</p>
+      </div>
+      ${renderCustomBlocks('footer', layout)}
+    </div>
+  `
+}
+
 export async function generateDepositorReport(data: {
   gemachName: string
   gemachLogo?: string
@@ -1533,135 +1752,44 @@ export async function generateDepositorReport(data: {
   totalActive: number
   totalWithdrawn: number
   dateFormat?: string
-}): Promise<void> {
-  const today = new Date().toLocaleDateString('he-IL')
-  const showHebrew = data.dateFormat === 'combined'
-
+}, layout?: DocumentLayoutConfig): Promise<void> {
   const logoHtml = data.gemachLogo 
     ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
     : ''
 
-  const depositsHtml = data.deposits.map(dep => {
-    // BUG FIX: removed `* recurring_deposit_number` multiplication (and the
-    // "amount × N" caption it fed below) — see Deposits.tsx for the full
-    // explanation. Each recurring deposit row is its own independent monthly
-    // contribution, not a running cumulative total.
-    const depositAmount = dep.amount
-    
-    const withdrawn = dep.withdrawn_amount || 0
-    const remaining = dep.remaining !== undefined ? dep.remaining : (depositAmount - withdrawn)
-    const hasWithdrawals = dep.withdrawals && dep.withdrawals.length > 0
-    const lastWithdrawalDate = hasWithdrawals && dep.withdrawals!.length > 0 
-      ? new Date(dep.withdrawals![0].withdrawal_date).toLocaleDateString('he-IL')
-      : '-'
-    
-    // מידע מחזורי
-    const recurringInfo = dep.is_recurring && dep.recurring_deposit_number && dep.recurring_deposit_count && dep.recurring_deposit_count > 1
-      ? `🔄 ${dep.recurring_deposit_number}/${dep.recurring_deposit_count}`
-      : dep.is_recurring ? '🔄' : ''
-    
-    const amountDisplay = formatCurrency(depositAmount)
-    
-    return `
-    <tr style="background: ${remaining === 0 ? '#f5f5f5' : 'white'};">
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.id}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${amountDisplay}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${withdrawn > 0 ? `<span style="color: #f57c00;">${formatCurrency(withdrawn)}</span>` : '-'}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${remaining > 0 ? `<span style="color: #2e7d32; font-weight: bold;">${formatCurrency(remaining)}</span>` : `<span style="color: #666;">-</span>`}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${new Date(dep.deposit_date).toLocaleDateString('he-IL')}${showHebrew ? `<br/><small style="color:#666;">${toHebrewDate(dep.deposit_date)}</small>` : ''}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.period_type === 'flexible' ? 'גמישה' : 'קבועה'}${recurringInfo ? ` ${recurringInfo}` : ''}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${lastWithdrawalDate}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${remaining > 0 ? '<span style="color: green; font-weight: bold;">פעילה</span>' : '<span style="color: gray;">נמשכה</span>'}</td>
-    </tr>
-    ${hasWithdrawals ? `
-    <tr style="background: #fff3e0;">
-      <td colspan="8" style="padding: 8px; border: 1px solid #ddd;">
-        <strong>פירוט משיכות:</strong>
-        <table style="width: 100%; margin-top: 5px; border-collapse: collapse;">
-          <thead>
-            <tr style="background: #ffc107;">
-              <th style="padding: 4px; border: 1px solid #ddd; font-size: 12px;">תאריך</th>
-              <th style="padding: 4px; border: 1px solid #ddd; font-size: 12px;">סכום</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${dep.withdrawals!.map(w => `
-              <tr>
-                <td style="padding: 4px; border: 1px solid #ddd; font-size: 12px; text-align: center;">${new Date(w.withdrawal_date).toLocaleDateString('he-IL')}</td>
-                <td style="padding: 4px; border: 1px solid #ddd; font-size: 12px; text-align: center;">${formatCurrency(w.amount)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </td>
-    </tr>
-    ` : ''}
-  `}).join('')
-
-  const htmlContent = `
-    <div style="padding: 20px;">
-      <div style="text-align: center;">
-        <h1 style="font-size: 24px; margin: 10px 0;">דוח מפקיד</h1>
-        <h2 style="font-size: 16px; color: #666;">${data.gemachName}</h2>
-      </div>
-      
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
-      
-      <div style="text-align: right; font-size: 16px; background: #f5f5f5; padding: 15px; border-radius: 8px;">
-        <p><strong>שם המפקיד:</strong> ${data.depositorName}</p>
-        ${data.depositorPhone ? `<p><strong>טלפון:</strong> ${data.depositorPhone}</p>` : ''}
-        ${data.depositorIdNumber ? `<p><strong>מ.ז.:</strong> ${data.depositorIdNumber}</p>` : ''}
-        <p><strong>תאריך הפקה:</strong> ${today}</p>
-      </div>
-      
-      <div style="display: flex; gap: 20px; margin: 20px 0; text-align: center;">
-        <div style="flex: 1; background: #e8f5e9; padding: 15px; border-radius: 8px;">
-          <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">${formatCurrency(data.totalActive)}</div>
-          <div style="color: #666;">יתרה פעילה</div>
-        </div>
-        <div style="flex: 1; background: #fff3e0; padding: 15px; border-radius: 8px;">
-          <div style="font-size: 24px; font-weight: bold; color: #f57c00;">${formatCurrency(data.totalWithdrawn)}</div>
-          <div style="color: #666;">סה"כ נמשך</div>
-        </div>
-      </div>
-      
-      <h3 style="text-align: right; margin-top: 30px;">פירוט הפקדות:</h3>
-      
-      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: right;">
-        <thead>
-          <tr style="background: #e3f2fd;">
-            <th style="padding: 10px; border: 1px solid #ddd;">מס'</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סכום מקורי</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">נמשך</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">יתרה</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">תאריך הפקדה</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סוג</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">משיכה אחרונה</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סטטוס</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${depositsHtml || '<tr><td colspan="8" style="padding: 20px; text-align: center;">אין הפקדות</td></tr>'}
-        </tbody>
-      </table>
-      
-      <div style="margin-top: 30px; text-align: right; font-size: 12px; color: #666;">
-        <p>🔄 = הפקדה מחזורית</p>
-      </div>
-    </div>
-  `
-
-  const finalContent = applyDocumentBranding(htmlContent, { 
-    gemachLogo: data.gemachLogo, 
+  const innerContent = buildDepositorReportHtml(data, layout)
+  const branding = resolveDocumentBranding({
+    gemachLogo: data.gemachLogo,
     gemachDocumentFrame: data.gemachDocumentFrame,
     frameMarginTop: data.frameMarginTop,
     frameMarginBottom: data.frameMarginBottom,
     frameMarginRight: data.frameMarginRight,
-    frameMarginLeft: data.frameMarginLeft
-  }, logoHtml)
-  
-  // הערה: תמיכה במסגרות תופסק בגרסה זו
-  printHtml(finalContent, `דוח מפקיד - ${data.depositorName}`)
+    frameMarginLeft: data.frameMarginLeft,
+  }, layout)
+
+  const fullHtmlDocument = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+      <meta charset="UTF-8">
+      <style>
+${DEPOSITOR_REPORT_STYLES}
+      </style>
+    </head>
+    <body>
+    ${applyDocumentBranding(innerContent, branding, logoHtml)}
+    </body>
+    </html>
+  `
+
+  if (branding.gemachDocumentFrame) {
+    await downloadPdf(fullHtmlDocument, `דוח-מפקיד-${data.depositorName}`, branding.gemachDocumentFrame, {
+      top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
+    })
+    return
+  }
+  printHtml(fullHtmlDocument, `דוח מפקיד - ${data.depositorName}`)
 }
 
 
@@ -2026,55 +2154,37 @@ ${params.gemachName}`,
 }
 
 // Email data for depositor report
-export function createDepositorReportEmailData(params: {
-  gemachName: string
-  depositorName: string
+export function createDepositorReportEmailData(params: DepositorReportData & {
   depositorEmail: string
-  totalActive: number
-  deposits: Array<{ id: number; amount: number; deposit_date: string; period_type: string; status: string }>
-}): EmailData {
+  gemachLogo?: string
+  gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
+}, layout?: DocumentLayoutConfig): EmailData {
   const formattedTotal = formatCurrency(params.totalActive)
-  
-  const depositsHtml = params.deposits.map(dep => `
-    <tr style="background: ${dep.status === 'withdrawn' ? '#f5f5f5' : 'white'};">
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.id}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(dep.amount)}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${new Date(dep.deposit_date).toLocaleDateString('he-IL')}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.period_type === 'flexible' ? 'גמישה' : 'קבועה'}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${dep.status === 'active' ? 'פעילה' : 'נמשכה'}</td>
-    </tr>
-  `).join('')
 
-  const htmlContent = `
-    <div style="padding: 20px;">
-      <div style="text-align: center;">
-        <h1 style="font-size: 24px; margin: 10px 0;">דוח מפקיד</h1>
-        <h2 style="font-size: 16px; color: #666;">${params.gemachName}</h2>
-      </div>
-      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
-      <div style="text-align: right; font-size: 16px;">
-        <p><strong>שם המפקיד:</strong> ${params.depositorName}</p>
-        <p><strong>תאריך הפקה:</strong> ${new Date().toLocaleDateString('he-IL')}</p>
-        <p style="font-size: 18px; margin-top: 15px;"><strong>סה"כ הפקדות פעילות:</strong> ${formattedTotal}</p>
-      </div>
-      <h3 style="text-align: right; margin-top: 30px;">פירוט הפקדות:</h3>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: right;">
-        <thead>
-          <tr style="background: #e3f2fd;">
-            <th style="padding: 10px; border: 1px solid #ddd;">מס'</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סכום</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">תאריך</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סוג</th>
-            <th style="padding: 10px; border: 1px solid #ddd;">סטטוס</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${depositsHtml || '<tr><td colspan="5" style="padding: 20px; text-align: center;">אין הפקדות</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  `
-  
+  const logoHtml = params.gemachLogo 
+    ? `<img src="${params.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin-bottom: 10px;" />`
+    : ''
+
+  // מקור אמת יחיד: אותה buildDepositorReportHtml כמו נתיב ההדפסה/PDF,
+  // כולל אותו גיליון עיצוב (DEPOSITOR_REPORT_STYLES) — בדיוק כמו
+  // createBorrowerReportEmailData. אימייל דוח מפקיד מציג מעתה דוח מלא
+  // זהה לגרסה המודפסת, כולל עוגני טקסט חופשי, דריסת תוויות ומסגרת.
+  const innerContent = buildDepositorReportHtml(params, layout)
+  const branding = resolveDocumentBranding({
+    gemachLogo: params.gemachLogo,
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft,
+  }, layout)
+  const brandedContent = applyDocumentBranding(innerContent, branding, logoHtml)
+  const htmlContent = `<style>${DEPOSITOR_REPORT_STYLES}</style>${brandedContent}`
+
   return {
     to: params.depositorEmail,
     subject: `דוח הפקדות - ${params.gemachName}`,
@@ -2088,7 +2198,14 @@ export function createDepositorReportEmailData(params: {
 ${params.gemachName}`,
     documentType: 'depositor_report',
     htmlContent,
-    filename: `דוח-מפקיד-${params.depositorName}`
+    filename: `דוח-מפקיד-${params.depositorName}`,
+    frameImageBase64: branding.gemachDocumentFrame,
+    frameMargins: branding.gemachDocumentFrame ? {
+      top: branding.frameMarginTop ?? 35,
+      bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20,
+      left: branding.frameMarginLeft ?? 20,
+    } : undefined,
   }
 }
 

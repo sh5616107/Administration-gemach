@@ -102,6 +102,7 @@ interface Deposit {
 export default function Deposits() {
   const { settings } = useSettings();
   const depositReceiptLayout = getDocumentLayout(settings.document_layouts, 'depositReceipt');
+  const depositorReportLayout = getDocumentLayout(settings.document_layouts, 'depositorReport');
   const [searchParams, setSearchParams] = useSearchParams();
   const [depositors, setDepositors] = useState<Depositor[]>([]);
   const [selectedDepositor, setSelectedDepositor] = useState<Depositor | null>(null);
@@ -1190,7 +1191,7 @@ export default function Deposits() {
                           totalActive,
                           totalWithdrawn,
                           dateFormat: settings.date_format
-                        });
+                        }, depositorReportLayout);
                         
                         setSnackbar({ open: true, message: 'הדו"ח הופק בהצלחה', severity: 'success' });
                       } catch (error) {
@@ -1225,6 +1226,10 @@ export default function Deposits() {
                               // 1's own 22, month 3 showed 66, etc. instead of each showing its own 22.
                               return {
                                 ...dep,
+                                withdrawals: withdrawals.map(w => ({
+                                  amount: w.amount,
+                                  withdrawal_date: w.withdrawal_date,
+                                })),
                                 withdrawn_amount: withdrawn,
                                 remaining: depositAmount - withdrawn,
                               };
@@ -1232,22 +1237,28 @@ export default function Deposits() {
                           );
 
                           const totalActive = depositsWithDetails
-                            .filter(d => d.status === 'active')
+                            .filter(d => d.remaining > 0)
                             .reduce((sum, d) => sum + d.remaining, 0);
+                          const totalWithdrawn = depositsWithDetails
+                            .reduce((sum, d) => sum + (d.withdrawn_amount || 0), 0);
 
                           const emailData = createDepositorReportEmailData({
                             gemachName: settings.gemach_name || 'גמ"ח',
+                            gemachLogo: settings.gemach_logo,
+                            gemachDocumentFrame: settings.gemach_document_frame,
+                            frameMarginTop: settings.gemach_frame_margin_top,
+                            frameMarginBottom: settings.gemach_frame_margin_bottom,
+                            frameMarginRight: settings.gemach_frame_margin_right,
+                            frameMarginLeft: settings.gemach_frame_margin_left,
                             depositorName: `${selectedDepositor.first_name} ${selectedDepositor.last_name}`,
+                            depositorPhone: selectedDepositor.phone,
+                            depositorIdNumber: selectedDepositor.id_number,
                             depositorEmail: selectedDepositor.email,
+                            deposits: depositsWithDetails,
                             totalActive,
-                            deposits: depositsWithDetails.map(d => ({
-                              id: d.id,
-                              amount: d.amount,
-                              deposit_date: d.deposit_date,
-                              period_type: d.period_type,
-                              status: d.status,
-                            })),
-                          });
+                            totalWithdrawn,
+                            dateFormat: settings.date_format,
+                          }, depositorReportLayout);
 
                           const provider = (settings.email_provider || 'gmail') as EmailProvider;
                           const result = await openEmailWithDocument(emailData, provider);
