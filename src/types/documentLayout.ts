@@ -41,6 +41,20 @@ export interface DocumentLayoutConfig {
   labelOverrides: Record<string, string>
   customBlocks: CustomTextBlock[]
   frame?: DocumentFrameConfig
+  /** מסתיר את כל קווי ה-<hr> המפרידים במסמך (יש עדיפות על dividerColor) */
+  hideDividers?: boolean
+  /** צובע מחדש את כל קווי ה-<hr> המפרידים במסמך (hex בלבד, מוולד לפני הזרקה ל-CSS) */
+  dividerColor?: string
+  /**
+   * צבע ראשי (כותרות, קווי טבלה עליונים) — מוזרק כמשתנה CSS גלובלי
+   * (--doc-accent) דרך applyDocumentBranding, ולכן חל אוטומטית על כל
+   * מסמך שה-HTML שלו מפנה ל-var(--doc-accent, ...) בהגדרות הצבע שלו.
+   * נכון להיום זה כך רק בדוח לווה ודוח מפקיד (BORROWER_REPORT_STYLES /
+   * DEPOSITOR_REPORT_STYLES + הכותרות המוטבעות שלהם) — שאר סוגי המסמכים
+   * (שטר הלוואה, קבלת תרומה, שטר הפקדה) עדיין צובעים inline בקוד קשיח
+   * ולא יגיבו לשדה הזה עד שיעברו לאותו דפוס.
+   */
+  accentColor?: string
 }
 
 export type DocumentLayoutsMap = Record<DocumentType, DocumentLayoutConfig>

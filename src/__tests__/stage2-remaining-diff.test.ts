@@ -169,6 +169,10 @@ function oldBuildDepositDocumentHtml(data: any): string {
 }
 
 // ===== דוח לווה =====
+// הערה: 4 מופעי var(--doc-accent, #1976d2) להלן (במקום #1976d2 גולמי) הם
+// שינוי מכוון בשלב הבא (תמיכה בהתאמת "צבע ראשי" מהפאנל, ר' accentColor
+// ב-DocumentLayoutConfig) — לא drift לא-מכוון. עודכנו כאן כדי שהבדיקה
+// תמשיך לתפוס רק סטיות אמיתיות, לא את זו.
 function oldBuildBorrowerReportHtml(data: any): string {
   const today = new Date().toLocaleDateString('he-IL')
 
@@ -191,7 +195,7 @@ function oldBuildBorrowerReportHtml(data: any): string {
       : '-'
     
     const statusText = loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'
-    const statusColor = loan.status === 'active' ? '#1976d2' : loan.status === 'planned' ? '#f57c00' : '#2e7d32'
+    const statusColor = loan.status === 'active' ? 'var(--doc-accent, #1976d2)' : loan.status === 'planned' ? '#f57c00' : '#2e7d32'
     const totalPaid = loan.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
     
     return `
@@ -305,7 +309,7 @@ function oldBuildBorrowerReportHtml(data: any): string {
   const innerContent = `
     <div style="padding: 20px;">
       <div class="header">
-        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח לווה</h1>
+        <h1 style="font-size: 26px; margin: 10px 0; color: var(--doc-accent, #1976d2);">דוח לווה</h1>
         <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
       </div>
       
@@ -318,11 +322,11 @@ function oldBuildBorrowerReportHtml(data: any): string {
 
       <!-- סיכום כללי -->
       <div class="summary-box">
-        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
+        <h3 style="margin: 0 0 15px 0; color: var(--doc-accent, #1976d2); font-size: 18px;">📊 סיכום כללי</h3>
         <table class="summary-table">
           <tr>
             <td style="width: 25%;"><strong>הלוואות פעילות:</strong></td>
-            <td style="width: 25%; text-align: left; color: #1976d2; font-size: 16px;"><strong>${activeLoansCount}</strong></td>
+            <td style="width: 25%; text-align: left; color: var(--doc-accent, #1976d2); font-size: 16px;"><strong>${activeLoansCount}</strong></td>
             <td style="width: 25%;"><strong>הלוואות שנפרעו:</strong></td>
             <td style="width: 25%; text-align: left; color: #2e7d32; font-size: 16px;"><strong>${completedLoansCount}</strong></td>
           </tr>

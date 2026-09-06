@@ -412,17 +412,64 @@ function isSystemBlockVisible(key: string, layout?: DocumentLayoutConfig): boole
  * אם קיימת gemachDocumentFrame — מחזיר רק את innerHtml (ללא לוגו, המסגרת תצויר ב-downloadPdf).
  * אם אין מסגרת — מחזיר לוגו + innerHtml כרגיל.
  */
+/**
+ * מוולדת ערך צבע לפני הזרקה ל-<style> — מאפשרת רק hex (#fff/#ffffff) או
+ * שם צבע CSS פשוט (אותיות בלבד). זהה ברוחה ל-escapeHtml שכבר קיים לכל
+ * טקסט חופשי אחר: לא מזריקים ערך גולמי מהמשתמש ל-CSS/HTML בלי ולידציה,
+ * כדי למנוע יציאה מהכלל (למשל ";}</style><script>...") דרך שדה dividerColor
+ * או accentColor בפאנל.
+ */
+function sanitizeCssColor(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  if (/^#[0-9a-fA-F]{3,8}$/.test(trimmed)) return trimmed
+  if (/^[a-zA-Z]{3,20}$/.test(trimmed)) return trimmed
+  return undefined
+}
+
+/**
+ * בונה override CSS גלובלי מתוך layout.hideDividers/dividerColor/accentColor,
+ * ומוזרק דרך applyDocumentBranding — נקודת המעבר המשותפת שכל 10 פונקציות
+ * היצירה/אימייל שתומכות ב-layout כבר עוברות דרכה, כך שקו מפריד/צבע ראשי
+ * מתעדכן בכל מקום בבת אחת בלי לגעת בכל <hr> בנפרד (יש כ-20 מהם פזורים
+ * בקובץ). hideDividers גובר על dividerColor אם שניהם מוגדרים.
+ * exported גם כדי שפאנל עיצוב המסמכים יזריק בדיוק אותו override בתצוגה
+ * המקדימה (שאינה עוברת דרך applyDocumentBranding כלל) — כדי שהתצוגה
+ * המקדימה תשקף במדויק את מה שבאמת יודפס/יישלח, לא קירוב.
+ */
+export function buildStyleOverrides(layout?: DocumentLayoutConfig): string {
+  if (!layout) return ''
+  const rules: string[] = []
+  if (layout.hideDividers) {
+    rules.push('hr { display: none !important; }')
+  } else {
+    const dividerColor = sanitizeCssColor(layout.dividerColor)
+    if (dividerColor) rules.push(`hr { border-color: ${dividerColor} !important; }`)
+  }
+  const accentColor = sanitizeCssColor(layout.accentColor)
+  if (accentColor) rules.push(`:root { --doc-accent: ${accentColor}; }`)
+  return rules.length ? `<style>${rules.join(' ')}</style>` : ''
+}
+
+/**
+ * עוטף תוכן HTML של מסמך עם מיתוג הגמ"ח.
+ * החלטה בלבד אם להציג לוגו רגיל או לא - ללא ציור מסגרת ב-CSS.
+ * אם קיימת gemachDocumentFrame — מחזיר רק את innerHtml (ללא לוגו, המסגרת תצויר ב-downloadPdf).
+ * אם אין מסגרת — מחזיר לוגו + innerHtml כרגיל.
+ */
 function applyDocumentBranding(
   innerHtml: string,
   branding: DocumentBrandingOptions,
-  logoHtmlIfNoFrame: string
+  logoHtmlIfNoFrame: string,
+  layout?: DocumentLayoutConfig
 ): string {
+  const overrides = buildStyleOverrides(layout)
   if (branding.gemachDocumentFrame) {
     // מצב מסגרת: רק תוכן ללא לוגו (המסגרת תצויר ב-downloadPdf)
-    return innerHtml
+    return overrides + innerHtml
   }
   // מצב רגיל: לוגו מוצג כרגיל (preservation)
-  return `${logoHtmlIfNoFrame}${innerHtml}`
+  return overrides + `${logoHtmlIfNoFrame}${innerHtml}`
 }
 
 
@@ -605,7 +652,7 @@ export async function generateLoanDocument(data: LoanDocumentData, layout?: Docu
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
   }, layout)
-  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   
   if (branding.gemachDocumentFrame) {
     const result = await downloadPdf(finalContent, `שטר-הלוואה-${data.borrowerName}`, branding.gemachDocumentFrame, {
@@ -774,7 +821,7 @@ export async function generateDonationReceipt(data: {
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
   }, layout)
-  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   
   if (branding.gemachDocumentFrame) {
     const result = await downloadPdf(finalContent, `קבלה-${data.receiptNumber}`, branding.gemachDocumentFrame, {
@@ -945,7 +992,7 @@ export async function generateDepositDocument(data: {
     frameMarginRight: data.frameMarginRight,
     frameMarginLeft: data.frameMarginLeft
   }, layout)
-  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml)
+  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   if (branding.gemachDocumentFrame) {
     await downloadPdf(finalContent, `שטר-הפקדה-${data.depositorName}`, branding.gemachDocumentFrame, {
       top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
@@ -962,7 +1009,7 @@ export async function generateDepositDocument(data: {
  * והן לתוך htmlContent של האימייל, כדי ששתי הגרסאות ייראו זהה (הן
  * מסתמכות על אותם class names בתוך buildBorrowerReportHtml).
  */
-const BORROWER_REPORT_STYLES = `
+export const BORROWER_REPORT_STYLES = `
         body { font-family: Arial, sans-serif; }
         .header { text-align: center; margin-bottom: 20px; }
         .summary-box { 
@@ -979,8 +1026,8 @@ const BORROWER_REPORT_STYLES = `
         .section-title { 
           margin-top: 30px; 
           padding-bottom: 8px; 
-          border-bottom: 2px solid #1976d2; 
-          color: #1976d2;
+          border-bottom: 2px solid var(--doc-accent, #1976d2); 
+          color: var(--doc-accent, #1976d2);
           font-size: 18px;
         }
         .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -1002,7 +1049,7 @@ const BORROWER_REPORT_STYLES = `
         .multi-repayment-row { background: #e3f2fd; }
         .total-row { font-weight: bold; }
         .multi-badge { 
-          color: #1976d2; 
+          color: var(--doc-accent, #1976d2); 
           font-weight: bold; 
           background: white;
           padding: 2px 8px;
@@ -1075,7 +1122,7 @@ export function buildBorrowerReportHtml(data: BorrowerReportData, layout?: Docum
       : '-'
     
     const statusText = loan.status === 'active' ? 'פעילה' : loan.status === 'planned' ? 'מתוכננת' : 'נפרעה'
-    const statusColor = loan.status === 'active' ? '#1976d2' : loan.status === 'planned' ? '#f57c00' : '#2e7d32'
+    const statusColor = loan.status === 'active' ? 'var(--doc-accent, #1976d2)' : loan.status === 'planned' ? '#f57c00' : '#2e7d32'
     const totalPaid = loan.repayments?.reduce((sum, r) => sum + r.amount, 0) || 0
     
     return `
@@ -1189,7 +1236,7 @@ export function buildBorrowerReportHtml(data: BorrowerReportData, layout?: Docum
     <div style="padding: 20px;">
       ${renderCustomBlocks('header', layout)}
       <div class="header">
-        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח לווה</h1>
+        <h1 style="font-size: 26px; margin: 10px 0; color: var(--doc-accent, #1976d2);">דוח לווה</h1>
         <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
       </div>
       
@@ -1202,11 +1249,11 @@ export function buildBorrowerReportHtml(data: BorrowerReportData, layout?: Docum
 
       <!-- סיכום כללי -->
       <div class="summary-box">
-        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
+        <h3 style="margin: 0 0 15px 0; color: var(--doc-accent, #1976d2); font-size: 18px;">📊 סיכום כללי</h3>
         <table class="summary-table">
           <tr>
             <td style="width: 25%;"><strong>הלוואות פעילות:</strong></td>
-            <td style="width: 25%; text-align: left; color: #1976d2; font-size: 16px;"><strong>${activeLoansCount}</strong></td>
+            <td style="width: 25%; text-align: left; color: var(--doc-accent, #1976d2); font-size: 16px;"><strong>${activeLoansCount}</strong></td>
             <td style="width: 25%;"><strong>הלוואות שנפרעו:</strong></td>
             <td style="width: 25%; text-align: left; color: #2e7d32; font-size: 16px;"><strong>${completedLoansCount}</strong></td>
           </tr>
@@ -1322,7 +1369,7 @@ ${BORROWER_REPORT_STYLES}
       </style>
     </head>
     <body>
-    ${applyDocumentBranding(innerContent, branding, logoHtml)}
+    ${applyDocumentBranding(innerContent, branding, logoHtml, layout)}
     </body>
     </html>
   `
@@ -1507,7 +1554,7 @@ export function generateFullReport(data: {
  * כמו דוח לווה. מוזרק הן לתוך fullHtmlDocument (הדפסה/PDF) והן לתוך
  * htmlContent של האימייל, כדי ששתי הגרסאות ייראו זהה.
  */
-const DEPOSITOR_REPORT_STYLES = `
+export const DEPOSITOR_REPORT_STYLES = `
         body { font-family: Arial, sans-serif; }
         .header { text-align: center; margin-bottom: 20px; }
         .summary-box { 
@@ -1524,8 +1571,8 @@ const DEPOSITOR_REPORT_STYLES = `
         .section-title { 
           margin-top: 30px; 
           padding-bottom: 8px; 
-          border-bottom: 2px solid #1976d2; 
-          color: #1976d2;
+          border-bottom: 2px solid var(--doc-accent, #1976d2); 
+          color: var(--doc-accent, #1976d2);
           font-size: 18px;
         }
         .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -1653,7 +1700,7 @@ export function buildDepositorReportHtml(data: DepositorReportData, layout?: Doc
     <div style="padding: 20px;">
       ${renderCustomBlocks('header', layout)}
       <div class="header">
-        <h1 style="font-size: 26px; margin: 10px 0; color: #1976d2;">דוח מפקיד</h1>
+        <h1 style="font-size: 26px; margin: 10px 0; color: var(--doc-accent, #1976d2);">דוח מפקיד</h1>
         <h2 style="font-size: 16px; color: #666; margin: 5px 0;">${data.gemachName}</h2>
       </div>
 
@@ -1668,7 +1715,7 @@ export function buildDepositorReportHtml(data: DepositorReportData, layout?: Doc
 
       <!-- סיכום כללי -->
       <div class="summary-box">
-        <h3 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">📊 סיכום כללי</h3>
+        <h3 style="margin: 0 0 15px 0; color: var(--doc-accent, #1976d2); font-size: 18px;">📊 סיכום כללי</h3>
         <table class="summary-table">
           <tr>
             <td style="width: 50%;"><strong style="font-size: 16px;">יתרה פעילה:</strong></td>
@@ -1777,7 +1824,7 @@ ${DEPOSITOR_REPORT_STYLES}
       </style>
     </head>
     <body>
-    ${applyDocumentBranding(innerContent, branding, logoHtml)}
+    ${applyDocumentBranding(innerContent, branding, logoHtml, layout)}
     </body>
     </html>
   `
@@ -1915,7 +1962,7 @@ export async function createLoanEmailData(params: {
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft
   }, layout)
-  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   
   return {
     to: params.borrowerEmail,
@@ -1989,7 +2036,7 @@ export function createDepositEmailData(params: {
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft
   }, layout)
-  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   
   return {
     to: params.depositorEmail,
@@ -2064,7 +2111,7 @@ export function createDonationEmailData(params: {
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft,
   }, layout)
-  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml)
+  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   
   return {
     to: params.donorEmail,
@@ -2126,7 +2173,7 @@ export function createBorrowerReportEmailData(params: BorrowerReportData & {
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft,
   }, layout)
-  const brandedContent = applyDocumentBranding(innerContent, branding, logoHtml)
+  const brandedContent = applyDocumentBranding(innerContent, branding, logoHtml, layout)
   const htmlContent = `<style>${BORROWER_REPORT_STYLES}</style>${brandedContent}`
 
   return {
@@ -2182,7 +2229,7 @@ export function createDepositorReportEmailData(params: DepositorReportData & {
     frameMarginRight: params.frameMarginRight,
     frameMarginLeft: params.frameMarginLeft,
   }, layout)
-  const brandedContent = applyDocumentBranding(innerContent, branding, logoHtml)
+  const brandedContent = applyDocumentBranding(innerContent, branding, logoHtml, layout)
   const htmlContent = `<style>${DEPOSITOR_REPORT_STYLES}</style>${brandedContent}`
 
   return {

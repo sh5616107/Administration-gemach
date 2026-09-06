@@ -24,7 +24,7 @@ import {
 } from '../types/documentLayout'
 import {
   buildLoanDocumentHtml, buildDonationReceiptHtml, buildDepositDocumentHtml, buildBorrowerReportHtml,
-  buildDepositorReportHtml,
+  buildDepositorReportHtml, buildStyleOverrides, BORROWER_REPORT_STYLES, DEPOSITOR_REPORT_STYLES,
 } from '../services/documents'
 
 // אותו localforage instance בדיוק כמו useSettings.ts ו-migrations.ts — ר' הערה
@@ -167,6 +167,22 @@ function buildPreviewHtml(docType: DocumentType, layout: DocumentLayoutConfig, w
   // דוח לווה), הרקע נמתח לגובה ה"עמוד" הראשון בלבד ולא חוזר על עצמו
   // מעמוד לעמוד כמו ב-PDF האמיתי — זו תצוגה מקדימה מקורבת, לא פיצול
   // עמודים מדויק.
+  // גיליון העיצוב הייעודי (class-based) לדוח לווה/דוח מפקיד — בלעדיו
+  // ה-HTML שמוחזר מ-buildBorrowerReportHtml/buildDepositorReportHtml
+  // מסתמך על class names (.header, .section-title וכו') שלא מוגדרים
+  // בשום מקום, והדפדפן נופל לברירת המחדל שלו (למשל text-align:start
+  // עבור <h1>, כלומר ימין ב-RTL) במקום text-align:center שה-CSS האמיתי
+  // קובע. זה בדיוק הפער שגרם לכותרת "דוח לווה"/"דוח מפקיד" להיראות
+  // מיושרת לימין בתצוגה המקדימה של הפאנל, בעוד שבמסמך האמיתי (שדווקא
+  // כן מזריק את הגיליון הזה ב-generateBorrowerReport/generateDepositorReport
+  // וב-createXxxReportEmailData) היא ממורכזת כראוי. שאר סוגי המסמכים
+  // (שטר הלוואה/קבלת תרומה/שטר הפקדה) לא זקוקים לזה — הם בנויים כולם
+  // מ-inline styles בלבד, ללא class אחד, ולכן תמיד נראים נכון בתצוגה
+  // המקדימה גם בלי הזרקה נוספת.
+  const reportStyles = docType === 'borrowerReport' ? BORROWER_REPORT_STYLES
+    : docType === 'depositorReport' ? DEPOSITOR_REPORT_STYLES
+    : ''
+
   const frame = layout.frame
   const pageContent = frame?.imageBase64 ? `
     <div style="
@@ -183,7 +199,7 @@ function buildPreviewHtml(docType: DocumentType, layout: DocumentLayoutConfig, w
   // בעץ הראשי — בידוד סגנונות/סקריפטים מהטקסט החופשי.
   return `<!DOCTYPE html>
 <html dir="rtl" lang="he">
-<head><meta charset="UTF-8"><style>body{background:#e0e0e0;color:#000000;margin:0;font-family:Arial,sans-serif;}</style></head>
+<head><meta charset="UTF-8"><style>body{background:#e0e0e0;color:#000000;margin:0;font-family:Arial,sans-serif;}${reportStyles}</style>${buildStyleOverrides(layout)}</head>
 <body>${pageContent}</body>
 </html>`
 }
@@ -648,7 +664,7 @@ export default function DocumentDesignerPanel() {
                           sx={{ mt: 1, display: 'block' }}
                           onClick={() => {
                             setLayouts(prev => copyFrameImageToAllDocuments(prev, activeTab))
-                            setSaveState({ open: true, ok: true, message: 'תמונת המסגרת הועתקה ל-3 המסמכים האחרים (השוליים של כל מסמך נשארו כפי שהיו) — לחץ "שמור" כדי לשמור' })
+                            setSaveState({ open: true, ok: true, message: 'תמונת המסגרת הועתקה ל-4 המסמכים האחרים (השוליים של כל מסמך נשארו כפי שהיו) — לחץ "שמור" כדי לשמור' })
                           }}
                         >
                           העתק תמונת מסגרת זו לכל המסמכים
@@ -681,6 +697,60 @@ export default function DocumentDesignerPanel() {
                     ))}
                   </Box>
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 1 }}>עיצוב כללי</Typography>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={!!activeLayout.hideDividers}
+                    onChange={e => updateActiveLayout({ hideDividers: e.target.checked })}
+                  />
+                }
+                label="הסתר את כל קווי ההפרדה (hr) במסמך"
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1, flexWrap: 'wrap' }}>
+                <TextField
+                  size="small"
+                  type="color"
+                  label="צבע קווי הפרדה"
+                  disabled={!!activeLayout.hideDividers}
+                  sx={{ width: 160 }}
+                  value={activeLayout.dividerColor || '#333333'}
+                  onChange={e => updateActiveLayout({ dividerColor: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+                {activeLayout.dividerColor && (
+                  <Button size="small" variant="text" onClick={() => updateActiveLayout({ dividerColor: undefined })}>
+                    איפוס לצבע ברירת מחדל
+                  </Button>
+                )}
+              </Box>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <TextField
+                  size="small"
+                  type="color"
+                  label="צבע ראשי (כותרות)"
+                  sx={{ width: 160 }}
+                  value={activeLayout.accentColor || '#1976d2'}
+                  onChange={e => updateActiveLayout({ accentColor: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+                {activeLayout.accentColor && (
+                  <Button size="small" variant="text" onClick={() => updateActiveLayout({ accentColor: undefined })}>
+                    איפוס לצבע ברירת מחדל
+                  </Button>
+                )}
+              </Box>
+              {(activeTab !== 'borrowerReport' && activeTab !== 'depositorReport') && (
+                <Alert severity="info" sx={{ mt: 1.5 }}>
+                  צבע ראשי נתמך כרגע רק בדוח לווה ובדוח מפקיד — שינוי כאן לא ישפיע על סוג המסמך הנוכחי.
+                </Alert>
               )}
             </CardContent>
           </Card>
