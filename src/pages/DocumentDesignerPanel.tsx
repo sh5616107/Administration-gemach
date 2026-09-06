@@ -704,6 +704,23 @@ export default function DocumentDesignerPanel() {
           <Card sx={{ mb: 2 }}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 1 }}>עיצוב כללי</Typography>
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={!!activeLayout.blackAndWhite}
+                    onChange={e => updateActiveLayout({ blackAndWhite: e.target.checked })}
+                  />
+                }
+                label="מצב שחור-לבן — מבטל את כל הצבעים במסמך (כולל צבעי סטטוס כמו ירוק/אדום/כתום)"
+              />
+              {activeLayout.blackAndWhite && (
+                <Alert severity="info" sx={{ mt: 1, mb: 2 }}>
+                  כל שאר הגדרות הצבע להלן (קווי הפרדה, צבע ראשי) עדיין שמורות, אבל לא נראות כל עוד המצב הזה פעיל.
+                </Alert>
+              )}
+              <Divider sx={{ my: 2 }} />
+
               <FormControlLabel
                 control={
                   <Switch
@@ -747,11 +764,11 @@ export default function DocumentDesignerPanel() {
                   </Button>
                 )}
               </Box>
-              {(activeTab !== 'borrowerReport' && activeTab !== 'depositorReport') && (
-                <Alert severity="info" sx={{ mt: 1.5 }}>
-                  צבע ראשי נתמך כרגע רק בדוח לווה ובדוח מפקיד — שינוי כאן לא ישפיע על סוג המסמך הנוכחי.
-                </Alert>
-              )}
+              <Alert severity="info" sx={{ mt: 1.5 }}>
+                {activeTab === 'borrowerReport' || activeTab === 'depositorReport'
+                  ? 'צבע ראשי משפיע כאן על כותרת הדוח, כותרות המשנה וקווי הטבלה העליונים.'
+                  : 'צבע ראשי משפיע כאן רק על כותרת המסמך הראשית — עדיין לא על אלמנטים נוספים בסוג מסמך זה.'}
+              </Alert>
             </CardContent>
           </Card>
 

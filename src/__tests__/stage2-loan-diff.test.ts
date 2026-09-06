@@ -23,6 +23,9 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+// הערה: color: var(--doc-accent, inherit) בכותרת ה-h1 להלן הוא שינוי מכוון
+// (תמיכה ב-accentColor מהפאנל, ר' DocumentLayoutConfig.accentColor) — לא
+// drift לא-מכוון. ברירת המחדל inherit שומרת על התנהגות זהה כשאין override.
 function oldBuildLoanDocumentHtml(data: any): string {
   const today = new Date().toLocaleDateString('he-IL')
   const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
@@ -134,7 +137,7 @@ function oldBuildLoanDocumentHtml(data: any): string {
 
   const htmlContent = `
     <div style="text-align: center; padding: 15px; max-width: 800px; margin: 0 auto;">
-      <h1 style="font-size: 24px; margin: 8px 0;">שטר הלוואה</h1>
+      <h1 style="font-size: 24px; margin: 8px 0; color: var(--doc-accent, inherit);">שטר הלוואה</h1>
       <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />

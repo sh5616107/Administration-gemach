@@ -19,6 +19,9 @@ function normalize(s: string): string {
 }
 
 // ===== קבלת תרומה =====
+// הערה: color: var(--doc-accent, inherit) בכותרת ה-h1 להלן הוא שינוי מכוון
+// (תמיכה ב-accentColor מהפאנל) — לא drift לא-מכוון. inherit כברירת מחדל
+// שומר על התנהגות זהה כשאין override.
 function oldBuildDonationReceiptHtml(data: any): string {
   const showHebrew = data.dateFormat === 'combined'
   const dateDisplay = new Date(data.donationDate).toLocaleDateString('he-IL')
@@ -30,7 +33,7 @@ function oldBuildDonationReceiptHtml(data: any): string {
 
   const htmlContent = `
     <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
-      <h1 style="font-size: 24px; margin: 10px 0;">קבלה על תרומה</h1>
+      <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">קבלה על תרומה</h1>
       <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
@@ -61,6 +64,8 @@ function oldBuildDonationReceiptHtml(data: any): string {
 }
 
 // ===== שטר הפקדה =====
+// הערה: color: var(--doc-accent, inherit)/var(--doc-accent, #1976d2) להלן
+// הם שינוי מכוון (תמיכה ב-accentColor מהפאנל) — לא drift לא-מכוון.
 function oldBuildDepositDocumentHtml(data: any): string {
   const today = new Date().toLocaleDateString('he-IL')
   const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
@@ -82,7 +87,7 @@ function oldBuildDepositDocumentHtml(data: any): string {
   // HTML להפקדה מחזורית - רק אם יש יותר מהפקדה אחת בסדרה
   const recurringDepositHtml = data.isRecurring && data.recurringDepositNumber && data.recurringDepositCount && data.recurringDepositCount > 1 ? `
     <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
-      <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
+      <p style="margin: 0; font-size: 18px; font-weight: bold; color: var(--doc-accent, #1976d2);">
         🔄 הפקדה מחזורית - מספר ${data.recurringDepositNumber} מתוך ${data.recurringDepositCount}
       </p>
       <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
@@ -127,7 +132,7 @@ function oldBuildDepositDocumentHtml(data: any): string {
 
   const htmlContent = `
     <div style="text-align: center; padding: 20px;">
-      <h1 style="font-size: 28px; margin: 10px 0;">שטר הפקדה</h1>
+      <h1 style="font-size: 28px; margin: 10px 0; color: var(--doc-accent, inherit);">שטר הפקדה</h1>
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />

@@ -440,6 +440,17 @@ function sanitizeCssColor(value: string | undefined): string | undefined {
 export function buildStyleOverrides(layout?: DocumentLayoutConfig): string {
   if (!layout) return ''
   const rules: string[] = []
+  if (layout.blackAndWhite) {
+    // grayscale(100%) על ה-body כולו מנטרל בבת אחת את כל הצבעים במסמך —
+    // כולל את כל הצבעים ה"סמנטיים" שאין להם שדה ייעודי משלהם (ירוק=פעיל/הצלחה,
+    // אדום=חוב, כתום/צהוב=ממתין, סגול=מחזורי, כחול=מידע, וכו' — יש מהם
+    // עשרות פזורים בין שטר הלוואה/קבלת תרומה/שטר הפקדה/דוח לווה/דוח מפקיד,
+    // ואין טעם/אפשרות לחשוף שדה נפרד לכל אחד בלי לשבור את המשמעות שלו
+    // כשמצמידים אותו בטעות ל-accentColor). print-color-adjust מבטיח
+    // שהרקעים הצבעוניים (טבלאות, badges) לא ייעלמו לגמרי בהדפסה/PDF במקום
+    // להפוך לאפור — בלי זה חלק מהדפדפנים משמיטים רקעים לגמרי במצב הדפסה.
+    rules.push('body { filter: grayscale(100%); -webkit-print-color-adjust: exact; print-color-adjust: exact; }')
+  }
   if (layout.hideDividers) {
     rules.push('hr { display: none !important; }')
   } else {
@@ -591,7 +602,7 @@ export function buildLoanDocumentHtml(data: LoanDocumentData, layout?: DocumentL
   return `
     <div style="text-align: center; padding: 15px; max-width: 800px; margin: 0 auto;">
       ${renderCustomBlocks('header', layout)}
-      <h1 style="font-size: 24px; margin: 8px 0;">שטר הלוואה</h1>
+      <h1 style="font-size: 24px; margin: 8px 0; color: var(--doc-accent, inherit);">שטר הלוואה</h1>
       <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
@@ -759,7 +770,7 @@ export function buildDonationReceiptHtml(data: {
   return `
     <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
       ${renderCustomBlocks('header', layout)}
-      <h1 style="font-size: 24px; margin: 10px 0;">קבלה על תרומה</h1>
+      <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">קבלה על תרומה</h1>
       <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
@@ -866,7 +877,7 @@ export function buildDepositDocumentHtml(data: {
 
   const recurringDepositHtml = data.isRecurring && data.recurringDepositNumber && data.recurringDepositCount && data.recurringDepositCount > 1 ? `
     <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 2px solid #2196f3;">
-      <p style="margin: 0; font-size: 18px; font-weight: bold; color: #1976d2;">
+      <p style="margin: 0; font-size: 18px; font-weight: bold; color: var(--doc-accent, #1976d2);">
         🔄 הפקדה מחזורית - מספר ${data.recurringDepositNumber} מתוך ${data.recurringDepositCount}
       </p>
       <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
@@ -911,7 +922,7 @@ export function buildDepositDocumentHtml(data: {
   return `
     <div style="text-align: center; padding: 20px;">
       ${renderCustomBlocks('header', layout)}
-      <h1 style="font-size: 28px; margin: 10px 0;">שטר הפקדה</h1>
+      <h1 style="font-size: 28px; margin: 10px 0; color: var(--doc-accent, inherit);">שטר הפקדה</h1>
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
