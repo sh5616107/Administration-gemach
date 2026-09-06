@@ -82,3 +82,6 @@ tools/bctl.token
 
 # AI/Dev tools local databases
 .freebuff/
+
+# קבצי patch זמניים
+*.patch
