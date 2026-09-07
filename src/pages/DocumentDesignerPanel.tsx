@@ -735,14 +735,14 @@ export default function DocumentDesignerPanel() {
                   size="small"
                   type="color"
                   label="צבע קווי הפרדה"
-                  disabled={!!activeLayout.hideDividers}
+                  disabled={!!activeLayout.hideDividers || !!activeLayout.blackAndWhite}
                   sx={{ width: 160 }}
                   value={activeLayout.dividerColor || '#333333'}
                   onChange={e => updateActiveLayout({ dividerColor: e.target.value })}
                   InputLabelProps={{ shrink: true }}
                 />
                 {activeLayout.dividerColor && (
-                  <Button size="small" variant="text" onClick={() => updateActiveLayout({ dividerColor: undefined })}>
+                  <Button size="small" variant="text" disabled={!!activeLayout.blackAndWhite} onClick={() => updateActiveLayout({ dividerColor: undefined })}>
                     איפוס לצבע ברירת מחדל
                   </Button>
                 )}
@@ -753,22 +753,25 @@ export default function DocumentDesignerPanel() {
                   size="small"
                   type="color"
                   label="צבע ראשי (כותרות)"
+                  disabled={!!activeLayout.blackAndWhite}
                   sx={{ width: 160 }}
                   value={activeLayout.accentColor || '#1976d2'}
                   onChange={e => updateActiveLayout({ accentColor: e.target.value })}
                   InputLabelProps={{ shrink: true }}
                 />
                 {activeLayout.accentColor && (
-                  <Button size="small" variant="text" onClick={() => updateActiveLayout({ accentColor: undefined })}>
+                  <Button size="small" variant="text" disabled={!!activeLayout.blackAndWhite} onClick={() => updateActiveLayout({ accentColor: undefined })}>
                     איפוס לצבע ברירת מחדל
                   </Button>
                 )}
               </Box>
-              <Alert severity="info" sx={{ mt: 1.5 }}>
-                {activeTab === 'borrowerReport' || activeTab === 'depositorReport'
-                  ? 'צבע ראשי משפיע כאן על כותרת הדוח, כותרות המשנה וקווי הטבלה העליונים.'
-                  : 'צבע ראשי משפיע כאן רק על כותרת המסמך הראשית — עדיין לא על אלמנטים נוספים בסוג מסמך זה.'}
-              </Alert>
+              {!activeLayout.blackAndWhite && (
+                <Alert severity="info" sx={{ mt: 1.5 }}>
+                  {activeTab === 'borrowerReport' || activeTab === 'depositorReport'
+                    ? 'צבע ראשי משפיע כאן על כותרת הדוח, כותרות המשנה וקווי הטבלה העליונים.'
+                    : 'צבע ראשי משפיע כאן רק על כותרת המסמך הראשית — עדיין לא על אלמנטים נוספים בסוג מסמך זה.'}
+                </Alert>
+              )}
             </CardContent>
           </Card>
 
