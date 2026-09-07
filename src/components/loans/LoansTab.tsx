@@ -78,6 +78,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const { settings } = useSettings()
   const loanDocumentLayout = getDocumentLayout(settings.document_layouts, 'loan')
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
+  const [autocompleteOpen, setAutocompleteOpen] = useState(false)
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
   const [borrowerLoans, setBorrowerLoans] = useState<Loan[]>([])
@@ -1225,7 +1226,13 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                 options={borrowers}
                 getOptionLabel={(option) => `${option.first_name} ${option.last_name}`}
                 value={selectedBorrower}
-                onChange={(_, value) => setSelectedBorrower(value)}
+                onChange={(_, value) => {
+                  setSelectedBorrower(value)
+                  setAutocompleteOpen(false) // Close after selection
+                }}
+                open={autocompleteOpen}
+                onOpen={() => setAutocompleteOpen(true)}
+                onClose={() => setAutocompleteOpen(false)}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 renderOption={(props, option) => {
                   const { key, ...otherProps } = props
