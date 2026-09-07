@@ -102,6 +102,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
   const loanDocumentLayout = getDocumentLayout(settings.document_layouts, 'loan');
   const [borrowers, setBorrowers] = useState<Borrower[]>([]);
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
+  const [autocompleteOpen, setAutocompleteOpen] = useState(false);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
   
@@ -588,7 +589,13 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
               options={borrowers}
               value={selectedBorrower}
               getOptionLabel={(b) => `${b.first_name} ${b.last_name}`}
-              onChange={(_, value) => setSelectedBorrower(value)}
+              onChange={(_, value) => {
+                setSelectedBorrower(value)
+                setAutocompleteOpen(false) // Close after selection
+              }}
+              open={autocompleteOpen}
+              onOpen={() => setAutocompleteOpen(true)}
+              onClose={() => setAutocompleteOpen(false)}
               openOnFocus
               renderOption={(props, b) => (
                 <li {...props} key={b.id}>
