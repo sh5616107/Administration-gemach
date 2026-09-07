@@ -171,6 +171,11 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       const borrower = borrowers.find(b => b.id === initialBorrowerId);
       if (borrower) {
         setSelectedBorrower(borrower);
+        // The search box has autoFocus, and Autocomplete has openOnFocus — that
+        // combination pops the full borrower list open the instant this page
+        // mounts, even though we're arriving with a borrower already picked
+        // (e.g. from the home page search). Force it closed again here.
+        setAutocompleteOpen(false);
       }
     }
   }, [initialBorrowerId, borrowers]);
@@ -186,6 +191,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
             const borrower = borrowers.find(b => b.id === entry.borrower_id)
             if (borrower) {
               setSelectedBorrower(borrower)
+              setAutocompleteOpen(false)
               // שמירת ה-waitlist ID ב-state מקומי
               setActiveWaitlistId(initialWaitlistId)
               // פתיחת מגירת הלוואה חדשה - הטופס יתמלא אוטומטית ב-LoanSidePanel
@@ -611,7 +617,16 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש לווה לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth autoFocus />
+                <TextField
+                  {...params}
+                  placeholder="חיפוש לווה לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)"
+                  fullWidth
+                  // Only autofocus on a "clean" visit to this page. If we arrived
+                  // with a borrower already selected (from the home page search,
+                  // or a waitlist entry), autoFocus + openOnFocus would pop the
+                  // full borrower list open on top of the already-chosen borrower.
+                  autoFocus={!initialBorrowerId && !initialWaitlistId}
+                />
               )}
             />
           </Grid>
