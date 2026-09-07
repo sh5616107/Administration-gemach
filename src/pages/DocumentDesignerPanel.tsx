@@ -736,7 +736,15 @@ export default function DocumentDesignerPanel() {
                   type="color"
                   label="צבע קווי הפרדה"
                   disabled={!!activeLayout.hideDividers || !!activeLayout.blackAndWhite}
-                  sx={{ width: 160 }}
+                  sx={{
+                    width: 160,
+                    // MUI's disabled styling doesn't visibly dim the native
+                    // input[type=color] swatch in most browsers (it keeps
+                    // rendering the selected color at full opacity) — force
+                    // it explicitly so "disabled" actually looks disabled.
+                    opacity: (activeLayout.hideDividers || activeLayout.blackAndWhite) ? 0.35 : 1,
+                    transition: 'opacity 0.15s',
+                  }}
                   value={activeLayout.dividerColor || '#333333'}
                   onChange={e => updateActiveLayout({ dividerColor: e.target.value })}
                   InputLabelProps={{ shrink: true }}
@@ -754,7 +762,11 @@ export default function DocumentDesignerPanel() {
                   type="color"
                   label="צבע ראשי (כותרות)"
                   disabled={!!activeLayout.blackAndWhite}
-                  sx={{ width: 160 }}
+                  sx={{
+                    width: 160,
+                    opacity: activeLayout.blackAndWhite ? 0.35 : 1,
+                    transition: 'opacity 0.15s',
+                  }}
                   value={activeLayout.accentColor || '#1976d2'}
                   onChange={e => updateActiveLayout({ accentColor: e.target.value })}
                   InputLabelProps={{ shrink: true }}
