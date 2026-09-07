@@ -10,7 +10,7 @@
     "build": "node build.js"
   },
   "dependencies": {
-    "israeli-bank-scrapers": "^6.9.0",
+    "israeli-bank-scrapers": "^6.11.0",
     "puppeteer": "^25.4.0"
   },
   "devDependencies": {
