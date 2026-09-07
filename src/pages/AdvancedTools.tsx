@@ -1335,7 +1335,7 @@ export default function AdvancedTools() {
                   disabled={fullBackupInProgress}
                   color="secondary"
                 >
-                  {fullBackupInProgress ? (fullBackupProgress || 'מייצא...') : 'גיבוי מלא (כולל מסמכים)'}
+                  {fullBackupInProgress ? (fullBackupProgress || 'מייצא...') : 'גיבוי מלא ZIP (כולל מסמכים)'}
                 </Button>
               </Box>
             </CardContent>
