@@ -3,6 +3,8 @@
  * בדיקת כפילויות של מספרי טלפון במערכת
  */
 
+import { donorsService, depositorsService } from '../services/database'
+
 export interface DuplicatePhoneResult {
   isDuplicate: boolean
   existingContacts: Array<{
@@ -89,7 +91,45 @@ export async function checkDuplicatePhone(
     console.error('Error checking guarantors:', error)
   }
   
-  // TODO: הוסף בדיקה גם ב-donors ו-depositors כשהם יעברו ל-UUID
+  // בדיקה ב-donors
+  try {
+    const donors = await donorsService.getAll()
+    for (const donor of donors) {
+      if (donor.id !== excludeId && donor.phone) {
+        const donorPhone = normalizePhone(donor.phone)
+        if (donorPhone === normalizedPhone) {
+          duplicates.push({
+            id: donor.id,
+            name: `${donor.first_name} ${donor.last_name}`,
+            role: 'תורם',
+            phone: donor.phone
+          })
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking donors:', error)
+  }
+  
+  // בדיקה ב-depositors
+  try {
+    const depositors = await depositorsService.getAll()
+    for (const depositor of depositors) {
+      if (depositor.id !== excludeId && depositor.phone) {
+        const depositorPhone = normalizePhone(depositor.phone)
+        if (depositorPhone === normalizedPhone) {
+          duplicates.push({
+            id: depositor.id,
+            name: `${depositor.first_name} ${depositor.last_name}`,
+            role: 'מפקיד',
+            phone: depositor.phone
+          })
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking depositors:', error)
+  }
   
   return {
     isDuplicate: duplicates.length > 0,
