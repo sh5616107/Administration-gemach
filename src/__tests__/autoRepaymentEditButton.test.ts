@@ -246,9 +246,10 @@ describe('Auto Repayment Edit Button Logic', () => {
     })
     const borrowerId = borrowerResult.lastInsertRowid
 
-    // תאריך היום
-    const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
+    // תאריך עתידי (מחר)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const tomorrowStr = tomorrow.toISOString().split('T')[0]
 
     // צור הלוואה עם פירעון אוטומטי
     const loanResult = await loansService.create({
@@ -261,15 +262,15 @@ describe('Auto Repayment Edit Button Logic', () => {
       repayment_amount: 1000,
       repayment_day: 15,
       repayment_frequency: 'monthly',
-      repayment_start_date: todayStr,
+      repayment_start_date: tomorrowStr,
     })
     const loanId = loanResult.lastInsertRowid
 
-    // צור פירעון ראשון היום
+    // צור פירעון ראשון מחר (עתידי)
     await repaymentsService.create({
       loan_id: loanId,
       amount: 1000,
-      payment_date: todayStr,
+      payment_date: tomorrowStr,
       notes: 'פירעון אוטומטי',
       is_recurring: 1,
       recurring_repayment_number: 1,
@@ -284,8 +285,9 @@ describe('Auto Repayment Edit Button Logic', () => {
     expect(firstRepayment.is_recurring).toBe(1)
     expect(firstRepayment.recurring_repayment_number).toBe(1)
 
-    // לוגיקה: פירעון היום -> הכפתור צריך להופיע (>= today)
+    // לוגיקה: פירעון עתידי (מחר) -> הכפתור צריך להופיע
     const repaymentDate = new Date(firstRepayment.payment_date)
+    repaymentDate.setHours(0, 0, 0, 0)
     const todayNormalized = new Date()
     todayNormalized.setHours(0, 0, 0, 0)
     const isFutureRepayment = repaymentDate >= todayNormalized

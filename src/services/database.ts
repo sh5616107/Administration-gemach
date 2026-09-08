@@ -2,6 +2,7 @@
 // Uses localStorage with manual backup/restore to JSON file
 
 import type { Attachment, AttachmentEntityType } from '../types/attachments'
+import logger from '../utils/logger'
 
 interface DataStore {
   settings: Record<string, string>
@@ -65,7 +66,7 @@ import { saveAppData, loadAppData } from './persistence'
 let pendingSave: Promise<void> | null = null
 
 function saveData(): void {
-  pendingSave = saveAppData(data).then(() => { console.log('💾 Data saved') }).catch(e => { console.error('❌ Error saving:', e) })
+  pendingSave = saveAppData(data).then(() => { logger.info('💾 Data saved') }).catch(e => { logger.error('❌ Error saving:', e) })
 }
 
 /**
@@ -83,7 +84,7 @@ export async function flushPendingSave(): Promise<void> {
  * This prevents race conditions and unexpected side effects from reads
  */
 function runStartupMigrations(): void {
-  console.log('🔧 Running startup migrations...');
+  logger.info('🔧 Running startup migrations...');
   
   // Migration: Add loan_number to existing loans that don't have it
   let migrationCount = 0;
@@ -97,30 +98,30 @@ function runStartupMigrations(): void {
   }
   
   if (migrationCount > 0) {
-    console.log(`✅ Migrated ${migrationCount} loans to add loan_number`);
+    logger.info(`✅ Migrated ${migrationCount} loans to add loan_number`);
   }
 }
 
 // Load data (async)
 function loadData(): Promise<void> {
   if (initializationPromise) {
-    console.log('⏳ Database already initializing, returning existing promise');
+    logger.info('⏳ Database already initializing, returning existing promise');
     return initializationPromise;
   }
   
   if (isInitialized) {
-    console.log('✅ Database already initialized');
+    logger.info('✅ Database already initialized');
     return Promise.resolve();
   }
   
-  console.log('🔄 Starting database initialization...');
+  logger.info('🔄 Starting database initialization...');
   initializationPromise = loadAppData()
     .then((stored) => {
       if (stored) {
         data = { ...JSON.parse(JSON.stringify(defaultData)), ...stored }
-        console.log('✅ Data loaded, borrowers:', Object.keys((data).borrowers).length)
+        logger.info('✅ Data loaded, borrowers:', Object.keys((data).borrowers).length)
       } else {
-        console.log('ℹ️ No existing data, using defaults')
+        logger.info('ℹ️ No existing data, using defaults')
       }
       isInitialized = true
       
@@ -128,7 +129,7 @@ function loadData(): Promise<void> {
       runStartupMigrations()
     })
     .catch(e => {
-      console.error('❌ Error loading:', e)
+      logger.error('❌ Error loading:', e)
       isInitialized = true
     });
   
@@ -141,7 +142,7 @@ loadData()
 // Export for components that need to wait
 export async function ensureInitialized(): Promise<void> {
   if (!isInitialized) {
-    console.log('⏳ Waiting for database initialization...');
+    logger.info('⏳ Waiting for database initialization...');
     await loadData();
   }
 }
@@ -639,7 +640,7 @@ export const db = {
     
     // ⚠️ FAIL-CLOSED: SQL לא מזוהה - זריקת שגיאה (P0 security fix)
     const errorMsg = `[DB] ❌ Unrecognized SQL command - operation rejected: ${normalizedSql.substring(0, 100)}`
-    console.error(errorMsg)
+    logger.error(errorMsg)
     throw new Error(errorMsg)
   },
 
