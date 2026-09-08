@@ -80,6 +80,15 @@ export async function flushPendingSave(): Promise<void> {
 }
 
 /**
+ * שמירה מובטחת (commit) - מחכה עד שהשמירה הסתיימה בהצלחה
+ * להשתמש בפעולות קריטיות שדורשות אישור שהנתונים נשמרו
+ */
+export async function commitData(): Promise<void> {
+  saveData()
+  await flushPendingSave()
+}
+
+/**
  * P1 FIX: Migrations run once at startup, not during read operations
  * This prevents race conditions and unexpected side effects from reads
  */
