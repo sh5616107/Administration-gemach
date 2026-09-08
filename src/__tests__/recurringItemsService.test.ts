@@ -282,11 +282,11 @@ describe('Recurring Items Service', () => {
 
   describe('Property 1: Update recurring_day in all items', () => {
     it('should update recurring_day in all loans in series', async () => {
-      // Create series of 3 loans (all in future: Sept, Oct, Nov 2026)
+      // Create series of 3 loans (all in future: Oct, Nov, Dec 2026)
       const loan1 = await loansService.create({
         borrower_id: 1,
         amount: 1000,
-        loan_date: '2026-09-05',
+        loan_date: '2026-10-05',
         loan_type: 'fixed',
         is_recurring: 1,
         recurring_day: 5,
@@ -300,7 +300,7 @@ describe('Recurring Items Service', () => {
       await loansService.create({
         borrower_id: 1,
         amount: 1000,
-        loan_date: '2026-10-05',
+        loan_date: '2026-11-05',
         loan_type: 'fixed',
         is_recurring: 1,
         recurring_day: 5,
@@ -314,7 +314,7 @@ describe('Recurring Items Service', () => {
       await loansService.create({
         borrower_id: 1,
         amount: 1000,
-        loan_date: '2026-11-05',
+        loan_date: '2026-12-05',
         loan_type: 'fixed',
         is_recurring: 1,
         recurring_day: 5,
@@ -348,11 +348,11 @@ describe('Recurring Items Service', () => {
 
   describe('Property 2: Update amount in all items', () => {
     it('should update amount in all loans in series', async () => {
-      // Create series of 3 loans (all in future: Sept, Oct, Nov 2026)
+      // Create series of 3 loans (all in future: Oct, Nov, Dec 2026)
       const loan1 = await loansService.create({
         borrower_id: 1,
         amount: 1000,
-        loan_date: '2026-09-05',
+        loan_date: '2026-10-05',
         loan_type: 'fixed',
         is_recurring: 1,
         recurring_day: 5,
@@ -366,7 +366,7 @@ describe('Recurring Items Service', () => {
       await loansService.create({
         borrower_id: 1,
         amount: 1000,
-        loan_date: '2026-10-05',
+        loan_date: '2026-11-05',
         loan_type: 'fixed',
         is_recurring: 1,
         recurring_day: 5,
@@ -380,7 +380,7 @@ describe('Recurring Items Service', () => {
       await loansService.create({
         borrower_id: 1,
         amount: 1000,
-        loan_date: '2026-11-05',
+        loan_date: '2026-12-05',
         loan_type: 'fixed',
         is_recurring: 1,
         recurring_day: 5,
