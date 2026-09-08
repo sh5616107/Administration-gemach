@@ -386,6 +386,39 @@ export const db = {
     if (normalizedSql.includes('DELETE FROM guarantorLoanRepayments') && !normalizedSql.includes('WHERE')) { clearStore('guarantorLoanRepayments'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM depositWithdrawals') && !normalizedSql.includes('WHERE')) { clearStore('depositWithdrawals'); return { lastInsertRowid: 0, changes: 1 } }
 
+    if (normalizedSql.includes('INSERT INTO borrowers') && params) { 
+      const id = generateId('borrowers'); 
+      setItem('borrowers', String(id), { 
+        id, 
+        first_name: params[0], 
+        last_name: params[1], 
+        phone: params[2], 
+        id_number: params[3], 
+        address: params[4], 
+        city: params[5],
+        created_at: new Date().toISOString() 
+      }); 
+      return { lastInsertRowid: id, changes: 1 } 
+    }
+    if (normalizedSql.includes('INSERT INTO loans') && params) { 
+      const id = generateId('loans'); 
+      const loan_number = generateNumericId('loans');
+      setItem('loans', String(id), { 
+        id, 
+        loan_number,
+        borrower_id: params[0], 
+        amount: params[1], 
+        loan_date: params[2], 
+        loan_type: params[3], 
+        status: params[4],
+        is_recurring: params[5],
+        auto_repayment: params[6],
+        is_deleted: false,
+        created_at: new Date().toISOString() 
+      }); 
+      return { lastInsertRowid: id, changes: 1 } 
+    }
+
     if (normalizedSql.includes('INSERT INTO blacklist') && params) { const id = generateId('blacklist'); setItem('blacklist', String(id), { id, entity_type: params[0], entity_id: params[1], reason: params[2], added_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (normalizedSql.includes('INSERT INTO contacts') && params) { 
       const phone = String(params[0])
@@ -544,6 +577,14 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
+    if (normalizedSql.includes('UPDATE deposits SET recurring_months') && params) {
+      const d = getItem<any>('deposits', String(params[params.length - 1]));
+      if (d) {
+        d.recurring_months = params[0]
+        setItem('deposits', String(params[params.length - 1]), d)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
     if (normalizedSql.includes('DELETE FROM deposits WHERE id') && params) { 
       const d = getItem<any>('deposits', String(params[0])); 
       if (d) setItem('deposits', String(params[0]), { ...d, is_deleted: true, deleted_at: new Date().toISOString() }); 
@@ -570,9 +611,10 @@ export const db = {
     }
     if (normalizedSql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
     
-    // ⚠️ אזהרה: SQL לא מזוהה - עלול לגרום לנתונים לא להישמר
-    console.warn(`[DB] ⚠️ Unrecognized SQL command (fallback): ${normalizedSql.substring(0, 100)}`)
-    return { lastInsertRowid: 1, changes: 1 }
+    // ⚠️ FAIL-CLOSED: SQL לא מזוהה - זריקת שגיאה (P0 security fix)
+    const errorMsg = `[DB] ❌ Unrecognized SQL command - operation rejected: ${normalizedSql.substring(0, 100)}`
+    console.error(errorMsg)
+    throw new Error(errorMsg)
   },
 
   async get(sql: string, params?: unknown[]): Promise<unknown> {
