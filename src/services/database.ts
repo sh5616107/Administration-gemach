@@ -78,6 +78,29 @@ export async function flushPendingSave(): Promise<void> {
   }
 }
 
+/**
+ * P1 FIX: Migrations run once at startup, not during read operations
+ * This prevents race conditions and unexpected side effects from reads
+ */
+function runStartupMigrations(): void {
+  console.log('🔧 Running startup migrations...');
+  
+  // Migration: Add loan_number to existing loans that don't have it
+  let migrationCount = 0;
+  const loans = getAllItems<any>('loans');
+  for (const loan of loans) {
+    if (loan.loan_number === undefined) {
+      loan.loan_number = generateNumericId('loans');
+      setItem('loans', loan.id, loan);
+      migrationCount++;
+    }
+  }
+  
+  if (migrationCount > 0) {
+    console.log(`✅ Migrated ${migrationCount} loans to add loan_number`);
+  }
+}
+
 // Load data (async)
 function loadData(): Promise<void> {
   if (initializationPromise) {
@@ -100,6 +123,9 @@ function loadData(): Promise<void> {
         console.log('ℹ️ No existing data, using defaults')
       }
       isInitialized = true
+      
+      // P1 FIX: Run migrations once at startup, not in read operations
+      runStartupMigrations()
     })
     .catch(e => {
       console.error('❌ Error loading:', e)
@@ -749,15 +775,7 @@ export const loansService = {
     const loans = getAllItems<Loan>('loans').filter(l => !l.is_deleted)
     const borrowers = await borrowersService.getAll()
     
-    // Migration: Add loan_number to existing loans that don't have it
-    let needsSave = false
     for (const loan of loans) {
-      if (loan.loan_number === undefined) {
-        loan.loan_number = generateNumericId('loans')
-        setItem('loans', loan.id, loan)
-        needsSave = true
-      }
-      
       const repayments = await repaymentsService.getByLoan(loan.id)
       loan.total_repaid = repayments.reduce((s, r) => s + r.amount, 0)
       loan.remaining = loan.amount - loan.total_repaid
@@ -771,12 +789,6 @@ export const loansService = {
     const l = getItem<Loan>('loans', id); 
     if (l && l.is_deleted) return null; 
     if (l) { 
-      // Migration: Add loan_number if missing
-      if (l.loan_number === undefined) {
-        l.loan_number = generateNumericId('loans')
-        setItem('loans', id, l)
-      }
-      
       const r = await repaymentsService.getByLoan(id); 
       l.total_repaid = r.reduce((s, x) => s + x.amount, 0); 
       l.remaining = l.amount - l.total_repaid 
