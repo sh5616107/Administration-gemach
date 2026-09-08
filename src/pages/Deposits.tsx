@@ -594,7 +594,16 @@ export default function Deposits() {
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש מפקיד לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth autoFocus />
+                <TextField
+                  {...params}
+                  placeholder="חיפוש מפקיד לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)"
+                  fullWidth
+                  // Only autofocus on a "clean" visit. If we arrived with a
+                  // depositor already selected via URL (e.g. from the home page
+                  // search), autoFocus + openOnFocus would pop the full
+                  // depositor list open on top of the already-chosen depositor.
+                  autoFocus={!searchParams.get('depositor')}
+                />
               )}
             />
           </Grid>

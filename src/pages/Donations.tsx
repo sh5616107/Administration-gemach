@@ -571,7 +571,16 @@ export default function Donations() {
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} placeholder="חיפוש תורם לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)" fullWidth autoFocus />
+                <TextField
+                  {...params}
+                  placeholder="חיפוש תורם לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)"
+                  fullWidth
+                  // Only autofocus on a "clean" visit. If we arrived with a donor
+                  // already selected via URL (e.g. from the home page search),
+                  // autoFocus + openOnFocus would pop the full donor list open
+                  // on top of the already-chosen donor.
+                  autoFocus={!searchParams.get('donor')}
+                />
               )}
             />
           </Grid>
