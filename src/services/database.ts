@@ -367,6 +367,17 @@ export const db = {
     if (normalizedSql.includes('FROM blacklist')) return getAllItems<any>('blacklist')
     if (normalizedSql.includes('FROM repayments')) return getAllItems<any>('repayments')
     if (normalizedSql.includes('settings')) return Object.entries(data.settings).map(([key, value]) => ({ key, value }))
+    // Audit Log (SELECT — multi-row, belongs in query() not run())
+    if (normalizedSql.includes('SELECT * FROM audit_log WHERE entity_type') && params) {
+      return getAllItems<any>('auditLog')
+        .filter(a => a.entity_type === params[0] && a.entity_id === params[1])
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    }
+    if (normalizedSql.includes('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT') && params) {
+      return getAllItems<any>('auditLog')
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, params[0] as number)
+    }
     return []
   },
 
@@ -679,17 +690,7 @@ export const db = {
       })
       return { lastInsertRowid: id, changes: 1 }
     }
-    if (normalizedSql.includes('SELECT * FROM audit_log WHERE entity_type') && params) {
-      return getAllItems<any>('auditLog')
-        .filter(a => a.entity_type === params[0] && a.entity_id === params[1])
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    }
-    if (normalizedSql.includes('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT') && params) {
-      return getAllItems<any>('auditLog')
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, params[0])
-    }
-    
+
     // ⚠️ FAIL-CLOSED: SQL לא מזוהה - זריקת שגיאה (P0 security fix)
     const errorMsg = `[DB] ❌ Unrecognized SQL command - operation rejected: ${normalizedSql.substring(0, 100)}`
     logger.error(errorMsg)
@@ -913,6 +914,10 @@ export interface Repayment {
 
 export const repaymentsService = {
   async getByLoan(loanId: string): Promise<Repayment[]> { return getAllItems<Repayment>('repayments').filter(r => r.loan_id === loanId && !r.is_deleted).sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()) },
+  async getById(id: string): Promise<Repayment | null> {
+    const r = getItem<Repayment>('repayments', id)
+    return (r && !r.is_deleted) ? r : null
+  },
   async create(r: Omit<Repayment, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('repayments'); setItem('repayments', id, { ...r, id, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: string, data: Partial<Repayment>): Promise<void> { const existing = getItem<Repayment>('repayments', id); if (existing && !existing.is_deleted) setItem('repayments', id, { ...existing, ...data }) },
   async delete(id: string): Promise<void> { const e = getItem<Repayment>('repayments', id); if (e) setItem('repayments', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }); await attachmentsService.softDeleteByEntity('repayment', id) },
