@@ -276,7 +276,7 @@ export const db = {
       return items
     }
     if (normalizedSql.includes('FROM donors')) {
-      const items = getAllItems<any>('donors')
+      const items = getAllItems<any>('donors').filter(d => !d.is_deleted)
       if (params && params.length >= 3) {
         const term = String(params[0]).replace(/%/g, '').toLowerCase()
         return items.filter(d => d.first_name?.toLowerCase().includes(term) || d.last_name?.toLowerCase().includes(term) || d.phone?.includes(term)).slice(0, 5)
@@ -291,7 +291,7 @@ export const db = {
       return items
     }
     if (normalizedSql.includes('FROM depositors')) {
-      const items = getAllItems<any>('depositors')
+      const items = getAllItems<any>('depositors').filter(d => !d.is_deleted)
       if (params && params.length >= 3) {
         const term = String(params[0]).replace(/%/g, '').toLowerCase()
         return items.filter(d => d.first_name?.toLowerCase().includes(term) || d.last_name?.toLowerCase().includes(term) || d.phone?.includes(term)).slice(0, 5)
@@ -381,17 +381,21 @@ export const db = {
     if (normalizedSql.includes('DELETE FROM donations') && !normalizedSql.includes('WHERE')) { clearStore('donations'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM donors') && !normalizedSql.includes('WHERE')) { clearStore('donors'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM donors WHERE id') && params) {
-      removeItem('donors', String(params[0]))
-      const attachedDocs = await attachmentsService.getByEntity('donor', String(params[0]))
-      if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+      const donor = getItem<any>('donors', String(params[0]))
+      if (donor) {
+        setItem('donors', String(params[0]), { ...donor, is_deleted: true, deleted_at: new Date().toISOString() })
+        await attachmentsService.softDeleteByEntity('donor', String(params[0]))
+      }
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (normalizedSql.includes('DELETE FROM deposits') && !normalizedSql.includes('WHERE')) { clearStore('deposits'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM depositors') && !normalizedSql.includes('WHERE')) { clearStore('depositors'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM depositors WHERE id') && params) {
-      removeItem('depositors', String(params[0]))
-      const attachedDocs = await attachmentsService.getByEntity('depositor', String(params[0]))
-      if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+      const depositor = getItem<any>('depositors', String(params[0]))
+      if (depositor) {
+        setItem('depositors', String(params[0]), { ...depositor, is_deleted: true, deleted_at: new Date().toISOString() })
+        await attachmentsService.softDeleteByEntity('depositor', String(params[0]))
+      }
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (normalizedSql.includes('DELETE FROM contacts') && !normalizedSql.includes('WHERE')) { clearStore('contacts'); return { lastInsertRowid: 0, changes: 1 } }
@@ -508,7 +512,7 @@ export const db = {
       }
       return { lastInsertRowid: 0, changes: 1 }
     }
-    if (normalizedSql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (normalizedSql.includes('INSERT INTO donors') && params) { const id = generateId('donors'); setItem('donors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (normalizedSql.includes('INSERT INTO donations') && params) { 
       const id = generateId('donations'); 
       // Generate sequential receipt number
@@ -549,7 +553,7 @@ export const db = {
       }); 
       return { lastInsertRowid: id, changes: 1 } 
     }
-    if (normalizedSql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (normalizedSql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
     if (normalizedSql.includes('INSERT INTO deposits') && params) { 
       const id = generateId('deposits'); 
       setItem('deposits', String(id), { 
