@@ -283,6 +283,13 @@ export const db = {
       }
       return items
     }
+    if (normalizedSql.includes('FROM donations')) {
+      const items = getAllItems<any>('donations').filter(d => !d.is_deleted)
+      if (params && params.length > 0 && normalizedSql.includes('WHERE donor_id')) {
+        return items.filter(d => d.donor_id === params[0])
+      }
+      return items
+    }
     if (normalizedSql.includes('FROM depositors')) {
       const items = getAllItems<any>('depositors')
       if (params && params.length >= 3) {
@@ -537,6 +544,7 @@ export const db = {
         payment_method: params[4] || '', 
         payment_details: params[5] || '', 
         receipt_number: receiptNumber,
+        is_deleted: false,
         created_at: new Date().toISOString() 
       }); 
       return { lastInsertRowid: id, changes: 1 } 
@@ -642,9 +650,11 @@ export const db = {
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (normalizedSql.includes('DELETE FROM donations WHERE id') && params) {
-      removeItem('donations', String(params[0]))
-      const attachedDocs = await attachmentsService.getByEntity('donation', String(params[0]))
-      if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+      const d = getItem<any>('donations', String(params[0]))
+      if (d) {
+        setItem('donations', String(params[0]), { ...d, is_deleted: true, deleted_at: new Date().toISOString() })
+        await attachmentsService.softDeleteByEntity('donation', String(params[0]))
+      }
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (normalizedSql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
