@@ -704,14 +704,19 @@ export interface Borrower {
   address?: string; 
   email?: string; 
   notes?: string; 
-  created_at: string 
+  created_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
 }
 
 export const borrowersService = {
-  async getAll(): Promise<Borrower[]> { return getAllItems<Borrower>('borrowers').sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)) },
-  async getById(id: string): Promise<Borrower | null> { return getItem<Borrower>('borrowers', id) },
+  async getAll(): Promise<Borrower[]> { return getAllItems<Borrower>('borrowers').filter(b => !b.is_deleted).sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)) },
+  async getById(id: string): Promise<Borrower | null> { 
+    const b = getItem<Borrower>('borrowers', id)
+    return (b && !b.is_deleted) ? b : null
+  },
   async search(term: string): Promise<Borrower[]> { const t = term.toLowerCase(); return (await this.getAll()).filter(b => b.first_name?.toLowerCase().includes(t) || b.last_name?.toLowerCase().includes(t) || b.phone?.includes(term) || b.id_number?.includes(term) || b.city?.toLowerCase().includes(t)) },
-  async create(b: Omit<Borrower, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('borrowers'); setItem('borrowers', id, { ...b, id, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async create(b: Omit<Borrower, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('borrowers'); setItem('borrowers', id, { ...b, id, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: string, d: Partial<Borrower>): Promise<void> { const e = await this.getById(id); if (e) setItem('borrowers', id, { ...e, ...d }) },
   async delete(id: string): Promise<void> { 
     // בדיקה: האם ללווה יש הלוואה פעילה עם יתרה?
@@ -729,14 +734,12 @@ export const borrowersService = {
       throw new Error('לא ניתן למחוק לווה עם הלוואה פעילה. יש לסגור או להעביר את ההלוואה תחילה.')
     }
     
-    // מחיקה מהרשימה השחורה אם קיים
-    const blacklistItems = getAllItems<{ id: string; entity_type: string; entity_id: string }>('blacklist')
-    const blacklistEntry = blacklistItems.find(b => b.entity_type === 'borrower' && b.entity_id === id)
-    if (blacklistEntry) removeItem('blacklist', blacklistEntry.id)
-    removeItem('borrowers', id) 
-    // מחיקת רשומות המסמכים המצורפים (ראו הערה על קבצים פיזיים ב-attachmentsService.hardDeleteMany)
-    const attachedDocs = await attachmentsService.getByEntity('borrower', id)
-    if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+    // Soft delete - לא מחיקה פיזית
+    const borrower = await this.getById(id)
+    if (borrower) {
+      setItem('borrowers', id, { ...borrower, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('borrower', id)
+    }
   },
 }
 
@@ -751,23 +754,27 @@ export interface Guarantor {
   email?: string; 
   notes?: string; 
   is_blacklisted: number; 
-  created_at: string 
+  created_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
 }
 
 export const guarantorsService = {
-  async getAll(): Promise<Guarantor[]> { return getAllItems<Guarantor>('guarantors').sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)) },
-  async getById(id: string): Promise<Guarantor | null> { return getItem<Guarantor>('guarantors', id) },
+  async getAll(): Promise<Guarantor[]> { return getAllItems<Guarantor>('guarantors').filter(g => !g.is_deleted).sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)) },
+  async getById(id: string): Promise<Guarantor | null> { 
+    const g = getItem<Guarantor>('guarantors', id)
+    return (g && !g.is_deleted) ? g : null
+  },
   async search(term: string): Promise<Guarantor[]> { const t = term.toLowerCase(); return (await this.getAll()).filter(g => g.first_name?.toLowerCase().includes(t) || g.last_name?.toLowerCase().includes(t) || g.phone?.includes(term) || g.id_number?.includes(term)) },
-  async create(g: Omit<Guarantor, 'id' | 'created_at' | 'is_blacklisted'>): Promise<{ lastInsertRowid: string }> { const id = generateId('guarantors'); setItem('guarantors', id, { ...g, id, is_blacklisted: 0, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
+  async create(g: Omit<Guarantor, 'id' | 'created_at' | 'is_blacklisted'>): Promise<{ lastInsertRowid: string }> { const id = generateId('guarantors'); setItem('guarantors', id, { ...g, id, is_blacklisted: 0, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
   async update(id: string, d: Partial<Guarantor>): Promise<void> { const e = await this.getById(id); if (e) setItem('guarantors', id, { ...e, ...d }) },
   async delete(id: string): Promise<void> { 
-    // מחיקה מהרשימה השחורה אם קיים
-    const blacklistItems = getAllItems<{ id: string; entity_type: string; entity_id: string }>('blacklist')
-    const blacklistEntry = blacklistItems.find(b => b.entity_type === 'guarantor' && b.entity_id === id)
-    if (blacklistEntry) removeItem('blacklist', blacklistEntry.id)
-    removeItem('guarantors', id) 
-    const attachedDocs = await attachmentsService.getByEntity('guarantor', id)
-    if (attachedDocs.length > 0) await attachmentsService.hardDeleteMany(attachedDocs.map(a => a.id))
+    // Soft delete - לא מחיקה פיזית
+    const guarantor = await this.getById(id)
+    if (guarantor) {
+      setItem('guarantors', id, { ...guarantor, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('guarantor', id)
+    }
   },
   async getTotalGuarantees(id: string): Promise<number> { return (await loansService.getAll()).filter(l => (l.guarantor1_id === id || l.guarantor2_id === id) && l.status === 'active').reduce((s, l) => s + l.amount - (l.total_repaid || 0), 0) },
 }

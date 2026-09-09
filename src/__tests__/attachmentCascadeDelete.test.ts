@@ -41,7 +41,7 @@ describe('attachment cascade delete', () => {
     expect(stillExists?.isDeleted).toBe(true)
   })
 
-  it('hard-deletes attachment records when a borrower is hard-deleted', async () => {
+  it('soft-deletes attachment records when a borrower is soft-deleted', async () => {
     const borrowerResult = await db.run(
       'INSERT INTO borrowers (first_name, last_name, phone, id_number, address, city) VALUES (?, ?, ?, ?, ?, ?)',
       ['דוד', 'כהן', '0500000001', '222222222', '', '']
@@ -58,9 +58,13 @@ describe('attachment cascade delete', () => {
 
     await borrowersService.delete(borrowerId)
 
-    // Hard delete: the attachment record itself should be gone entirely,
-    // not just soft-deleted — matches the "no orphaned pointer" goal.
-    expect(await attachmentsService.getById(attachment.id)).toBeNull()
+    // Soft delete: המסמך צריך להיות מסומן כמחוק אבל עדיין קיים
+    const attachmentAfterDelete = await attachmentsService.getById(attachment.id)
+    expect(attachmentAfterDelete).not.toBeNull()
+    expect(attachmentAfterDelete?.isDeleted).toBe(true)
+    
+    // לא יופיע ב-getByEntity
+    expect(await attachmentsService.getByEntity('borrower', borrowerId)).toEqual([])
   })
 
   it('does not throw or fail when deleting an entity that has no attachments', async () => {
