@@ -40,6 +40,35 @@ async function hashPassword(password: string, salt?: string): Promise<string> {
 }
 
 /**
+ * השוואה constant-time בין שתי מחרוזות
+ * מונעת timing attacks על ידי השוואה של כל התווים תמיד
+ * @param a - מחרוזת ראשונה
+ * @param b - מחרוזת שנייה
+ * @returns true אם המחרוזות זהות
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  // אם האורכים שונים, עדיין נריץ את כל הלולאה כדי למנוע timing leak
+  const bufA = new TextEncoder().encode(a)
+  const bufB = new TextEncoder().encode(b)
+  
+  // נעבוד על האורך המקסימלי
+  const maxLen = Math.max(bufA.length, bufB.length)
+  
+  let result = 0
+  // XOR של כל הבייטים - אם שונים, result יהיה != 0
+  for (let i = 0; i < maxLen; i++) {
+    const byteA = i < bufA.length ? bufA[i] : 0
+    const byteB = i < bufB.length ? bufB[i] : 0
+    result |= byteA ^ byteB
+  }
+  
+  // גם השוואת האורכים בצורה שלא תדלוף timing
+  result |= bufA.length ^ bufB.length
+  
+  return result === 0
+}
+
+/**
  * אימות סיסמה מול hash שמור
  * @param password - הסיסמה לבדיקה
  * @param storedHash - ההash השמור (בפורמט "salt:hash")
@@ -57,8 +86,8 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
     // חישוב hash חדש עם אותו salt
     const newHash = await hashPassword(password, salt)
     
-    // השוואה (timing-safe)
-    return newHash === storedHash
+    // השוואה constant-time (מונעת timing attacks)
+    return timingSafeEqual(newHash, storedHash)
   } catch (error) {
     console.error('Error verifying password:', error)
     return false
