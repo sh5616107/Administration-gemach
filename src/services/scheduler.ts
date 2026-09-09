@@ -992,15 +992,31 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     
     // עדכון ההפקדה האחרונה להפחית את recurring_months
     //
-    // Note: this UPDATE has no matching handler in database.ts's db.run() —
-    // it silently does nothing. Left as-is (not this fix's concern): nothing
-    // ever reads recurring_months off a non-latest row, so it's inert, not
-    // functionally broken. An earlier version of this fix also set `status =
-    // 'superseded'` here to hide old rows from the deposits list, but that
-    // broke softDeleteDepositsPrevention.test.ts, softDeleteLastItemBugFix
-    // .test.ts and updateSeriesItemsBugFix.test.ts, which all depend on every
-    // row in a series staying individually queryable. See Deposits.tsx for
-    // the actual fix to the runaway-multiplier display bug.
+    // ⚠️ UPDATED NOTE (see recurringMonthsAlertInteraction.test.ts):
+    // This UPDATE used to be a silent no-op, because database.ts's db.run()
+    // had no handler matching 'UPDATE deposits SET recurring_months' — the
+    // call resolved but nothing was written. database.ts's fail-closed SQL
+    // fix later added a real handler for this exact pattern (to avoid
+    // throwing on it), which means this UPDATE now genuinely persists.
+    //
+    // That resurrected a previously-dead code path, and the old assumption
+    // behind it ("nothing ever reads recurring_months off a non-latest row")
+    // is NOT true: this deposit row keeps `status = 'active'` (see below for
+    // why) and `is_recurring = 1`, so it's still picked up by
+    // AlertsDialog.tsx's recurring-deposit query, which gates on
+    // `recurring_months > 0`. In other words, once this UPDATE lands, the
+    // previous "latest" row can now age out of that alert on its own,
+    // instead of continuing to fire indefinitely — a real behavior change,
+    // not a cosmetic one. See the regression test for the exact mechanics;
+    // if that test starts failing, it's because this interaction changed
+    // again and AlertsDialog.tsx / this comment need another look.
+    //
+    // An earlier version of this fix also set `status = 'superseded'` here
+    // to hide old rows from the deposits list, but that broke
+    // softDeleteDepositsPrevention.test.ts, softDeleteLastItemBugFix.test.ts
+    // and updateSeriesItemsBugFix.test.ts, which all depend on every row in
+    // a series staying individually queryable. See Deposits.tsx for the
+    // actual fix to the runaway-multiplier display bug.
     if (latestDeposit.recurring_months) {
       await db.run(
         'UPDATE deposits SET recurring_months = ? WHERE id = ?',
