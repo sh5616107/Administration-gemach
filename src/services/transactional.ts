@@ -7,6 +7,7 @@
 
 import { repaymentsService, loansService, guarantorLoansService, guarantorLoanRepaymentsService } from './database'
 import { commitData } from './database'
+import { logRepaymentCreate, logRepaymentUpdate, logRepaymentDelete } from './auditLog'
 import logger from '../utils/logger'
 
 /**
@@ -69,6 +70,9 @@ export async function addRepaymentAtomic(
     
     createdRepaymentId = String(result.lastInsertRowid)
     logger.info(`[TX] Repayment created: id=${createdRepaymentId}`)
+    
+    // Audit log
+    await logRepaymentCreate(createdRepaymentId, repaymentData)
     
     // שלב 3: עדכון guarantor loans (אם קיימים)
     let guarantorLoansUpdated = false
@@ -190,6 +194,9 @@ export async function updateRepaymentAtomic(
     await repaymentsService.update(repaymentId, updates)
     logger.info(`[TX] Repayment updated`)
     
+    // Audit log
+    await logRepaymentUpdate(repaymentId, repayment, { ...repayment, ...updates })
+    
     // שלב 3: עדכון פירעונות ערבים (אם השתנה הסכום)
     if (amountDiff !== 0) {
       const loan = await loansService.getById(repayment.loan_id)
@@ -263,6 +270,9 @@ export async function deleteRepaymentAtomic(
     // שלב 2: מחיקת הפירעון
     await repaymentsService.delete(repaymentId)
     logger.info(`[TX] Repayment deleted`)
+    
+    // Audit log
+    await logRepaymentDelete(repaymentId, repayment)
     
     // שלב 3: מחיקת פירעונות ערבים מתאימים
     const loan = await loansService.getById(loanId)

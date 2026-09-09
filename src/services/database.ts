@@ -23,6 +23,7 @@ interface DataStore {
   waitlist: Record<string, any>
   contacts: Record<string, any>
   attachments: Record<string, any>
+  auditLog: Record<string, any>
 }
 
 const STORAGE_KEY = 'gemach_data_v1'
@@ -46,6 +47,7 @@ const defaultData: DataStore = {
   waitlist: {},
   contacts: {},
   attachments: {},
+  auditLog: {},
 }
 
 let data: DataStore = JSON.parse(JSON.stringify(defaultData))
@@ -646,6 +648,33 @@ export const db = {
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (normalizedSql.includes('DELETE FROM blacklist WHERE id') && params) { removeItem('blacklist', String(params[0])); return { lastInsertRowid: 0, changes: 1 } }
+    
+    // Audit Log
+    if (normalizedSql.includes('INSERT INTO audit_log') && params) {
+      const id = String(params[0])
+      setItem('auditLog', id, {
+        id,
+        timestamp: params[1],
+        action: params[2],
+        entity_type: params[3],
+        entity_id: params[4],
+        actor: params[5],
+        before_data: params[6],
+        after_data: params[7],
+        metadata: params[8]
+      })
+      return { lastInsertRowid: id, changes: 1 }
+    }
+    if (normalizedSql.includes('SELECT * FROM audit_log WHERE entity_type') && params) {
+      return getAllItems<any>('auditLog')
+        .filter(a => a.entity_type === params[0] && a.entity_id === params[1])
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    }
+    if (normalizedSql.includes('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT') && params) {
+      return getAllItems<any>('auditLog')
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, params[0])
+    }
     
     // ⚠️ FAIL-CLOSED: SQL לא מזוהה - זריקת שגיאה (P0 security fix)
     const errorMsg = `[DB] ❌ Unrecognized SQL command - operation rejected: ${normalizedSql.substring(0, 100)}`
