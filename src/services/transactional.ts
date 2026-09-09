@@ -9,6 +9,7 @@ import { repaymentsService, loansService, guarantorLoansService, guarantorLoanRe
 import { commitData } from './database'
 import { logRepaymentCreate, logRepaymentUpdate, logRepaymentDelete } from './auditLog'
 import logger from '../utils/logger'
+import { validateRepaymentAmount, validateRepayment } from './validators'
 
 /**
  * תוצאת פעולה טרנזקציונלית
@@ -58,8 +59,10 @@ export async function addRepaymentAtomic(
       return { success: false, error: 'ההלוואה כבר נפרעה במלואה' }
     }
     
-    if (repaymentData.amount > remaining) {
-      return { success: false, error: 'סכום הפירעון גדול מיתרת ההלוואה' }
+    // Validation מרוכזת
+    const validation = validateRepayment({ loan_id: loanId, ...repaymentData }, loan)
+    if (!validation.valid) {
+      return { success: false, error: validation.errors.join(', ') }
     }
     
     // שלב 2: יצירת הפירעון
@@ -191,6 +194,22 @@ export async function updateRepaymentAtomic(
     const amountDiff = newAmount - originalAmount
     
     // שלב 2: עדכון הפירעון
+    // Validation של הסכום החדש
+    if (updates.amount !== undefined) {
+      const loan = await loansService.getById(repayment.loan_id)
+      if (loan) {
+        const otherRepayments = (await repaymentsService.getByLoan(loan.id))
+          .filter(r => r.id !== repaymentId)
+        const otherTotal = otherRepayments.reduce((sum, r) => sum + r.amount, 0)
+        const remainingForThis = loan.amount - otherTotal
+        
+        const validation = validateRepaymentAmount(updates.amount, remainingForThis)
+        if (!validation.valid) {
+          return { success: false, error: validation.errors.join(', ') }
+        }
+      }
+    }
+    
     await repaymentsService.update(repaymentId, updates)
     logger.info(`[TX] Repayment updated`)
     
