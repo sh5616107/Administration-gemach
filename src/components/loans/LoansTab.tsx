@@ -46,6 +46,7 @@ import {
 } from '@mui/icons-material'
 import { borrowersService, guarantorsService, loansService, repaymentsService, guarantorLoansService, blacklistService, waitlistService, type Borrower, type Guarantor, type Loan, type Repayment, type WaitlistEntry } from '../../services/database'
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
+import { addRepaymentAtomic, updateRepaymentAtomic, deleteRepaymentAtomic } from '../../services/transactional'
 import { useSettings } from '../../hooks/useSettings'
 import { getDocumentLayout } from '../../utils/documentLayoutHelper'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
@@ -694,16 +695,6 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
 
   const handleAddRepayment = async () => {
     if (!selectedLoan?.id || repaymentAmount <= 0) return
-    
-    const remaining = selectedLoan.remaining || 0
-    if (remaining <= 0) {
-      setSnackbar({ open: true, message: 'ההלוואה כבר נפרעה במלואה', severity: 'error' })
-      return
-    }
-    if (repaymentAmount > remaining) {
-      setSnackbar({ open: true, message: 'סכום הפירעון גדול מיתרת ההלוואה', severity: 'error' })
-      return
-    }
 
     // מניעת הגשה כפולה
     if (isAddingRepayment) return
@@ -716,19 +707,14 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       let recurringRepaymentCount: number | undefined
       
       if (selectedLoan.auto_repayment === 1 && selectedLoan.repayment_amount && selectedLoan.repayment_amount > 0) {
-        // זה פירעון מחזורי - שימוש בפונקציה המשותפת
         isRecurring = 1
-        
-        // ✅ תיקון: שימוש בפונקציה המשותפת לחישוב מספור
         const result = await calculateNextRepaymentNumber(selectedLoan.id)
         recurringRepaymentNumber = result.recurringRepaymentNumber
         recurringRepaymentCount = result.recurringRepaymentCount
-        
-        console.log(`[REPAYMENT] Creating recurring repayment ${recurringRepaymentNumber}/${recurringRepaymentCount}`)
       }
       
-      await repaymentsService.create({
-        loan_id: selectedLoan.id,
+      // ✅ שימוש בפעולה אטומית במקום פעולות נפרדות
+      const txResult = await addRepaymentAtomic(selectedLoan.id, {
         amount: repaymentAmount,
         payment_date: new Date().toISOString().split('T')[0],
         payment_method: repaymentPaymentMethod.payment_method,
@@ -738,23 +724,43 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         recurring_repayment_count: recurringRepaymentCount,
       })
       
-      // Update guarantor loans if exist
-      const guarantorLoansUpdated = await updateGuarantorLoansAfterRepayment(selectedLoan.id, repaymentAmount)
-      
-      if (guarantorLoansUpdated) {
-        const updatedLoan = await loansService.getById(selectedLoan.id)
-        if (updatedLoan && updatedLoan.remaining === 0) {
-          setSnackbar({ open: true, message: 'הפירעון נוסף בהצלחה. הלוואות הערבים סומנו כנפרעו (בדוק אם מגיע החזר לערבים)', severity: 'success' })
+      if (!txResult.success) {
+        // הפעולה נכשלה - הודעה מפורטת
+        if (txResult.compensationFailed) {
+          setSnackbar({ 
+            open: true, 
+            message: `⚠️ שגיאה חמורה: ${txResult.error}. יתכן שנוצר מצב לא עקבי. נא לבדוק ידנית.`, 
+            severity: 'error' 
+          })
         } else {
-          setSnackbar({ open: true, message: 'הפירעון נוסף בהצלחה. הלוואות הערבים עודכנו באופן יחסי', severity: 'success' })
+          setSnackbar({ open: true, message: txResult.error || 'שגיאה בהוספת פירעון', severity: 'error' })
         }
-        setSelectedLoan(updatedLoan as Loan)
+        return
+      }
+      
+      // הצלחה - הודעה מתאימה
+      const updatedLoan = await loansService.getById(selectedLoan.id)
+      
+      if (txResult.data?.guarantorLoansUpdated) {
+        if (updatedLoan && updatedLoan.remaining === 0) {
+          setSnackbar({ 
+            open: true, 
+            message: 'הפירעון נוסף בהצלחה. הלוואות הערבים סומנו כנפרעו (בדוק אם מגיע החזר לערבים)', 
+            severity: 'success' 
+          })
+        } else {
+          setSnackbar({ 
+            open: true, 
+            message: 'הפירעון נוסף בהצלחה. הלוואות הערבים עודכנו באופן יחסי', 
+            severity: 'success' 
+          })
+        }
       } else {
         setSnackbar({ open: true, message: 'הפירעון נוסף בהצלחה', severity: 'success' })
-        const updatedLoan = await loansService.getById(selectedLoan.id)
-        if (updatedLoan) {
-          setSelectedLoan(updatedLoan as Loan)
-        }
+      }
+      
+      if (updatedLoan) {
+        setSelectedLoan(updatedLoan as Loan)
       }
       
       setRepaymentDialogOpen(false)
@@ -766,7 +772,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       }
     } catch (error) {
       console.error('Error adding repayment:', error)
-      setSnackbar({ open: true, message: 'שגיאה בהוספת פירעון', severity: 'error' })
+      setSnackbar({ open: true, message: 'שגיאה בלתי צפויה בהוספת פירעון', severity: 'error' })
     } finally {
       setIsAddingRepayment(false)
     }
@@ -866,25 +872,23 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     if (!editingRepayment || editRepaymentAmount <= 0) return
 
     try {
-      // שמירת הסכום הישן לפני העדכון
-      const oldAmount = editingRepayment.amount
-      
-      await repaymentsService.update(editingRepayment.id, {
+      // ✅ שימוש בפעולה אטומית
+      const txResult = await updateRepaymentAtomic(editingRepayment.id, {
         amount: editRepaymentAmount,
         payment_date: editRepaymentDate,
-        notes: editRepaymentNotes,
         payment_method: editRepaymentPaymentMethod.payment_method,
         payment_details: JSON.stringify(editRepaymentPaymentMethod),
       })
       
-      // עדכון הלוואות ערבים אחרי שינוי פירעון
-      if (selectedLoan?.id) {
-        await recalculateGuarantorLoans(selectedLoan.id)
+      if (!txResult.success) {
+        setSnackbar({ open: true, message: txResult.error || 'שגיאה בעדכון פירעון', severity: 'error' })
+        return
       }
       
       setSnackbar({ open: true, message: 'הפירעון עודכן בהצלחה', severity: 'success' })
       setEditRepaymentDialogOpen(false)
       setEditingRepayment(null)
+      
       if (selectedLoan?.id) {
         loadRepayments(selectedLoan.id)
         loadBorrowerLoans(selectedBorrower!.id)
@@ -895,27 +899,24 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       }
     } catch (error) {
       console.error('Error updating repayment:', error)
-      setSnackbar({ open: true, message: 'שגיאה בעדכון הפירעון', severity: 'error' })
+      setSnackbar({ open: true, message: 'שגיאה בלתי צפויה בעדכון הפירעון', severity: 'error' })
     }
   }
 
   const handleDeleteRepayment = async (repaymentId: string) => {
     if (!confirm('האם למחוק את הפירעון?')) return
 
-    console.log('🗑️ handleDeleteRepayment called for repayment:', repaymentId)
-
     try {
-      await repaymentsService.delete(repaymentId)
+      // ✅ שימוש בפעולה אטומית
+      const txResult = await deleteRepaymentAtomic(repaymentId)
       
-      console.log('  ✅ Repayment deleted')
-      
-      // עדכון הלוואות ערבים אחרי מחיקת פירעון
-      if (selectedLoan?.id) {
-        console.log('  🔄 Calling recalculateGuarantorLoans for loan:', selectedLoan.id)
-        await recalculateGuarantorLoans(selectedLoan.id)
+      if (!txResult.success) {
+        setSnackbar({ open: true, message: txResult.error || 'שגיאה במחיקת פירעון', severity: 'error' })
+        return
       }
       
-      setSnackbar({ open: true, message: 'הפירעון נמחק', severity: 'success' })
+      setSnackbar({ open: true, message: 'הפירעון נמחק בהצלחה', severity: 'success' })
+      
       if (selectedLoan?.id) {
         loadRepayments(selectedLoan.id)
         loadBorrowerLoans(selectedBorrower!.id)
@@ -926,7 +927,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       }
     } catch (error) {
       console.error('Error deleting repayment:', error)
-      setSnackbar({ open: true, message: 'שגיאה במחיקת הפירעון', severity: 'error' })
+      setSnackbar({ open: true, message: 'שגיאה בלתי צפויה במחיקת הפירעון', severity: 'error' })
     }
   }
 
