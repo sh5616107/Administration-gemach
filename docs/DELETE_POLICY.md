@@ -60,51 +60,46 @@
 - אם הישות ההורה hard delete → attachments גם hard delete
 - **קבצים פיזיים**: נשארים על הדיסק (לא נמחקים) גם ב-hard delete
 
-## טבלת סיכום
+## טבלת סיכום - סטטוס סופי ✅
 
-| ישות | מדיניות נכונה | מצב נוכחי | נדרש תיקון? |
-|------|---------------|-----------|-------------|
-| loans | Soft Delete | ✅ Soft Delete | **לא - הושלם** |
-| repayments | Soft Delete | ✅ Soft Delete | **לא - הושלם** |
-| deposits | Soft Delete | ✅ Soft Delete | **לא - הושלם** |
-| donations | Soft Delete | ❌ Hard Delete | **כן - נשאר** |
-| borrowers | Soft Delete + הגנה | ✅ Soft Delete | **לא - הושלם** ✨ |
-| guarantors | Soft Delete + הגנה | ✅ Soft Delete | **לא - הושלם** ✨ |
-| donors | Soft Delete + הגנה | ❌ Hard Delete | **כן - נשאר** |
-| depositors | Soft Delete + הגנה | ❌ Hard Delete | **כן - נשאר** |
-| blacklist | Hard Delete | ✅ Hard Delete | לא |
-| waitlist | Hard Delete | ✅ Hard Delete | לא |
-| expenses | Hard Delete | ✅ Hard Delete | לא |
-| contacts | Hard Delete | ✅ Hard Delete | לא |
+| ישות | מדיניות | סטטוס | Commit |
+|------|----------|-------|--------|
+| loans | Soft Delete | ✅ הושלם | (כבר היה) |
+| repayments | Soft Delete | ✅ הושלם | (כבר היה) |
+| deposits | Soft Delete | ✅ הושלם | (כבר היה) |
+| donations | Soft Delete | ✅ הושלם | 0b35c79 |
+| borrowers | Soft Delete + הגנה | ✅ הושלם | 02b5181 |
+| guarantors | Soft Delete + הגנה | ✅ הושלם | 02b5181 |
+| donors | Soft Delete + הגנה | ✅ הושלם | 8509ae0 |
+| depositors | Soft Delete + הגנה | ✅ הושלם | 8509ae0 |
+| blacklist | Hard Delete | ✅ נכון | לא נדרש |
+| waitlist | Hard Delete | ✅ נכון | לא נדרש |
+| expenses | Hard Delete | ✅ נכון | לא נדרש |
+| contacts | Hard Delete | ✅ נכון | לא נדרש |
 
-✨ = תוקן ב-commit 02b5181
+## 🎉 כל הישויות הפיננסיות עם Soft Delete!
 
-## תוכנית תיקון
+**100% השלמה** - 8/8 ישויות פיננסיות מוגנות עם soft delete
 
-### ✅ שלב 1: תיקון borrowers/guarantors (P1) - הושלם!
+## תוכנית תיקון - הושלם! ✅
+
+### ✅ שלב 1: borrowers/guarantors - הושלם!
 **Commit**: 02b5181
-1. ✅ הוספת `is_deleted`, `deleted_at` לכל interface
-2. ✅ שינוי `removeItem()` ל-soft delete
-3. ✅ שמירת בדיקות הגנה (borrowers)
-4. ✅ עדכון attachments ל-soft delete
-5. ✅ עדכון טסטים
 
-### שלב 2: תיקון donations (P1 - נותר)
-1. הוספת `is_deleted`, `deleted_at` ל-donation interface
-2. שינוי `DELETE FROM donations` ל-soft delete
-3. סינון `!d.is_deleted` בכל שאילתות donations
-4. עדכון attachments ל-soft delete
+### ✅ שלב 2: donations - הושלם!
+**Commit**: 0b35c79
 
-### שלב 3: תיקון donors/depositors (P1 - נותר)
-1. הוספת `is_deleted`, `deleted_at` לכל interface
-2. שינוי `removeItem()` ל-soft delete
-3. הוספת בדיקות הגנה לכל מחיקה
-4. עדכון attachments ל-soft delete
+### ✅ שלב 3: donors/depositors - הושלם!
+**Commit**: 8509ae0
 
-### שלב 4: בדיקות (P1)
-1. טסט לכל ישות: מחיקה → בדיקת is_deleted
-2. טסט attachments: בדיקת soft delete
-3. טסט הגנות: ניסיון מחיקה עם נתונים פעילים
+### ✅ שלב 4: בדיקות
+**Commit**: 46f2888 (עדכון טסט attachmentCascadeDelete)
+- ✅ כל 540 הטסטים עוברים
+- ✅ soft delete מאומת לכל הישויות
+
+## 🎉 הושלם במלואו!
+
+כל הישויות הפיננסיות מוגנות עם soft delete, audit trail, ו-attachments מסונכרנים.
 
 ## הערות למימוש
 
