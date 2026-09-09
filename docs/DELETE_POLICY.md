@@ -64,36 +64,42 @@
 
 | ישות | מדיניות נכונה | מצב נוכחי | נדרש תיקון? |
 |------|---------------|-----------|-------------|
-| loans | Soft Delete | ✅ Soft Delete | לא |
-| repayments | Soft Delete | ❓ לא ברור | כן |
-| deposits | Soft Delete | ✅ Soft Delete | לא |
-| donations | Soft Delete | ❌ Hard Delete | **כן** |
-| borrowers | Soft Delete + הגנה | ❌ Hard Delete | **כן** |
-| guarantors | Soft Delete + הגנה | ❌ Hard Delete | **כן** |
-| donors | Soft Delete + הגנה | ❌ Hard Delete | **כן** |
-| depositors | Soft Delete + הגנה | ❌ Hard Delete | **כן** |
+| loans | Soft Delete | ✅ Soft Delete | **לא - הושלם** |
+| repayments | Soft Delete | ✅ Soft Delete | **לא - הושלם** |
+| deposits | Soft Delete | ✅ Soft Delete | **לא - הושלם** |
+| donations | Soft Delete | ❌ Hard Delete | **כן - נשאר** |
+| borrowers | Soft Delete + הגנה | ✅ Soft Delete | **לא - הושלם** ✨ |
+| guarantors | Soft Delete + הגנה | ✅ Soft Delete | **לא - הושלם** ✨ |
+| donors | Soft Delete + הגנה | ❌ Hard Delete | **כן - נשאר** |
+| depositors | Soft Delete + הגנה | ❌ Hard Delete | **כן - נשאר** |
 | blacklist | Hard Delete | ✅ Hard Delete | לא |
 | waitlist | Hard Delete | ✅ Hard Delete | לא |
 | expenses | Hard Delete | ✅ Hard Delete | לא |
 | contacts | Hard Delete | ✅ Hard Delete | לא |
 
+✨ = תוקן ב-commit 02b5181
+
 ## תוכנית תיקון
 
-### שלב 1: תיקון donations (P1 - קריטי)
+### ✅ שלב 1: תיקון borrowers/guarantors (P1) - הושלם!
+**Commit**: 02b5181
+1. ✅ הוספת `is_deleted`, `deleted_at` לכל interface
+2. ✅ שינוי `removeItem()` ל-soft delete
+3. ✅ שמירת בדיקות הגנה (borrowers)
+4. ✅ עדכון attachments ל-soft delete
+5. ✅ עדכון טסטים
+
+### שלב 2: תיקון donations (P1 - נותר)
 1. הוספת `is_deleted`, `deleted_at` ל-donation interface
 2. שינוי `DELETE FROM donations` ל-soft delete
 3. סינון `!d.is_deleted` בכל שאילתות donations
 4. עדכון attachments ל-soft delete
 
-### שלב 2: תיקון borrowers/guarantors/donors/depositors (P1)
+### שלב 3: תיקון donors/depositors (P1 - נותר)
 1. הוספת `is_deleted`, `deleted_at` לכל interface
 2. שינוי `removeItem()` ל-soft delete
 3. הוספת בדיקות הגנה לכל מחיקה
 4. עדכון attachments ל-soft delete
-
-### שלב 3: repayments (P1)
-1. בדיקה: מה המצב הנוכחי?
-2. אם hard delete - שינוי ל-soft delete
 
 ### שלב 4: בדיקות (P1)
 1. טסט לכל ישות: מחיקה → בדיקת is_deleted
