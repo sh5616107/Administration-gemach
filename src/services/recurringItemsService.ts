@@ -574,7 +574,8 @@ export async function updateSeriesItems(
     // 4. ✅ תיקון באג 1: עדכון פריטים עתידיים + הפריט האחרון בסדרה
     // הפריט האחרון (לפי מספר) מייצג את ההגדרות שהמתזמן יקרא בפעם הבאה
     const today = new Date().toISOString().split('T')[0]
-    const futureItems = seriesItems.filter(item => item.date > today)
+    // פריטים עתידיים = היום ואילך (>= לא רק >), כי פריט שנוצר היום עדיין לא "עבר"
+    const futureItems = seriesItems.filter(item => item.date >= today)
     
     // מציאת הפריט האחרון בסדרה (לפי item_number הגבוה ביותר)
     const latestItem = seriesItems.reduce((latest, current) => 
@@ -585,7 +586,6 @@ export async function updateSeriesItems(
     const itemsToUpdate = [...futureItems]
     if (!futureItems.find(item => item.id === latestItem.id)) {
       itemsToUpdate.push(latestItem)
-      console.log(`[UPDATE-SERIES] Adding latest item #${latestItem.item_number} to update list (date: ${latestItem.date})`)
     }
     
     // 5. Update items (future + latest)
