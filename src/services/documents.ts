@@ -3161,12 +3161,20 @@ export interface FeeReceiptData {
 }
 
 /**
+ * בונה HTML לקבלה על תשלום עמלה.
  * מקור אמת יחיד לתוכן קבלת עמלה
  */
 export function buildFeeReceiptHtml(data: FeeReceiptData, layout?: DocumentLayoutConfig): string {
   const formattedAmount = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0 }).format(data.amount)
   const dateFormat = data.dateFormat || 'gregorian'
   const displayDate = dateFormat === 'hebrew' ? toHebrewDate(data.paymentDate) : new Date(data.paymentDate).toLocaleDateString('he-IL')
+  
+  // Escape כל המשתנים שמגיעים מהמשתמש
+  const safeBorrowerName = escapeHtml(data.borrowerName)
+  const safeGemachName = escapeHtml(data.gemachName)
+  const safeReceiptNumber = escapeHtml(data.receiptNumber)
+  const safeLoanNumber = data.loanNumber ? escapeHtml(String(data.loanNumber)) : ''
+  const safeNote = data.note ? escapeHtml(data.note) : ''
   
   // תרגום סוגי עמלה
   const feeTypeLabels: Record<string, string> = {
@@ -3175,7 +3183,7 @@ export function buildFeeReceiptHtml(data: FeeReceiptData, layout?: DocumentLayou
     membership: 'דמי חבר',
     other: 'אחר',
   }
-  const feeTypeLabel = feeTypeLabels[data.feeType] || data.feeType
+  const feeTypeLabel = feeTypeLabels[data.feeType] || escapeHtml(data.feeType)
 
   // תרגום אמצעי תשלום
   const paymentMethodLabels: Record<string, string> = {
@@ -3185,23 +3193,23 @@ export function buildFeeReceiptHtml(data: FeeReceiptData, layout?: DocumentLayou
     check: "צ'ק",
     other: 'אחר',
   }
-  const paymentMethodLabel = data.paymentMethod ? paymentMethodLabels[data.paymentMethod] || data.paymentMethod : ''
+  const paymentMethodLabel = data.paymentMethod ? (paymentMethodLabels[data.paymentMethod] || escapeHtml(data.paymentMethod)) : ''
 
   return `
     <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
       ${renderCustomBlocks('header', layout)}
       <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">קבלה על תשלום עמלה</h1>
-      <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
+      <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${safeGemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
       
       <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>${label('fee.receiptNumber', 'מספר קבלה:', layout)} <strong>${data.receiptNumber}</strong></p>
+        <p>${label('fee.receiptNumber', 'מספר קבלה:', layout)} <strong>${safeReceiptNumber}</strong></p>
         ${renderCustomBlocks('afterReceiptNumber', layout)}
-        <p>${label('fee.receivedFrom', 'התקבל מאת:', layout)} <strong>${data.borrowerName}</strong></p>
+        <p>${label('fee.receivedFrom', 'התקבל מאת:', layout)} <strong>${safeBorrowerName}</strong></p>
         ${renderCustomBlocks('afterBorrowerName', layout)}
         <p>${label('fee.feeType', 'סוג עמלה:', layout)} <strong>${feeTypeLabel}</strong></p>
-        ${data.loanNumber ? `<p>${label('fee.loanNumber', 'הלוואה:', layout)} <strong>#${data.loanNumber}</strong></p>` : ''}
+        ${safeLoanNumber ? `<p>${label('fee.loanNumber', 'הלוואה:', layout)} <strong>#${safeLoanNumber}</strong></p>` : ''}
         ${renderCustomBlocks('afterFeeType', layout)}
         <p style="font-size: 20px; margin: 15px 0;">
           ${label('fee.amount', 'סכום:', layout)} <strong style="color: var(--doc-accent, #1976d2);">${formattedAmount}</strong>
@@ -3210,7 +3218,7 @@ export function buildFeeReceiptHtml(data: FeeReceiptData, layout?: DocumentLayou
         ${paymentMethodLabel ? `<p>${label('fee.paymentMethod', 'אמצעי תשלום:', layout)} <strong>${paymentMethodLabel}</strong></p>` : ''}
         <p>${label('fee.paymentDate', 'תאריך תשלום:', layout)} <strong>${displayDate}</strong></p>
         ${renderCustomBlocks('afterDate', layout)}
-        ${data.note ? `<p style="font-size: 14px; color: #666; margin-top: 10px;">${data.note}</p>` : ''}
+        ${safeNote ? `<p style="font-size: 14px; color: #666; margin-top: 10px;">${safeNote}</p>` : ''}
       </div>
       
       <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />

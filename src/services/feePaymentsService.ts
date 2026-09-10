@@ -15,17 +15,43 @@ import { logAudit } from './auditLog'
  * תומך ב-CRUD, חישוב סטטיסטיקות, ו-Soft Delete
  */
 
+// Cache למניעת טעינה מיותרת (N+1)
+let borrowersCache: Map<string, any> | null = null
+let loansCache: Map<string, any> | null = null
+
+async function getBorrowersMap(): Promise<Map<string, any>> {
+  if (!borrowersCache) {
+    const borrowers = await borrowersService.getAll()
+    borrowersCache = new Map(borrowers.map(b => [b.id, b]))
+  }
+  return borrowersCache
+}
+
+async function getLoansMap(): Promise<Map<string, any>> {
+  if (!loansCache) {
+    const loans = await loansService.getAll()
+    loansCache = new Map(loans.map(l => [l.id, l]))
+  }
+  return loansCache
+}
+
+// ניקוי cache (יקרא אחרי יצירה/עדכון/מחיקה)
+function clearCache() {
+  borrowersCache = null
+  loansCache = null
+}
+
 // קבלת כל העמלות (ללא מחוקות)
 export async function getAllFeePayments(): Promise<FeePaymentWithDetails[]> {
   const fees = (await db.query('SELECT * FROM fee_payments', [])) as FeePayment[]
   
-  // הוספת מידע מחושב (שם לווה, מספר הלוואה)
-  const borrowers = await borrowersService.getAll()
-  const loans = await loansService.getAll()
+  // טעינה חכמה עם cache
+  const borrowersMap = await getBorrowersMap()
+  const loansMap = await getLoansMap()
   
   return fees.map(fee => {
-    const borrower = borrowers.find(b => b.id === fee.borrower_id)
-    const loan = fee.loan_id ? loans.find(l => l.id === fee.loan_id) : null
+    const borrower = borrowersMap.get(fee.borrower_id)
+    const loan = fee.loan_id ? loansMap.get(fee.loan_id) : null
     
     return {
       ...fee,
@@ -56,10 +82,10 @@ export async function getFeePaymentsByBorrower(borrowerId: string): Promise<FeeP
   const fees = (await db.query('SELECT * FROM fee_payments WHERE borrower_id = ?', [borrowerId])) as FeePayment[]
   
   const borrower = await borrowersService.getById(borrowerId)
-  const loans = await loansService.getAll()
+  const loansMap = await getLoansMap()
   
   return fees.map(fee => {
-    const loan = fee.loan_id ? loans.find(l => l.id === fee.loan_id) : null
+    const loan = fee.loan_id ? loansMap.get(fee.loan_id) : null
     
     return {
       ...fee,
@@ -73,12 +99,12 @@ export async function getFeePaymentsByBorrower(borrowerId: string): Promise<FeeP
 export async function getFeePaymentsByLoan(loanId: string): Promise<FeePaymentWithDetails[]> {
   const fees = (await db.query('SELECT * FROM fee_payments WHERE loan_id = ?', [loanId])) as FeePayment[]
   
-  const loans = await loansService.getAll()
-  const borrowers = await borrowersService.getAll()
+  const loansMap = await getLoansMap()
+  const borrowersMap = await getBorrowersMap()
   
   return fees.map(fee => {
-    const borrower = borrowers.find(b => b.id === fee.borrower_id)
-    const loan = loans.find(l => l.id === loanId)
+    const borrower = borrowersMap.get(fee.borrower_id)
+    const loan = loansMap.get(loanId)
     
     return {
       ...fee,
@@ -141,6 +167,7 @@ export async function createFeePayment(input: CreateFeePaymentInput): Promise<{ 
     actor: 'מערכת'
   })
   
+  clearCache()
   return { id }
 }
 
@@ -201,6 +228,8 @@ export async function updateFeePayment(id: string, input: UpdateFeePaymentInput)
     after: { ...existing, ...input },
     actor: 'מערכת'
   })
+  
+  clearCache()
 }
 
 // מחיקה רכה (Soft Delete)
@@ -223,6 +252,8 @@ export async function deleteFeePayment(id: string, reason?: string): Promise<voi
     metadata: reason ? { reason } : undefined,
     actor: 'מערכת'
   })
+  
+  clearCache()
 }
 
 // שינוי סטטוס
@@ -241,15 +272,11 @@ export async function updateFeePaymentStatus(
     throw new Error('ביטול תשלום ששולם דורש הסבר מפורט')
   }
   
-  const beforeData = JSON.stringify(existing)
-  
-  // עדכון הסטטוס
+  // עדכון הסטטוס ישירות (ללא קריאה ל-updateFeePayment למניעת כפילות audit)
   await db.run(
     'UPDATE fee_payments SET status = ?, updated_at = ? WHERE id = ?',
     [newStatus, new Date().toISOString(), id]
   )
-  
-  await commitData()
   
   // רישום ב-Audit Log עם פעולה ייעודית
   await logAudit('fee_payment_status_change', 'fee_payment', id, {
@@ -258,6 +285,8 @@ export async function updateFeePaymentStatus(
     metadata: reason ? { reason } : undefined,
     actor: 'מערכת'
   })
+  
+  clearCache()
 }
 
 // חישוב סטטיסטיקות
