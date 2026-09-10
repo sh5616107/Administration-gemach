@@ -5,9 +5,9 @@
  * עד המעבר ל-SQLite עם transactions אמיתיות, זהו best-effort compensation.
  */
 
-import { repaymentsService, loansService, guarantorLoansService, guarantorLoanRepaymentsService } from './database'
+import { repaymentsService, loansService, guarantorLoansService, guarantorLoanRepaymentsService, GuarantorLoanRepayment } from './database'
 import { commitData } from './database'
-import { logRepaymentCreate, logRepaymentUpdate, logRepaymentDelete } from './auditLog'
+import { logRepaymentCreate, logRepaymentUpdate, logRepaymentDelete, logCompensation } from './auditLog'
 import logger from '../utils/logger'
 import { validateRepaymentAmount, validateRepayment } from './validators'
 
@@ -19,6 +19,43 @@ export interface TransactionResult<T = void> {
   data?: T
   error?: string
   compensationFailed?: boolean
+}
+
+/**
+ * מציאת פירעון הערב שמתאים לפירעון הלווה הנתון.
+ *
+ * עדיפות ראשונה: התאמה מפורשת דרך source_repayment_id (נשמר החל מהיצירה
+ * ב-addRepaymentAtomic). זו ההתאמה היחידה שבטוחה באופן חד-משמעי.
+ *
+ * נפילה חזרה (fallback) לפי payment_date קיימת רק כדי לא לשבור רשומות
+ * שנוצרו *לפני* הוספת source_repayment_id. היא מוגבלת בכוונה לרשומות
+ * שעדיין אין להן source_repayment_id בכלל - כדי לא "לגנוב" בטעות רשומה
+ * ששייכת כבר במפורש לפירעון אחר רק כי יש לו אותו תאריך. אם יש כמה רשומות
+ * ללא תיוג באותו תאריך, עדיין יכולה לקרות התאמה שגויה - בדיוק כמו קודם -
+ * ולכן זה מתועד בלוג כאזהרה מפורשת כדי שאפשר יהיה למצוא ולתקן ידנית.
+ */
+function findMatchingGuarantorRepayment(
+  glRepayments: GuarantorLoanRepayment[],
+  repaymentId: string,
+  paymentDate: string
+): GuarantorLoanRepayment | undefined {
+  const bySourceId = glRepayments.find(glr => glr.source_repayment_id === repaymentId)
+  if (bySourceId) {
+    return bySourceId
+  }
+
+  const untagged = glRepayments.filter(glr => !glr.source_repayment_id)
+  const byDateAmongUntagged = untagged.find(glr => glr.payment_date === paymentDate)
+
+  if (byDateAmongUntagged) {
+    logger.warn(
+      `[TX] Guarantor repayment ${byDateAmongUntagged.id} matched to repayment ${repaymentId} ` +
+      `by payment_date only (legacy record without source_repayment_id). ` +
+      `If more than one untagged guarantor repayment shares this date, the match may be wrong - verify manually.`
+    )
+  }
+
+  return byDateAmongUntagged
 }
 
 /**
@@ -45,6 +82,7 @@ export async function addRepaymentAtomic(
   logger.info(`[TX] Starting atomic repayment: loan=${loanId}, amount=${repaymentData.amount}`)
   
   let createdRepaymentId: string | null = null
+  let createdRepaymentAuditId: string | null = null
   let createdGuarantorRepayments: string[] = []
   
   try {
@@ -74,8 +112,8 @@ export async function addRepaymentAtomic(
     createdRepaymentId = String(result.lastInsertRowid)
     logger.info(`[TX] Repayment created: id=${createdRepaymentId}`)
     
-    // Audit log
-    await logRepaymentCreate(createdRepaymentId, repaymentData)
+    // Audit log - שומרים את ה-id כדי שאפשר יהיה לתעד compensation מולו אם נצטרך
+    createdRepaymentAuditId = await logRepaymentCreate(createdRepaymentId, repaymentData)
     
     // שלב 3: עדכון guarantor loans (אם קיימים)
     let guarantorLoansUpdated = false
@@ -94,13 +132,16 @@ export async function addRepaymentAtomic(
         const proportion = gl.amount / loan.amount
         const guarantorRepaymentAmount = repaymentData.amount * proportion
         
-        // יצירת פירעון לערב
+        // יצירת פירעון לערב - עם source_repayment_id כדי שעדכון/מחיקה
+        // עתידיים של פירעון הלווה הזה ימצאו את הרשומה הזו בוודאות, ולא
+        // ינחשו לפי payment_date (ראו findMatchingGuarantorRepayment)
         const glRepayment = await guarantorLoanRepaymentsService.create({
           guarantor_loan_id: gl.id,
           amount: guarantorRepaymentAmount,
           payment_date: repaymentData.payment_date,
           payment_method: repaymentData.payment_method || '',
-          payment_details: repaymentData.payment_details || ''
+          payment_details: repaymentData.payment_details || '',
+          source_repayment_id: createdRepaymentId
         })
         
         createdGuarantorRepayments.push(String(glRepayment.lastInsertRowid))
@@ -153,6 +194,24 @@ export async function addRepaymentAtomic(
       logger.error(`[TX] Compensation failed!`, compensationError)
       compensationFailed = true
     }
+
+    // תיעוד ה-compensation ב-audit log. בלי זה, רשומת ה-'repayment_create'
+    // שכבר נכתבה (createdRepaymentAuditId) הייתה נשארת כ"אמת" יחידה למרות
+    // שהפירעון בוטל - עכשיו יש רשומה נוספת שמצביעה עליה במפורש ומסבירה
+    // שהיא בוטלה. אם ה-compensation עצמו נכשל, זה מצוין בסיבה כדי שמישהו
+    // יבדוק ידנית אם נשארו רשומות "יתומות".
+    if (createdRepaymentId) {
+      await logCompensation(
+        'repayment_create',
+        'repayment',
+        createdRepaymentId,
+        createdRepaymentAuditId,
+        repaymentData,
+        compensationFailed
+          ? `${error.message || 'שגיאה לא ידועה'} (compensation גם נכשל - יש לבדוק ידנית אם נשארו רשומות)`
+          : (error.message || 'שגיאה לא ידועה')
+      )
+    }
     
     return {
       success: false,
@@ -181,6 +240,13 @@ export async function updateRepaymentAtomic(
 ): Promise<TransactionResult> {
   
   logger.info(`[TX] Starting atomic repayment update: id=${repaymentId}`)
+
+  // מצב לפני כל שינוי - נדרש כדי שנוכל לעשות rollback אמיתי אם שלב מאוחר
+  // יותר ייכשל אחרי ש-repaymentsService.update כבר רץ בפועל
+  let repaymentUpdateApplied = false
+  let originalRepaymentSnapshot: any = null
+  const appliedGuarantorUpdates: { id: string; previousAmount: number }[] = []
+  let updateAuditId: string | null = null
   
   try {
     // שלב 1: קבלת הפירעון המקורי
@@ -188,6 +254,7 @@ export async function updateRepaymentAtomic(
     if (!repayment) {
       return { success: false, error: 'פירעון לא נמצא' }
     }
+    originalRepaymentSnapshot = repayment
     
     const originalAmount = repayment.amount
     const newAmount = updates.amount ?? originalAmount
@@ -211,10 +278,11 @@ export async function updateRepaymentAtomic(
     }
     
     await repaymentsService.update(repaymentId, updates)
+    repaymentUpdateApplied = true
     logger.info(`[TX] Repayment updated`)
     
     // Audit log
-    await logRepaymentUpdate(repaymentId, repayment, { ...repayment, ...updates })
+    updateAuditId = await logRepaymentUpdate(repaymentId, repayment, { ...repayment, ...updates })
     
     // שלב 3: עדכון פירעונות ערבים (אם השתנה הסכום)
     if (amountDiff !== 0) {
@@ -230,14 +298,14 @@ export async function updateRepaymentAtomic(
           const proportion = gl.amount / loan.amount
           const guarantorAmountDiff = amountDiff * proportion
           
-          // מציאת הפירעון המתאים של הערב
+          // מציאת הפירעון המתאים של הערב - דרך source_repayment_id קודם,
+          // ורק אם חסר נופלים חזרה על payment_date (ראו findMatchingGuarantorRepayment)
           const glRepayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(gl.id)
-          const matchingGlRepayment = glRepayments.find(glr => 
-            glr.payment_date === repayment.payment_date
-          )
+          const matchingGlRepayment = findMatchingGuarantorRepayment(glRepayments, repaymentId, repayment.payment_date)
           
           if (matchingGlRepayment) {
             const newGlAmount = matchingGlRepayment.amount + guarantorAmountDiff
+            appliedGuarantorUpdates.push({ id: matchingGlRepayment.id, previousAmount: matchingGlRepayment.amount })
             await guarantorLoanRepaymentsService.update(matchingGlRepayment.id, {
               amount: newGlAmount
             })
@@ -255,9 +323,45 @@ export async function updateRepaymentAtomic(
     
   } catch (error: any) {
     logger.error(`[TX] Atomic repayment update failed:`, error)
+
+    // Rollback אמיתי: מחזירים את הפירעון ואת כל פירעונות הערב שכבר עודכנו
+    // בלולאה חזרה למצב המקורי שלהם, לפני שנכשלנו. בלי זה, הכשל היה מחזיר
+    // success=false בעוד השינוי כבר נשאר בפועל (הבאג המקורי).
+    let compensationFailed = false
+    try {
+      if (repaymentUpdateApplied && originalRepaymentSnapshot) {
+        logger.info(`[TX] Rolling back: restoring repayment ${repaymentId} to its pre-update state`)
+        await repaymentsService.update(repaymentId, originalRepaymentSnapshot)
+      }
+
+      for (const applied of appliedGuarantorUpdates) {
+        logger.info(`[TX] Rolling back: restoring guarantor repayment ${applied.id} to amount=${applied.previousAmount}`)
+        await guarantorLoanRepaymentsService.update(applied.id, { amount: applied.previousAmount })
+      }
+
+      await commitData()
+    } catch (compensationError: any) {
+      logger.error(`[TX] Rollback failed!`, compensationError)
+      compensationFailed = true
+    }
+
+    if (repaymentUpdateApplied) {
+      await logCompensation(
+        'repayment_update',
+        'repayment',
+        repaymentId,
+        updateAuditId,
+        originalRepaymentSnapshot,
+        compensationFailed
+          ? `${error.message || 'שגיאה בעדכון פירעון'} (rollback גם נכשל - יש לבדוק ידנית)`
+          : (error.message || 'שגיאה בעדכון פירעון')
+      )
+    }
+
     return {
       success: false,
-      error: error.message || 'שגיאה בעדכון פירעון'
+      error: error.message || 'שגיאה בעדכון פירעון',
+      compensationFailed
     }
   }
 }
@@ -283,7 +387,6 @@ export async function deleteRepaymentAtomic(
     }
     
     const loanId = repayment.loan_id
-    const amount = repayment.amount
     const paymentDate = repayment.payment_date
     
     // שלב 2: מחיקת הפירעון
@@ -303,9 +406,9 @@ export async function deleteRepaymentAtomic(
       
       for (const gl of relatedGuarantorLoans) {
         const glRepayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(gl.id)
-        const matchingGlRepayment = glRepayments.find(glr => 
-          glr.payment_date === paymentDate
-        )
+        // התאמה דרך source_repayment_id קודם, payment_date רק כ-fallback
+        // לרשומות ישנות ללא תיוג (ראו findMatchingGuarantorRepayment)
+        const matchingGlRepayment = findMatchingGuarantorRepayment(glRepayments, repaymentId, paymentDate)
         
         if (matchingGlRepayment) {
           await guarantorLoanRepaymentsService.delete(matchingGlRepayment.id)

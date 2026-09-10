@@ -1134,6 +1134,10 @@ export interface GuarantorLoanRepayment {
   payment_details?: string
   notes?: string
   created_at: string
+  // מזהה הפירעון של הלווה שיצר את הפירעון הזה אצל הערב. אופציונלי כדי לא
+  // לשבור רשומות ישנות שנוצרו לפני שהשדה נוסף - קוד שמתאים פירעונות צריך
+  // ליפול חזרה על payment_date רק כשהשדה הזה חסר (ראו transactional.ts).
+  source_repayment_id?: string
 }
 
 export const guarantorLoansService = {

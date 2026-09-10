@@ -60,7 +60,7 @@ export async function logAudit(
     metadata?: any
     actor?: string
   }
-): Promise<void> {
+): Promise<string | null> {
   try {
     const entry: AuditEntry = {
       id: `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -92,10 +92,12 @@ export async function logAudit(
     )
     
     logger.info(`[AUDIT] ${action} on ${entityType}/${entityId} by ${entry.actor}`)
+    return entry.id
     
   } catch (error) {
     // Audit log לא צריך לגרום לכשל של הפעולה העסקית
     logger.error('[AUDIT] Failed to log audit entry:', error)
+    return null
   }
 }
 
@@ -176,16 +178,43 @@ export async function logLoanDelete(loanId: string, loanData: any): Promise<void
   await logAudit('loan_delete', 'loan', loanId, { before: loanData })
 }
 
-export async function logRepaymentCreate(repaymentId: string, repaymentData: any): Promise<void> {
-  await logAudit('repayment_create', 'repayment', repaymentId, { after: repaymentData })
+export async function logRepaymentCreate(repaymentId: string, repaymentData: any): Promise<string | null> {
+  return logAudit('repayment_create', 'repayment', repaymentId, { after: repaymentData })
 }
 
-export async function logRepaymentUpdate(repaymentId: string, before: any, after: any): Promise<void> {
-  await logAudit('repayment_update', 'repayment', repaymentId, { before, after })
+export async function logRepaymentUpdate(repaymentId: string, before: any, after: any): Promise<string | null> {
+  return logAudit('repayment_update', 'repayment', repaymentId, { before, after })
 }
 
-export async function logRepaymentDelete(repaymentId: string, repaymentData: any): Promise<void> {
-  await logAudit('repayment_delete', 'repayment', repaymentId, { before: repaymentData })
+export async function logRepaymentDelete(repaymentId: string, repaymentData: any): Promise<string | null> {
+  return logAudit('repayment_delete', 'repayment', repaymentId, { before: repaymentData })
+}
+
+/**
+ * רישום compensation: פעולה עסקית שכבר נכתבה ל-audit בוטלה (rollback) לפני שה-
+ * transaction הושלם. במקום להשאיר רשומת 'create' יתומה שמתארת מצב שכבר לא
+ * קיים, כותבים רשומה נוספת שמצביעה במפורש חזרה על ה-audit entry המקורי
+ * ומסבירה שהוא בוטל ולמה. ה-audit log עצמו נשאר append-only (לא נמחק דבר) -
+ * מי שקורא אותו רואה את שני האירועים (create ואז compensation) ויודע שהמצב
+ * הסופי הוא "הפעולה לא קרתה", בלי לאבד את התיעוד שהיא כן הוחלה לרגע.
+ */
+export async function logCompensation(
+  action: 'repayment_create' | 'repayment_update',
+  entityType: AuditEntry['entity_type'],
+  entityId: string,
+  originalAuditId: string | null,
+  before: any,
+  reason: string
+): Promise<string | null> {
+  const compensationAction: AuditAction = action === 'repayment_create' ? 'repayment_delete' : 'repayment_update'
+  return logAudit(compensationAction, entityType, entityId, {
+    before,
+    metadata: {
+      compensation: true,
+      reverts_audit_id: originalAuditId,
+      reason
+    }
+  })
 }
 
 export async function logDepositCreate(depositId: string, depositData: any): Promise<void> {
