@@ -26,10 +26,10 @@ export type AuditAction =
   | 'donation_create'
   | 'donation_update'
   | 'donation_delete'
-  | 'create'
-  | 'update'
-  | 'delete'
-  | 'status_change'
+  | 'fee_payment_create'
+  | 'fee_payment_update'
+  | 'fee_payment_delete'
+  | 'fee_payment_status_change'
 
 /**
  * רשומת audit

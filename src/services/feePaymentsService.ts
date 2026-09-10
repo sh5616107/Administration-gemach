@@ -136,7 +136,7 @@ export async function createFeePayment(input: CreateFeePaymentInput): Promise<{ 
   const id = String(result.lastInsertRowid)
   
   // רישום ב-Audit Log
-  await logAudit('create', 'fee_payment', id, {
+  await logAudit('fee_payment_create', 'fee_payment', id, {
     after: input,
     actor: 'מערכת'
   })
@@ -196,7 +196,7 @@ export async function updateFeePayment(id: string, input: UpdateFeePaymentInput)
   }
   
   // רישום ב-Audit Log
-  await logAudit('update', 'fee_payment', id, {
+  await logAudit('fee_payment_update', 'fee_payment', id, {
     before: JSON.parse(beforeData),
     after: { ...existing, ...input },
     actor: 'מערכת'
@@ -218,7 +218,7 @@ export async function deleteFeePayment(id: string, reason?: string): Promise<voi
   await db.run('DELETE FROM fee_payments WHERE id = ?', [id])
   
   // רישום ב-Audit Log
-  await logAudit('delete', 'fee_payment', id, {
+  await logAudit('fee_payment_delete', 'fee_payment', id, {
     before: existing,
     metadata: reason ? { reason } : undefined,
     actor: 'מערכת'
@@ -241,16 +241,23 @@ export async function updateFeePaymentStatus(
     throw new Error('ביטול תשלום ששולם דורש הסבר מפורט')
   }
   
-  await updateFeePayment(id, { status: newStatus })
+  const beforeData = JSON.stringify(existing)
   
-  if (reason) {
-    await logAudit('status_change', 'fee_payment', id, {
-      before: { status: existing.status },
-      after: { status: newStatus },
-      metadata: { reason },
-      actor: 'מערכת'
-    })
-  }
+  // עדכון הסטטוס
+  await db.run(
+    'UPDATE fee_payments SET status = ?, updated_at = ? WHERE id = ?',
+    [newStatus, new Date().toISOString(), id]
+  )
+  
+  await commitData()
+  
+  // רישום ב-Audit Log עם פעולה ייעודית
+  await logAudit('fee_payment_status_change', 'fee_payment', id, {
+    before: { status: existing.status },
+    after: { status: newStatus },
+    metadata: reason ? { reason } : undefined,
+    actor: 'מערכת'
+  })
 }
 
 // חישוב סטטיסטיקות
