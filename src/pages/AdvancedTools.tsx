@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import * as XLSX from 'xlsx'
 import {
   Box,
   Card,
@@ -68,6 +69,8 @@ import { exportToExcel, exportPeriodicTransactionsToExcel } from '../services/ex
 import { getTransactionsForPeriod, getMonthRange, getYearRange } from '../services/reportsService'
 import AttachmentMaintenanceTools from '../components/attachments/AttachmentMaintenanceTools'
 import { exportFullBackupZip, importFullBackupZip, parseBackupJson } from '../services/fullBackupService'
+import { filterFeePayments, getFeePaymentsStats } from '../services/feePaymentsService'
+import type { FeePaymentsFilter } from '../types/feePayments'
 
 interface OverdueLoan {
   id: string  // UUID
@@ -223,6 +226,15 @@ export default function AdvancedTools() {
   const [periodicReportStartDate, setPeriodicReportStartDate] = useState('')
   const [periodicReportEndDate, setPeriodicReportEndDate] = useState('')
   const [periodicReportData, setPeriodicReportData] = useState<any>(null)
+
+  // Fees report dialog
+  const [feesReportDialogOpen, setFeesReportDialogOpen] = useState(false)
+  const [feesReportType, setFeesReportType] = useState<'all' | 'month' | 'year' | 'custom'>('all')
+  const [feesReportYear, setFeesReportYear] = useState(new Date().getFullYear())
+  const [feesReportMonth, setFeesReportMonth] = useState(new Date().getMonth() + 1)
+  const [feesReportStartDate, setFeesReportStartDate] = useState('')
+  const [feesReportEndDate, setFeesReportEndDate] = useState('')
+  const [feesReportData, setFeesReportData] = useState<any>(null)
 
   useEffect(() => {
     loadData()
@@ -554,6 +566,138 @@ export default function AdvancedTools() {
       setSnackbar({ open: true, message: 'שגיאה בהעברת החוב', severity: 'error' })
     } finally {
       setIsTransferring(false)
+    }
+  }
+
+  // דוח עמלות
+  const handleFeesReport = async () => {
+    try {
+      // בניית פילטר לפי סוג הדוח
+      const filter: FeePaymentsFilter = {}
+      
+      if (feesReportType === 'month') {
+        const startOfMonth = new Date(feesReportYear, feesReportMonth - 1, 1)
+        const endOfMonth = new Date(feesReportYear, feesReportMonth, 0)
+        filter.date_from = startOfMonth.toISOString().split('T')[0]
+        filter.date_to = endOfMonth.toISOString().split('T')[0]
+      } else if (feesReportType === 'year') {
+        filter.date_from = `${feesReportYear}-01-01`
+        filter.date_to = `${feesReportYear}-12-31`
+      } else if (feesReportType === 'custom') {
+        if (!feesReportStartDate || !feesReportEndDate) {
+          setSnackbar({ open: true, message: 'יש להזין תאריכי התחלה וסיום', severity: 'error' })
+          return
+        }
+        filter.date_from = feesReportStartDate
+        filter.date_to = feesReportEndDate
+      }
+      
+      // שליפת נתונים
+      const [fees, stats] = await Promise.all([
+        filterFeePayments(filter),
+        getFeePaymentsStats(filter)
+      ])
+      
+      // קיבוץ לפי סוג עמלה
+      const feesByType: Record<string, any[]> = {}
+      fees.forEach(fee => {
+        if (!feesByType[fee.fee_type]) {
+          feesByType[fee.fee_type] = []
+        }
+        feesByType[fee.fee_type].push(fee)
+      })
+      
+      setFeesReportData({
+        fees,
+        stats,
+        feesByType,
+        filter
+      })
+      
+    } catch (error) {
+      console.error('Error generating fees report:', error)
+      setSnackbar({ open: true, message: 'שגיאה ביצירת הדוח', severity: 'error' })
+    }
+  }
+
+  const handleExportFeesToExcel = async () => {
+    if (!feesReportData) return
+    
+    try {
+      // תרגומים
+      const getFeeTypeLabel = (type: string): string => {
+        const labels: Record<string, string> = {
+          processing: 'עמלת טיפול',
+          guarantor_check: 'עמלת בדיקת ערבים',
+          membership: 'דמי חבר',
+          other: 'אחר',
+        }
+        return labels[type] || type
+      }
+
+      const getFeeStatusLabel = (status: string): string => {
+        const labels: Record<string, string> = {
+          paid: 'שולם',
+          pending: 'ממתין',
+          waived: 'פטור',
+          cancelled: 'בוטל',
+        }
+        return labels[status] || status
+      }
+
+      const getPaymentMethodLabel = (method: string): string => {
+        const labels: Record<string, string> = {
+          cash: 'מזומן',
+          credit: 'אשראי',
+          transfer: 'העברה בנקאית',
+          check: "צ'ק",
+          other: 'אחר',
+        }
+        return labels[method] || method
+      }
+
+      // הכנת נתונים לייצוא
+      const data = feesReportData.fees.map((fee: any) => ({
+        'תאריך תשלום': new Date(fee.payment_date).toLocaleDateString('he-IL'),
+        'לווה': fee.borrower_name || '',
+        'הלוואה': fee.loan_number ? `#${fee.loan_number}` : '',
+        'סוג עמלה': getFeeTypeLabel(fee.fee_type),
+        'סכום': fee.amount,
+        'אמצעי תשלום': getPaymentMethodLabel(fee.payment_method),
+        'סטטוס': getFeeStatusLabel(fee.status),
+        'מספר קבלה': fee.receipt_number || '',
+        'הערה': fee.note || ''
+      }))
+      
+      // תיאור התקופה
+      let periodDesc = ''
+      if (feesReportType === 'month') {
+        periodDesc = `חודש ${feesReportMonth}/${feesReportYear}`
+      } else if (feesReportType === 'year') {
+        periodDesc = `שנת ${feesReportYear}`
+      } else if (feesReportType === 'custom') {
+        periodDesc = `${feesReportStartDate} עד ${feesReportEndDate}`
+      } else {
+        periodDesc = 'כל העמלות'
+      }
+      
+      // ייצוא לאקסל
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(data)
+      XLSX.utils.book_append_sheet(wb, ws, 'עמלות')
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([wbout], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `דוח-עמלות-${periodDesc}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      
+      setSnackbar({ open: true, message: 'הדוח יוצא בהצלחה', severity: 'success' })
+    } catch (error) {
+      console.error('Error exporting fees to Excel:', error)
+      setSnackbar({ open: true, message: 'שגיאה ביצוא לאקסל', severity: 'error' })
     }
   }
 
@@ -1360,6 +1504,9 @@ export default function AdvancedTools() {
                 </Button>
                 <Button variant="outlined" startIcon={<ReportIcon />} onClick={handleDepositorsReport}>
                   דו"ח מפקידים
+                </Button>
+                <Button variant="outlined" startIcon={<ReceiptDocIcon />} onClick={() => setFeesReportDialogOpen(true)} color="info">
+                  דוח עמלות
                 </Button>
                 <Button variant="outlined" startIcon={<ReportIcon />} onClick={handleStatisticsReport}>
                   סטטיסטיקות
@@ -2605,6 +2752,225 @@ export default function AdvancedTools() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPeriodicReportDialogOpen(false)}>סגור</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Fees Report Dialog */}
+      <Dialog 
+        open={feesReportDialogOpen} 
+        onClose={() => setFeesReportDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>דוח עמלות</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>סוג דוח</InputLabel>
+                <Select
+                  value={feesReportType}
+                  label="סוג דוח"
+                  onChange={(e) => setFeesReportType(e.target.value as any)}
+                >
+                  <MenuItem value="all">כל העמלות</MenuItem>
+                  <MenuItem value="month">חודש</MenuItem>
+                  <MenuItem value="year">שנה</MenuItem>
+                  <MenuItem value="custom">תקופה מותאמת</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {feesReportType === 'month' && (
+              <>
+                <Grid item xs={6} sm={3} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="חודש"
+                    type="number"
+                    value={feesReportMonth}
+                    onChange={(e) => setFeesReportMonth(parseInt(e.target.value))}
+                    inputProps={{ min: 1, max: 12 }}
+                  />
+                </Grid>
+                <Grid item xs={6} sm={3} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="שנה"
+                    type="number"
+                    value={feesReportYear}
+                    onChange={(e) => setFeesReportYear(parseInt(e.target.value))}
+                  />
+                </Grid>
+              </>
+            )}
+
+            {feesReportType === 'year' && (
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="שנה"
+                  type="number"
+                  value={feesReportYear}
+                  onChange={(e) => setFeesReportYear(parseInt(e.target.value))}
+                />
+              </Grid>
+            )}
+
+            {feesReportType === 'custom' && (
+              <>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="מתאריך"
+                    type="date"
+                    value={feesReportStartDate}
+                    onChange={(e) => setFeesReportStartDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="עד תאריך"
+                    type="date"
+                    value={feesReportEndDate}
+                    onChange={(e) => setFeesReportEndDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+              </>
+            )}
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleFeesReport}
+                startIcon={<ReceiptDocIcon />}
+              >
+                הצג דוח
+              </Button>
+            </Grid>
+          </Grid>
+
+          {feesReportData && (
+            <Box sx={{ mt: 3 }}>
+              {/* סיכום */}
+              <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
+                <Typography variant="h6" gutterBottom>סיכום עמלות</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">עמלות ששולמו</Typography>
+                    <Typography variant="h6">{feesReportData.stats.count_paid}</Typography>
+                    <Typography variant="body2">{formatCurrency(feesReportData.stats.total_fees_collected)}</Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">עמלות ממתינות</Typography>
+                    <Typography variant="h6" color="warning.main">{feesReportData.stats.count_pending}</Typography>
+                    <Typography variant="body2">{formatCurrency(feesReportData.stats.total_fees_pending)}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>פירוט לפי סוג עמלה:</Typography>
+                    {Object.entries(feesReportData.stats.fees_by_type).map(([type, amount]: [string, any]) => (
+                      <Typography key={type} variant="body2">
+                        {type === 'processing' && 'עמלת טיפול'}
+                        {type === 'guarantor_check' && 'בדיקת ערבים'}
+                        {type === 'membership' && 'דמי חבר'}
+                        {type === 'other' && 'אחר'}
+                        : {formatCurrency(amount)}
+                      </Typography>
+                    ))}
+                  </Grid>
+                </Grid>
+              </Paper>
+
+              {/* טבלת עמלות */}
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'primary.light' }}>
+                      <TableCell>תאריך</TableCell>
+                      <TableCell>לווה</TableCell>
+                      <TableCell>הלוואה</TableCell>
+                      <TableCell>סוג עמלה</TableCell>
+                      <TableCell align="right">סכום</TableCell>
+                      <TableCell>אמצעי תשלום</TableCell>
+                      <TableCell>סטטוס</TableCell>
+                      <TableCell>קבלה</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {feesReportData.fees.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                          <Typography color="text.secondary">לא נמצאו עמלות בתקופה זו</Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      feesReportData.fees.map((fee: any) => (
+                        <TableRow key={fee.id}>
+                          <TableCell>{new Date(fee.payment_date).toLocaleDateString('he-IL')}</TableCell>
+                          <TableCell>{fee.borrower_name || '-'}</TableCell>
+                          <TableCell>{fee.loan_number ? `#${fee.loan_number}` : '-'}</TableCell>
+                          <TableCell>
+                            {fee.fee_type === 'processing' && 'עמלת טיפול'}
+                            {fee.fee_type === 'guarantor_check' && 'בדיקת ערבים'}
+                            {fee.fee_type === 'membership' && 'דמי חבר'}
+                            {fee.fee_type === 'other' && 'אחר'}
+                          </TableCell>
+                          <TableCell align="right">{formatCurrency(fee.amount)}</TableCell>
+                          <TableCell>
+                            {fee.payment_method === 'cash' && 'מזומן'}
+                            {fee.payment_method === 'credit' && 'אשראי'}
+                            {fee.payment_method === 'transfer' && 'העברה'}
+                            {fee.payment_method === 'check' && "צ'ק"}
+                            {fee.payment_method === 'other' && 'אחר'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={
+                                fee.status === 'paid' ? 'שולם' :
+                                fee.status === 'pending' ? 'ממתין' :
+                                fee.status === 'waived' ? 'פטור' :
+                                fee.status === 'cancelled' ? 'בוטל' : fee.status
+                              }
+                              color={
+                                fee.status === 'paid' ? 'success' :
+                                fee.status === 'pending' ? 'warning' :
+                                fee.status === 'waived' ? 'info' : 'error'
+                              }
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {fee.receipt_number ? `#${fee.receipt_number}` : '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {feesReportData && (
+            <Button
+              startIcon={<ExportIcon />}
+              onClick={handleExportFeesToExcel}
+              color="primary"
+            >
+              ייצוא לאקסל
+            </Button>
+          )}
+          <Button onClick={() => setFeesReportDialogOpen(false)}>סגור</Button>
         </DialogActions>
       </Dialog>
 

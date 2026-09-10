@@ -20,6 +20,7 @@ export type AttachmentEntityType =
   | 'donation'
   | 'depositor'
   | 'deposit'
+  | 'fee_payment'
 
 export type AttachmentCategory =
   | 'שטר הלוואה'

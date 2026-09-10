@@ -37,6 +37,7 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   donationReceipt: 'קבלה על תרומה',
   depositReceipt: 'קבלה על הפקדה',
   depositorReport: 'דו"ח מפקיד',
+  feeReceipt: 'קבלה על עמלה',
 }
 
 // תוויות ברירת מחדל שניתנות לדריסה דרך labelOverrides, לפי מסמך (תואם לקריאות
@@ -63,6 +64,11 @@ const LABEL_KEYS: Record<DocumentType, Array<{ key: string; fallback: string }>>
   depositorReport: [
     { key: 'depositorReport.depositorNameLabel', fallback: 'שם המפקיד:' },
   ],
+  feeReceipt: [
+    { key: 'fee.receiptNumber', fallback: 'מספר קבלה:' },
+    { key: 'fee.receivedFrom', fallback: 'התקבל מאת:' },
+    { key: 'fee.amount', fallback: 'סכום:' },
+  ],
 }
 
 // showSystemBlocks הרלוונטיים לכל מסמך (טבלאות שניתן להסתיר, ר' באג #9 —
@@ -76,6 +82,7 @@ const SYSTEM_BLOCKS: Record<DocumentType, Array<{ key: string; label: string; wa
   donationReceipt: [],
   depositReceipt: [{ key: 'withdrawalsTable', label: 'טבלת משיכות', warn: true }],
   depositorReport: [{ key: 'withdrawalsDetails', label: 'פירוט משיכות בתוך הטבלה', warn: true }],
+  feeReceipt: [],
 }
 
 // נתוני דמה קבועים לתצוגה מקדימה — שני מצבים: בלי פירעונות/משיכות, ועם

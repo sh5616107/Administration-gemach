@@ -24,6 +24,7 @@ interface DataStore {
   contacts: Record<string, any>
   attachments: Record<string, any>
   auditLog: Record<string, any>
+  feePayments: Record<string, any>
 }
 
 const STORAGE_KEY = 'gemach_data_v1'
@@ -48,6 +49,7 @@ const defaultData: DataStore = {
   contacts: {},
   attachments: {},
   auditLog: {},
+  feePayments: {},
 }
 
 let data: DataStore = JSON.parse(JSON.stringify(defaultData))
@@ -366,6 +368,28 @@ export const db = {
     }
     if (normalizedSql.includes('FROM blacklist')) return getAllItems<any>('blacklist')
     if (normalizedSql.includes('FROM repayments')) return getAllItems<any>('repayments')
+    if (normalizedSql.includes('FROM fee_payments')) {
+      const items = getAllItems<any>('feePayments').filter(f => !f.is_deleted)
+      
+      // פילטר לפי borrower_id
+      if (params && params.length > 0 && normalizedSql.includes('WHERE borrower_id')) {
+        return items.filter(f => f.borrower_id === params[0])
+          .sort((a: any, b: any) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
+      }
+      
+      // פילטר לפי loan_id
+      if (params && params.length > 0 && normalizedSql.includes('WHERE loan_id')) {
+        return items.filter(f => f.loan_id === params[0])
+          .sort((a: any, b: any) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
+      }
+      
+      // פילטר לפי id
+      if (params && params.length > 0 && normalizedSql.includes('WHERE id')) {
+        return items.filter(f => f.id === params[0])
+      }
+      
+      return items.sort((a: any, b: any) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
+    }
     if (normalizedSql.includes('settings')) return Object.entries(data.settings).map(([key, value]) => ({ key, value }))
     // Audit Log (SELECT — multi-row, belongs in query() not run())
     if (normalizedSql.includes('SELECT * FROM audit_log WHERE entity_type') && params) {
@@ -445,6 +469,15 @@ export const db = {
     if (normalizedSql.includes('DELETE FROM guarantorLoans') && !normalizedSql.includes('WHERE')) { clearStore('guarantorLoans'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM guarantorLoanRepayments') && !normalizedSql.includes('WHERE')) { clearStore('guarantorLoanRepayments'); return { lastInsertRowid: 0, changes: 1 } }
     if (normalizedSql.includes('DELETE FROM depositWithdrawals') && !normalizedSql.includes('WHERE')) { clearStore('depositWithdrawals'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM fee_payments') && !normalizedSql.includes('WHERE')) { clearStore('feePayments'); return { lastInsertRowid: 0, changes: 1 } }
+    if (normalizedSql.includes('DELETE FROM fee_payments WHERE id') && params) {
+      const fee = getItem<any>('feePayments', String(params[0]))
+      if (fee) {
+        setItem('feePayments', String(params[0]), { ...fee, is_deleted: true, deleted_at: new Date().toISOString() })
+        await attachmentsService.softDeleteByEntity('fee_payment', String(params[0]))
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
 
     if (normalizedSql.includes('INSERT INTO borrowers') && params) { 
       const id = generateId('borrowers'); 
@@ -565,6 +598,50 @@ export const db = {
       return { lastInsertRowid: id, changes: 1 } 
     }
     if (normalizedSql.includes('INSERT INTO depositors') && params) { const id = generateId('depositors'); setItem('depositors', String(id), { id, first_name: params[0], last_name: params[1], phone: params[2], id_number: params[3], address: params[4], email: params[5], notes: params[6], is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id, changes: 1 } }
+    if (normalizedSql.includes('INSERT INTO fee_payments') && params) {
+      const id = generateId('feePayments')
+      setItem('feePayments', String(id), {
+        id,
+        borrower_id: params[0],
+        loan_id: params[1] || null,
+        fee_type: params[2],
+        amount: params[3],
+        payment_date: params[4],
+        payment_method: params[5],
+        status: params[6] || 'paid',
+        receipt_number: params[7] || null,
+        receipt_document_id: params[8] || null,
+        note: params[9] || null,
+        created_by: params[10] || null,
+        is_deleted: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      return { lastInsertRowid: id, changes: 1 }
+    }
+    if (normalizedSql.includes('UPDATE fee_payments SET') && params) {
+      const fee = getItem<any>('feePayments', String(params[params.length - 1]))
+      if (fee) {
+        // עדכון השדות שנשלחו (בהתאם למספר params)
+        if (params.length >= 7) {
+          fee.fee_type = params[0]
+          fee.amount = params[1]
+          fee.payment_date = params[2]
+          fee.payment_method = params[3]
+          fee.status = params[4]
+          fee.note = params[5]
+          fee.updated_at = new Date().toISOString()
+        }
+        // עדכון מספר קבלה ו-document_id (3 params)
+        else if (params.length === 3) {
+          fee.receipt_number = params[0]
+          fee.receipt_document_id = params[1]
+          fee.updated_at = new Date().toISOString()
+        }
+        setItem('feePayments', String(params[params.length - 1]), fee)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
     if (normalizedSql.includes('INSERT INTO deposits') && params) { 
       const id = generateId('deposits'); 
       setItem('deposits', String(id), { 
@@ -1885,6 +1962,7 @@ const ATTACHMENT_ENTITY_STORE: Record<AttachmentEntityType, keyof DataStore> = {
   donation: 'donations',
   depositor: 'depositors',
   deposit: 'deposits',
+  fee_payment: 'feePayments',
 }
 
 const ATTACHMENT_ENTITY_LABEL: Record<AttachmentEntityType, string> = {
@@ -1896,6 +1974,7 @@ const ATTACHMENT_ENTITY_LABEL: Record<AttachmentEntityType, string> = {
   donation: 'תרומה',
   depositor: 'מפקיד',
   deposit: 'הפקדה',
+  fee_payment: 'תשלום עמלה',
 }
 
 export function resolveAttachmentEntityLabel(entityType: AttachmentEntityType, entityId: string): string {

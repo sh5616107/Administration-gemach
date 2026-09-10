@@ -26,6 +26,10 @@ export type AuditAction =
   | 'donation_create'
   | 'donation_update'
   | 'donation_delete'
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'status_change'
 
 /**
  * רשומת audit
@@ -34,7 +38,7 @@ export interface AuditEntry {
   id: string
   timestamp: string // ISO 8601
   action: AuditAction
-  entity_type: 'loan' | 'repayment' | 'deposit' | 'donation'
+  entity_type: 'loan' | 'repayment' | 'deposit' | 'donation' | 'fee_payment'
   entity_id: string
   actor: string // כרגע 'system', בעתיד ניתן להוסיף user_id
   before?: any // מצב לפני השינוי (JSON)

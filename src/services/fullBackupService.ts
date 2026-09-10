@@ -166,8 +166,12 @@ export function parseBackupJson(rawJson: string): ParsedBackupData {
     expenses: {},
     guarantorLoans: {},
     guarantorLoanRepayments: {},
+    guarantorRefunds: {},
     waitlist: {},
+    contacts: {},
     attachments: {},
+    auditLog: {},
+    feePayments: {},
   }
 
   if (Array.isArray(data.settings)) {
@@ -196,9 +200,13 @@ export function parseBackupJson(rawJson: string): ParsedBackupData {
   if (data.expenses) importData.expenses = convertToObject(data.expenses)
   if (data.guarantorLoans) importData.guarantorLoans = convertToObject(data.guarantorLoans)
   if (data.guarantorLoanRepayments) importData.guarantorLoanRepayments = convertToObject(data.guarantorLoanRepayments)
+  if (data.guarantorRefunds) importData.guarantorRefunds = convertToObject(data.guarantorRefunds)
   if (data.waitlist) importData.waitlist = convertToObject(data.waitlist)
   if (data.depositWithdrawals) importData.depositWithdrawals = convertToObject(data.depositWithdrawals)
+  if (data.contacts) importData.contacts = convertToObject(data.contacts)
   if (data.attachments) importData.attachments = convertToObject(data.attachments)
+  if (data.auditLog) importData.auditLog = convertToObject(data.auditLog)
+  if (data.feePayments) importData.feePayments = convertToObject(data.feePayments)
 
   const hasNumericIds = Object.values(importData.borrowers || {}).some(
     (b: any) => typeof b.id === 'number' || (typeof b.id === 'string' && b.id.length < 20)

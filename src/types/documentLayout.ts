@@ -2,7 +2,7 @@
 // ר' src/hooks/useSettings.ts (השדה document_layouts) ו-src/services/documents.ts
 // (buildXxxDocumentHtml, שלב 2 בתהליך המימוש).
 
-export type DocumentType = 'loan' | 'borrowerReport' | 'donationReceipt' | 'depositReceipt' | 'depositorReport'
+export type DocumentType = 'loan' | 'borrowerReport' | 'donationReceipt' | 'depositReceipt' | 'depositorReport' | 'feeReceipt'
 
 export interface CustomTextBlock {
   id: string
@@ -83,6 +83,7 @@ export function createEmptyDocumentLayoutsMap(): DocumentLayoutsMap {
     donationReceipt: createEmptyDocumentLayoutConfig(),
     depositReceipt: createEmptyDocumentLayoutConfig(),
     depositorReport: createEmptyDocumentLayoutConfig(),
+    feeReceipt: createEmptyDocumentLayoutConfig(),
   }
 }
 
@@ -232,5 +233,12 @@ export const DOCUMENT_ANCHORS: Record<DocumentType, AnchorDefinition[]> = {
     { id: 'beforeDepositsTable', label: 'לפני טבלת ההפקדות' },
     { id: 'afterDepositsTable', label: 'אחרי טבלת ההפקדות' },
     { id: 'footer', label: 'תחתית הדוח' },
+  ],
+  feeReceipt: [
+    { id: 'header', label: 'כותרת הקבלה' },
+    { id: 'afterReceiptNumber', label: 'אחרי מספר הקבלה' },
+    { id: 'afterBorrowerName', label: 'אחרי שם הלווה' },
+    { id: 'afterAmount', label: 'אחרי סכום העמלה' },
+    { id: 'beforeSignature', label: 'לפני חתימת הגמ"ח' },
   ],
 }

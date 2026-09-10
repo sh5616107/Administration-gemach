@@ -1858,7 +1858,7 @@ export interface EmailData {
   to: string
   subject: string
   body: string
-  documentType: 'loan' | 'deposit' | 'donation' | 'borrower_report' | 'depositor_report' | 'donor_report' | 'guarantor_debt'
+  documentType: 'loan' | 'deposit' | 'donation' | 'borrower_report' | 'depositor_report' | 'donor_report' | 'guarantor_debt' | 'fee_receipt'
   htmlContent?: string
   filename?: string
   attachmentPath?: string
@@ -3135,4 +3135,216 @@ export function generatePeriodicTransactionsReport(data: {
   `
 
   printHtml(htmlContent, `דוח תנועות ${startDateDisplay} - ${endDateDisplay}`)
+}
+
+// ===============================================
+// קבלה על תשלום עמלה
+// ===============================================
+
+export interface FeeReceiptData {
+  gemachName: string
+  gemachLogo?: string
+  gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
+  borrowerName: string
+  feeType: string
+  amount: number
+  paymentDate: string
+  receiptNumber: string
+  loanNumber?: number
+  paymentMethod?: string
+  note?: string
+  dateFormat?: string
+}
+
+/**
+ * מקור אמת יחיד לתוכן קבלת עמלה
+ */
+export function buildFeeReceiptHtml(data: FeeReceiptData, layout?: DocumentLayoutConfig): string {
+  const formattedAmount = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0 }).format(data.amount)
+  const dateFormat = data.dateFormat || 'gregorian'
+  const displayDate = dateFormat === 'hebrew' ? toHebrewDate(data.paymentDate) : new Date(data.paymentDate).toLocaleDateString('he-IL')
+  
+  // תרגום סוגי עמלה
+  const feeTypeLabels: Record<string, string> = {
+    processing: 'עמלת טיפול',
+    guarantor_check: 'עמלת בדיקת ערבים',
+    membership: 'דמי חבר',
+    other: 'אחר',
+  }
+  const feeTypeLabel = feeTypeLabels[data.feeType] || data.feeType
+
+  // תרגום אמצעי תשלום
+  const paymentMethodLabels: Record<string, string> = {
+    cash: 'מזומן',
+    credit: 'אשראי',
+    transfer: 'העברה בנקאית',
+    check: "צ'ק",
+    other: 'אחר',
+  }
+  const paymentMethodLabel = data.paymentMethod ? paymentMethodLabels[data.paymentMethod] || data.paymentMethod : ''
+
+  return `
+    <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
+      ${renderCustomBlocks('header', layout)}
+      <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">קבלה על תשלום עמלה</h1>
+      <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
+      
+      <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
+      
+      <div style="text-align: right; font-size: 16px; line-height: 2;">
+        <p>${label('fee.receiptNumber', 'מספר קבלה:', layout)} <strong>${data.receiptNumber}</strong></p>
+        ${renderCustomBlocks('afterReceiptNumber', layout)}
+        <p>${label('fee.receivedFrom', 'התקבל מאת:', layout)} <strong>${data.borrowerName}</strong></p>
+        ${renderCustomBlocks('afterBorrowerName', layout)}
+        <p>${label('fee.feeType', 'סוג עמלה:', layout)} <strong>${feeTypeLabel}</strong></p>
+        ${data.loanNumber ? `<p>${label('fee.loanNumber', 'הלוואה:', layout)} <strong>#${data.loanNumber}</strong></p>` : ''}
+        ${renderCustomBlocks('afterFeeType', layout)}
+        <p style="font-size: 20px; margin: 15px 0;">
+          ${label('fee.amount', 'סכום:', layout)} <strong style="color: var(--doc-accent, #1976d2);">${formattedAmount}</strong>
+        </p>
+        ${renderCustomBlocks('afterAmount', layout)}
+        ${paymentMethodLabel ? `<p>${label('fee.paymentMethod', 'אמצעי תשלום:', layout)} <strong>${paymentMethodLabel}</strong></p>` : ''}
+        <p>${label('fee.paymentDate', 'תאריך תשלום:', layout)} <strong>${displayDate}</strong></p>
+        ${renderCustomBlocks('afterDate', layout)}
+        ${data.note ? `<p style="font-size: 14px; color: #666; margin-top: 10px;">${data.note}</p>` : ''}
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
+      
+      <div style="text-align: right; font-size: 14px; color: #666;">
+        <p>${label('signature', 'חתימת הגמ"ח:', layout)} ___________________</p>
+      </div>
+      ${renderCustomBlocks('footer', layout)}
+    </div>
+  `
+}
+
+/**
+ * הפקת קבלה על תשלום עמלה (הדפסה או PDF)
+ */
+export async function generateFeeReceipt(data: FeeReceiptData, layout?: DocumentLayoutConfig): Promise<void> {
+  const logoHtml = data.gemachLogo 
+    ? `<img src="${data.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
+    : ''
+
+  const htmlContent = buildFeeReceiptHtml(data, layout)
+
+  const branding = resolveDocumentBranding({
+    gemachLogo: data.gemachLogo,
+    gemachDocumentFrame: data.gemachDocumentFrame,
+    frameMarginTop: data.frameMarginTop,
+    frameMarginBottom: data.frameMarginBottom,
+    frameMarginRight: data.frameMarginRight,
+    frameMarginLeft: data.frameMarginLeft
+  }, layout)
+  const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
+  
+  if (branding.gemachDocumentFrame) {
+    const result = await downloadPdf(finalContent, `קבלה-עמלה-${data.receiptNumber}`, branding.gemachDocumentFrame, {
+      top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
+    })
+    if (!result) throw new Error('שגיאה ביצירת קובץ ה-PDF של הקבלה')
+    return
+  }
+  printHtml(finalContent, `קבלה עמלה ${data.receiptNumber}`)
+}
+
+/**
+ * יצירת נתוני אימייל לקבלת עמלה
+ */
+export function createFeeReceiptEmailData(params: {
+  gemachName: string
+  borrowerName: string
+  borrowerEmail: string
+  feeType: string
+  amount: number
+  paymentDate: string
+  receiptNumber: string
+  loanNumber?: number
+  paymentMethod?: string
+  note?: string
+  dateFormat?: string
+  gemachLogo?: string
+  gemachDocumentFrame?: string
+  frameMarginTop?: number
+  frameMarginBottom?: number
+  frameMarginRight?: number
+  frameMarginLeft?: number
+}): EmailData {
+  const formattedAmount = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0 }).format(params.amount)
+  const dateFormat = params.dateFormat || 'gregorian'
+  const formattedDate = dateFormat === 'hebrew' ? toHebrewDate(params.paymentDate) : new Date(params.paymentDate).toLocaleDateString('he-IL')
+
+  // תרגום סוג עמלה
+  const feeTypeLabels: Record<string, string> = {
+    processing: 'עמלת טיפול',
+    guarantor_check: 'עמלת בדיקת ערבים',
+    membership: 'דמי חבר',
+    other: 'אחר',
+  }
+  const feeTypeLabel = feeTypeLabels[params.feeType] || params.feeType
+
+  const layout: DocumentLayoutConfig | undefined = undefined
+
+  const htmlContent = buildFeeReceiptHtml({
+    gemachName: params.gemachName,
+    borrowerName: params.borrowerName,
+    feeType: params.feeType,
+    amount: params.amount,
+    paymentDate: params.paymentDate,
+    receiptNumber: params.receiptNumber,
+    loanNumber: params.loanNumber,
+    paymentMethod: params.paymentMethod,
+    note: params.note,
+    dateFormat: params.dateFormat,
+  }, layout)
+
+  const branding = resolveDocumentBranding({
+    gemachLogo: params.gemachLogo,
+    gemachDocumentFrame: params.gemachDocumentFrame,
+    frameMarginTop: params.frameMarginTop,
+    frameMarginBottom: params.frameMarginBottom,
+    frameMarginRight: params.frameMarginRight,
+    frameMarginLeft: params.frameMarginLeft
+  }, layout)
+
+  const logoHtml = params.gemachLogo 
+    ? `<img src="${params.gemachLogo}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; margin: 0 auto 10px auto; display: block;" />`
+    : ''
+  const finalHtmlContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
+
+  return {
+    to: params.borrowerEmail,
+    subject: `קבלה על תשלום עמלה #${params.receiptNumber} - ${params.gemachName}`,
+    body: `שלום ${params.borrowerName},
+
+מצורפת קבלה על תשלום עמלה לגמ"ח "${params.gemachName}".
+
+פרטי התשלום:
+- מספר קבלה: ${params.receiptNumber}
+- סוג עמלה: ${feeTypeLabel}
+- סכום: ${formattedAmount}
+- תאריך: ${formattedDate}
+${params.loanNumber ? `- הלוואה: #${params.loanNumber}` : ''}
+
+תודה על שיתוף הפעולה.
+
+בברכה,
+${params.gemachName}`,
+    documentType: 'fee_receipt',
+    htmlContent: finalHtmlContent,
+    filename: `קבלה-עמלה-${params.receiptNumber}-${params.borrowerName}`,
+    frameImageBase64: branding.gemachDocumentFrame,
+    frameMargins: branding.gemachDocumentFrame ? {
+      top: branding.frameMarginTop ?? 35,
+      bottom: branding.frameMarginBottom ?? 48,
+      right: branding.frameMarginRight ?? 20,
+      left: branding.frameMarginLeft ?? 20,
+    } : undefined,
+  }
 }
