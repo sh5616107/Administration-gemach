@@ -83,6 +83,8 @@ npm run tauri:build
 
 ```
 ├── docs/                      # מסמכי אפיון, עיצוב והיסטוריית פיתוח
+│   ├── archive/              # תיעוד היסטורי מסשנים קודמים
+│   └── history/              # היסטוריית פיתוח מפורטת
 ├── sidecar/                   # תהליך Node.js נלווה לסנכרון בנקים (israeli-bank-scrapers)
 ├── src/
 │   ├── components/            # רכיבי React (bank, calendar, contacts, donations, loans, recurring)
@@ -94,10 +96,23 @@ npm run tauri:build
 │   └── __tests__/             # בדיקות
 ├── src-tauri/                 # קוד Tauri (Rust)
 ├── release/                   # קבצי הפצה (נוצר בבנייה, לא נשמר ב-git)
+├── CHANGELOG.md              # מקור האמת - היסטוריית גרסאות ושינויים
+├── README.md                 # מסמך זה
 ├── index.html
 ├── package.json
 └── vite.config.ts
 ```
+
+## תיעוד
+
+**מקור האמת:**
+- **`CHANGELOG.md`** - כל השינויים בגרסאות
+- **`README.md`** - תיעוד כללי
+- **`docs/`** - אפיון טכני עדכני
+- **Git commits** - היסטוריה מפורטת
+
+**ארכיון:**
+- **`docs/archive/`** - תיעוד היסטורי מסשנים קודמים (לא מתעדכן)
 
 ## רישיון
 
