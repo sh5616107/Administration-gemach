@@ -20,6 +20,7 @@ import {
 import { borrowersService, loansService, guarantorLoansService, repaymentsService } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import { getDocumentLayout } from '../../utils/documentLayoutHelper'
+import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import DuplicatePhoneWarningDialog from '../DuplicatePhoneWarningDialog'
 import { checkNewBorrower, type CrossCheckResult } from '../../services/crossCheck'
@@ -269,7 +270,7 @@ export default function BorrowerForm({ borrower, onSaved }: BorrowerFormProps) {
       console.error('Error checking loans:', error)
     }
 
-    if (!confirm('האם למחוק את הלווה?')) return
+    if (!(await confirmAction(confirmDeleteMessage('האם למחוק את הלווה?')))) return
 
     try {
       await borrowersService.delete(borrower.id)

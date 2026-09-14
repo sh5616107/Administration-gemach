@@ -43,6 +43,7 @@ import {
 import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, guarantorRefundsService, loansService, repaymentsService, borrowersService, type Guarantor, type GuarantorLoan } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
 import { formatDisplayDate } from '../../utils/dateUtils'
+import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
 import { openEmailWithDocument, createGuarantorDebtEmailData, generateGuarantorStatement, type EmailProvider, type GuarantorStatementData } from '../../services/documents'
 import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
@@ -245,7 +246,7 @@ export default function GuarantorsTab() {
         confirmMessage = `שים לב: ערב זה משמש כערב ב-${loansWithThisGuarantor.length} הלוואות פעילות.\nהמחיקה תסיר אותו מהלוואות אלו.\n\nהאם להמשיך?`
       }
       
-      if (!confirm(confirmMessage)) return
+      if (!(await confirmAction(confirmDeleteMessage(confirmMessage)))) return
       
       // עדכון ההלוואות - הסרת הערב מהן
       for (const loan of loansWithThisGuarantor) {
@@ -312,7 +313,7 @@ export default function GuarantorsTab() {
   }
 
   const handleDeleteGuarantorLoan = async (id: string) => {
-    if (!confirm('האם למחוק את הלוואת הערב?')) return
+    if (!(await confirmAction(confirmDeleteMessage('האם למחוק את הלוואת הערב?')))) return
 
     try {
       const glToDelete = guarantorLoans.find(gl => gl.id === id)

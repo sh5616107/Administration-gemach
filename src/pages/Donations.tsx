@@ -45,6 +45,7 @@ import {
 import { useSettings } from '../hooks/useSettings';
 import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import { formatDisplayDate, toHebrewDate } from '../utils/dateUtils';
+import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
 import AmountInput from '../components/AmountInput';
 import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
 import AttachmentsSection from '../components/attachments/AttachmentsSection';
@@ -353,7 +354,7 @@ export default function Donations() {
   };
 
   const handleDeleteDonation = async (donation: Donation) => {
-    if (!confirm('האם למחוק את התרומה?')) return;
+    if (!(await confirmAction(confirmDeleteMessage('האם למחוק את התרומה?')))) return;
 
     try {
       await db.run('DELETE FROM donations WHERE id = ?', [donation.id]);

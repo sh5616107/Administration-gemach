@@ -51,7 +51,7 @@ import {
   Payment as PaymentIcon,
 } from '@mui/icons-material';
 import { db, depositWithdrawalsService } from '../services/database';
-import { confirmAction } from '../utils/confirmDialog';
+import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
 import { generateDepositorReport, generateDepositDocument, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
 import { getDocumentLayout } from '../utils/documentLayoutHelper';

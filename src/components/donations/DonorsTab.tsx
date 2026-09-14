@@ -35,6 +35,7 @@ import {
 import { db } from '../../services/database'
 import { generateDonorReport, openEmailWithDocument, createDonorReportEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
+import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
 
 interface Donor {
   id: number
@@ -169,7 +170,7 @@ export default function DonorsTab({ onSelectDonor, selectedDonorId }: DonorsTabP
       return
     }
 
-    if (!confirm(`האם למחוק את התורם ${donor.first_name} ${donor.last_name}?`)) return
+    if (!(await confirmAction(confirmDeleteMessage(`האם למחוק את התורם ${donor.first_name} ${donor.last_name}?`)))) return
 
     try {
       await db.run('DELETE FROM donors WHERE id = ?', [donor.id])

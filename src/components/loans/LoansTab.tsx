@@ -50,6 +50,7 @@ import { addRepaymentAtomic, updateRepaymentAtomic, deleteRepaymentAtomic } from
 import { useSettings } from '../../hooks/useSettings'
 import { getDocumentLayout } from '../../utils/documentLayoutHelper'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
+import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
 import PaymentMethodSelect, { PaymentMethodData, getPaymentMethodLabel } from '../PaymentMethodSelect'
 import { calculateNextRepaymentNumber, isFirstLoanInFamily } from '../../services/recurringRepaymentsService'
 import AmountInput from '../AmountInput'
@@ -487,7 +488,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       return
     }
     
-    if (!confirm('האם למחוק את ההלוואה?')) return
+    if (!(await confirmAction(confirmDeleteMessage('האם למחוק את ההלוואה?')))) return
     
     console.log('🗑️ handleDeleteLoan called for loan:', loanId)
     
@@ -904,7 +905,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   }
 
   const handleDeleteRepayment = async (repaymentId: string) => {
-    if (!confirm('האם למחוק את הפירעון?')) return
+    if (!(await confirmAction(confirmDeleteMessage('האם למחוק את הפירעון?')))) return
 
     try {
       // ✅ שימוש בפעולה אטומית

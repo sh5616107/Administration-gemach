@@ -44,6 +44,7 @@ import { borrowersService, loansService, guarantorLoansService, repaymentsServic
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
 import { getDocumentLayout } from '../utils/documentLayoutHelper';
+import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
 import { getLoanFamily, calculateNextRepaymentNumber } from '../services/recurringRepaymentsService';
 import { createRepaymentWithNumbering } from '../services/repaymentHelpers';
 import LoanCard from '../components/loans/LoanCard';
@@ -400,7 +401,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       return;
     }
     
-    if (!confirm('האם למחוק את ההלוואה?')) return;
+    if (!(await confirmAction(confirmDeleteMessage('האם למחוק את ההלוואה?')))) return;
 
     try {
       // Update guarantor loans if needed

@@ -36,7 +36,7 @@ import { db, depositWithdrawalsService } from '../../services/database'
 import { generateDepositorReport, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 import { getDocumentLayout } from '../../utils/documentLayoutHelper'
-import { confirmAction } from '../../utils/confirmDialog'
+import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
 
 interface Depositor {
   id: number
@@ -198,7 +198,7 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
       return
     }
 
-    if (!(await confirmAction(`האם למחוק את המפקיד ${depositor.first_name} ${depositor.last_name}?`))) return
+    if (!(await confirmAction(confirmDeleteMessage(`האם למחוק את המפקיד ${depositor.first_name} ${depositor.last_name}?`)))) return
 
     try {
       // מחיקת כל ההפקדות של המפקיד
