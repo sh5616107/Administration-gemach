@@ -70,7 +70,14 @@ import { saveAppData, loadAppData } from './persistence'
 let pendingSave: Promise<void> | null = null
 
 function saveData(): void {
-  pendingSave = saveAppData(data).then(() => { logger.info('💾 Data saved') }).catch(e => { logger.error('❌ Error saving:', e) })
+  pendingSave = saveAppData(data)
+    .then(() => { 
+      logger.info('💾 Data saved') 
+    })
+    .catch(e => { 
+      logger.error('❌ Error saving:', e)
+      throw e  // השגיאה מועברת הלאה במקום להיבלע
+    })
 }
 
 /**

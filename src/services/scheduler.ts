@@ -1,4 +1,6 @@
-import { loansService, repaymentsService, db, getAllItems, flushPendingSave } from './database'
+import { loansService, repaymentsService, borrowersService, db, getAllItems, flushPendingSave } from './database'
+import { loanRepository } from './repositories/loanRepository'
+import { repaymentRepository } from './repositories/repaymentRepository'
 
 interface Alert {
   id: string
@@ -206,18 +208,13 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
   try {
     // Get all loans with auto repayment enabled
     // CRITICAL: Only process active loans, not planned ones
-    const autoRepaymentLoans = await db.query(`
-      SELECT l.*, b.first_name || ' ' || b.last_name as borrower_name
-      FROM loans l
-      JOIN borrowers b ON l.borrower_id = b.id
-      WHERE l.auto_repayment = 1 
-      AND l.repayment_amount > 0
-      AND l.repayment_start_date <= ?
-      AND l.status = 'active'
-      AND (l.remaining > 0 OR l.remaining IS NULL)
-    `, [todayStr]) as any[]
+    const autoRepaymentLoans = await loanRepository.getAutoRepaymentDue(todayStr)
 
     for (const loan of autoRepaymentLoans) {
+      // שליפת שם הלווה
+      const borrower = await borrowersService.getById(loan.borrower_id)
+      const borrower_name = borrower ? `${borrower.first_name} ${borrower.last_name}` : ''
+      
       // If repayment day is greater than last day of month, use last day
       const effectiveDay = Math.min(loan.repayment_day || 1, lastDayOfMonth)
       
@@ -228,20 +225,19 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
       const isPastRepaymentDay = todayDay > effectiveDay
       
       // Check if we already made a repayment this month
-      const existingRepaymentThisMonth = await db.query(`
-        SELECT id FROM repayments 
-        WHERE loan_id = ? 
-        AND payment_date >= ?
-        AND payment_date <= ?
-      `, [loan.id, firstDayOfMonth, todayStr])
+      const existingRepaymentThisMonth = await repaymentRepository.getForLoanInDateRange(
+        loan.id, 
+        firstDayOfMonth, 
+        todayStr
+      )
 
       if (existingRepaymentThisMonth.length === 0 && (shouldAlertToday || isPastRepaymentDay)) {
         const remaining = loan.remaining || loan.amount
-        const repaymentAmount = Math.min(loan.repayment_amount, remaining)
+        const repaymentAmount = Math.min(loan.repayment_amount || 0, remaining)
 
         const alertMessage = isPastRepaymentDay 
-          ? `פירעון מחזורי באיחור (היה אמור להתבצע ב-${effectiveDay} לחודש) - ${loan.borrower_name}`
-          : `הגיע מועד פירעון מחזורי עבור ${loan.borrower_name}`
+          ? `פירעון מחזורי באיחור (היה אמור להתבצע ב-${effectiveDay} לחודש) - ${borrower_name}`
+          : `הגיע מועד פירעון מחזורי עבור ${borrower_name}`
 
         alerts.push({
           id: `repayment_${loan.id}_${todayStr}`,
@@ -249,7 +245,7 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
           title: isPastRepaymentDay ? 'פירעון מחזורי באיחור' : 'פירעון מחזורי',
           message: alertMessage,
           loan_id: loan.id,
-          borrower_name: loan.borrower_name,
+          borrower_name: borrower_name,
           amount: repaymentAmount,
           created_at: todayStr,
           read: false

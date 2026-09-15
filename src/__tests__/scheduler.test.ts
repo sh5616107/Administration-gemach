@@ -260,6 +260,7 @@ describe('checkRecurringLoans', () => {
 
 describe('checkAutoRepayments', () => {
   beforeEach(() => {
+    resetDatabase()
     vi.clearAllMocks()
   })
 
@@ -271,22 +272,29 @@ describe('checkAutoRepayments', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-20'))
 
-    const autoRepaymentLoan = {
-      id: 1,
-      borrower_id: 1,
-      borrower_name: 'ישראל ישראלי',
+    // יצירת לווה
+    const borrowerResult = await borrowersService.create({
+      first_name: 'ישראל',
+      last_name: 'ישראלי',
+      phone: '0501234567',
+      id_number: '',
+      address: '',
+      email: '',
+      notes: ''
+    })
+
+    // יצירת הלוואה עם פירעון אוטומטי
+    await loansService.create({
+      borrower_id: borrowerResult.lastInsertRowid,
       amount: 10000,
-      remaining: 8000,
+      loan_date: '2026-01-01',
+      loan_type: 'fixed',
+      status: 'active',
       auto_repayment: 1,
       repayment_amount: 1000,
       repayment_day: 20, // היום!
       repayment_start_date: '2026-01-01',
-    }
-
-    vi.mocked(db.query).mockImplementation(async (sql: string) => {
-      if (sql.includes('auto_repayment = 1')) return [autoRepaymentLoan]
-      if (sql.includes('SELECT id FROM repayments')) return [] // לא נעשה פירעון היום
-      return []
+      is_recurring: 0
     })
 
     const { checkAutoRepayments } = await import('../services/scheduler')
@@ -302,12 +310,29 @@ describe('checkAutoRepayments', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2025-12-20'))
 
-    // ה-mock מחזיר רשימה ריקה כי ה-SQL כולל תנאי על repayment_start_date
-    vi.mocked(db.query).mockImplementation(async (sql: string) => {
-      // ה-query כולל תנאי repayment_start_date <= today
-      // אז לא צריך להחזיר תוצאות
-      if (sql.includes('auto_repayment = 1')) return []
-      return []
+    // יצירת לווה
+    const borrowerResult = await borrowersService.create({
+      first_name: 'משה',
+      last_name: 'כהן',
+      phone: '0501234568',
+      id_number: '',
+      address: '',
+      email: '',
+      notes: ''
+    })
+
+    // יצירת הלוואה עם תאריך התחלה עתידי
+    await loansService.create({
+      borrower_id: borrowerResult.lastInsertRowid,
+      amount: 10000,
+      loan_date: '2025-12-01',
+      loan_type: 'fixed',
+      status: 'active',
+      auto_repayment: 1,
+      repayment_amount: 1000,
+      repayment_day: 20,
+      repayment_start_date: '2026-01-01', // התחלה בעתיד
+      is_recurring: 0
     })
 
     const { checkAutoRepayments } = await import('../services/scheduler')
@@ -321,22 +346,38 @@ describe('checkAutoRepayments', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-20'))
 
-    const autoRepaymentLoan = {
-      id: 1,
-      borrower_id: 1,
-      borrower_name: 'ישראל ישראלי',
+    // יצירת לווה
+    const borrowerResult = await borrowersService.create({
+      first_name: 'דוד',
+      last_name: 'לוי',
+      phone: '0501234569',
+      id_number: '',
+      address: '',
+      email: '',
+      notes: ''
+    })
+
+    // יצירת הלוואה
+    const loanResult = await loansService.create({
+      borrower_id: borrowerResult.lastInsertRowid,
       amount: 10000,
-      remaining: 500, // נשאר רק 500
+      loan_date: '2026-01-01',
+      loan_type: 'fixed',
+      status: 'active',
       auto_repayment: 1,
-      repayment_amount: 1000, // אבל הפירעון הוא 1000
+      repayment_amount: 1000, // פירעון חודשי 1000
       repayment_day: 20,
       repayment_start_date: '2026-01-01',
-    }
+      is_recurring: 0
+    })
 
-    vi.mocked(db.query).mockImplementation(async (sql: string) => {
-      if (sql.includes('auto_repayment = 1')) return [autoRepaymentLoan]
-      if (sql.includes('SELECT id FROM repayments')) return []
-      return []
+    // יצירת פירעונות שמשאירים רק 500
+    await repaymentsService.create({
+      loan_id: loanResult.lastInsertRowid,
+      payment_date: '2025-12-15', // בחודש קודם, לא בחודש זה
+      amount: 9500, // נשאר רק 500
+      payment_method: 'cash',
+      notes: ''
     })
 
     const { checkAutoRepayments } = await import('../services/scheduler')
