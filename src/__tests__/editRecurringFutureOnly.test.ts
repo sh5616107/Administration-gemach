@@ -5,7 +5,7 @@
  * change items that were already created in the past, only future ones.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { resetDatabase, loansService, borrowersService } from '../services/database'
 import { recurringItemsService, ItemType } from '../services/recurringItemsService'
 import type { Loan } from '../services/database'
@@ -16,6 +16,8 @@ describe('Edit Recurring - Future Only', () => {
 
   beforeEach(async () => {
     resetDatabase()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-15')) // קביעת "היום" לתאריך קבוע
     
     // Create borrower
     testBorrowerId = crypto.randomUUID()
@@ -47,7 +49,7 @@ describe('Edit Recurring - Future Only', () => {
         balance: 1000,
         is_recurring: 1,
         recurring_day: 15,
-        recurring_months: 4 - i - 1, // Decreases: 3, 2, 1, 0
+        recurring_months: 4 - i - 1, // Decreases: 3, 2, 1, 0,
         recurring_loan_number: i + 1,
         recurring_loan_count: 4,
         recurring_series_id: seriesId
@@ -58,6 +60,10 @@ describe('Edit Recurring - Future Only', () => {
     }
     
     testLoanId = loanIds[0]
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('should update only future loans when editing series', async () => {
@@ -134,10 +140,13 @@ describe('Edit Recurring - Future Only', () => {
 
     const loans: string[] = []
     
-    // Create 2 past loans (2024)
+    // קביעת "היום" כ-15.8.2026 (מה-beforeEach)
+    const today = new Date() // 2026-08-15
+    
+    // Create 2 past loans (חודש לפני ו-היום)
     for (let i = 0; i < 2; i++) {
-      const loanDate = new Date('2024-06-10')
-      loanDate.setMonth(loanDate.getMonth() + i)
+      const loanDate = new Date(today)
+      loanDate.setMonth(loanDate.getMonth() - (2 - i)) // -2, -1 months
       
       const created = await loansService.create({
         borrower_id: borrowerId,
@@ -146,7 +155,7 @@ describe('Edit Recurring - Future Only', () => {
         status: 'active',
         balance: 2000,
         is_recurring: 1,
-        recurring_day: 10,
+        recurring_day: 15,
         recurring_months: 3 - i,
         recurring_loan_number: i + 1,
         recurring_loan_count: 4,
@@ -155,10 +164,10 @@ describe('Edit Recurring - Future Only', () => {
       loans.push(created.lastInsertRowid)
     }
 
-    // Create 2 future loans (2026-09, 2026-10)
+    // Create 2 future loans (חודש קדימה ו-2 חודשים קדימה)
     for (let i = 2; i < 4; i++) {
-      const loanDate = new Date('2026-09-10')
-      loanDate.setMonth(loanDate.getMonth() + (i - 2))
+      const loanDate = new Date(today)
+      loanDate.setMonth(loanDate.getMonth() + (i - 1)) // +1, +2 months
       
       const created = await loansService.create({
         borrower_id: borrowerId,
@@ -167,7 +176,7 @@ describe('Edit Recurring - Future Only', () => {
         status: 'active',
         balance: 2000,
         is_recurring: 1,
-        recurring_day: 10,
+        recurring_day: 15,
         recurring_months: 3 - i,
         recurring_loan_number: i + 1,
         recurring_loan_count: 4,
@@ -182,7 +191,7 @@ describe('Edit Recurring - Future Only', () => {
       'loan' as ItemType,
       {
         recurring_amount: 2500,
-        recurring_day: 10,
+        recurring_day: 15,
         recurring_months: 1
       }
     )
@@ -203,7 +212,7 @@ describe('Edit Recurring - Future Only', () => {
     expect(seriesLoans.find(l => l.id === loans[1])!.amount).toBe(2000)
 
     // Future loans (index 2, 3) - should be 2500
-    // שתיהן עתידיות (ספטמבר ואוקטובר 2026), וגם loan 3 היא האחרונה
+    // שתיהן עתידיות (חודש קדימה ו-2 חודשים קדימה), וגם loan 3 היא האחרונה
     expect(seriesLoans.find(l => l.id === loans[2])!.amount).toBe(2500)
     expect(seriesLoans.find(l => l.id === loans[3])!.amount).toBe(2500)
     expect(latestLoan.id).toBe(loans[3]) // וידוא שהאחרונה היא אכן #4

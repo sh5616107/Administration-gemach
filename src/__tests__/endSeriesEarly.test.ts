@@ -5,7 +5,7 @@
  * while leaving existing items unchanged.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { resetDatabase, loansService, borrowersService } from '../services/database'
 import { recurringItemsService, ItemType } from '../services/recurringItemsService'
 import { autoCreateRecurringLoans } from '../services/scheduler'
@@ -17,6 +17,8 @@ describe('End Series Early', () => {
 
   beforeEach(async () => {
     resetDatabase()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-15')) // קביעת "היום" לתאריך קבוע
     
     // Create borrower
     testBorrowerId = crypto.randomUUID()
@@ -31,15 +33,24 @@ describe('End Series Early', () => {
     })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('should prevent future loans from being created after ending series', async () => {
-    // Create recurring loan with 12 months remaining (all in future: Sept 2026 onwards)
+    // Create recurring loan with 12 months remaining (all in future)
     const seriesId = crypto.randomUUID()
+    
+    // תאריך עתידי - חודש קדימה מהיום (2026-09-15)
+    const today = new Date() // 2026-08-15
+    const futureDate = new Date(today)
+    futureDate.setMonth(futureDate.getMonth() + 1)
     
     const created = await loansService.create({
       borrower_id: testBorrowerId,
       amount: 1000,
-      loan_date: '2026-09-15',
-      status: 'active',
+      loan_date: futureDate.toISOString().split('T')[0],
+      status: 'planned',
       balance: 1000,
       is_recurring: 1,
       recurring_day: 15,
@@ -92,9 +103,11 @@ describe('End Series Early', () => {
     const seriesId = crypto.randomUUID()
     const loanIds: string[] = []
     
+    const today = new Date() // 2026-08-15
+    
     for (let i = 0; i < 3; i++) {
-      const loanDate = new Date('2026-09-15')
-      loanDate.setMonth(loanDate.getMonth() + i)
+      const loanDate = new Date(today)
+      loanDate.setMonth(loanDate.getMonth() + i + 1) // +1, +2, +3 months
       
       const created = await loansService.create({
         borrower_id: testBorrowerId,
