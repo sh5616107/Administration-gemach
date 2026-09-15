@@ -11,7 +11,7 @@
  * Feature: recurring-items-management
  */
 
-import { loansService, repaymentsService, db, getAllItems, depositorsService, type Repayment, type Loan } from './database'
+import { loansService, repaymentsService, db, getAllItems, depositorsService, flushPendingSave, type Repayment, type Loan } from './database'
 import { getLoanFamily, getAllFamilyRepayments } from './recurringRepaymentsService'
 
 // ============================================================================
@@ -603,6 +603,10 @@ export async function updateSeriesItems(
         throw new Error('Transaction failed - rolling back')
       }
     }
+
+    // ✅ חובה: ממתין עד שכל השמירות מסתיימות לפני המשך
+    // בלי זה, קריאה מיידית ל-getAll() עלולה לקרוא נתונים ישנים מהתור
+    await flushPendingSave()
 
     // 6. Audit log
     await logSeriesUpdate(itemId, itemType, updates, updatedIds)
