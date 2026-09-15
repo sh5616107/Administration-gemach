@@ -369,7 +369,7 @@ export async function processAutoRepayment(loanId: string, amount: number): Prom
     const { calculateNextRepaymentNumber } = await import('./recurringRepaymentsService')
     const { recurringRepaymentNumber, recurringRepaymentCount } = await calculateNextRepaymentNumber(loanId)
     
-    await repaymentsService.create({
+      await repaymentsService.create({
       loan_id: loanId,
       amount: amount,
       payment_date: today,
@@ -378,6 +378,10 @@ export async function processAutoRepayment(loanId: string, amount: number): Prom
       recurring_repayment_number: recurringRepaymentNumber,
       recurring_repayment_count: recurringRepaymentCount
     })
+
+    // אם הפירעון האוטומטי הזה סגר את ההלוואה - לסמן כסגורה
+    const { closeLoanIfFullyRepaid } = await import('./repaymentHelpers')
+    await closeLoanIfFullyRepaid(loanId)
 
     return true
   } catch (error) {

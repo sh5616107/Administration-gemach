@@ -46,7 +46,7 @@ import { useSettings } from '../hooks/useSettings';
 import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
 import { getLoanFamily, calculateNextRepaymentNumber } from '../services/recurringRepaymentsService';
-import { createRepaymentWithNumbering } from '../services/repaymentHelpers';
+import { createRepaymentWithNumbering, closeLoanIfFullyRepaid } from '../services/repaymentHelpers';
 import LoanCard from '../components/loans/LoanCard';
 import LoanSidePanel from '../components/loans/LoanSidePanel';
 import BorrowerSidePanel from '../components/loans/BorrowerSidePanel';
@@ -534,6 +534,9 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
           recurring_repayment_number: numberInfo.recurringRepaymentNumber,
           recurring_repayment_count: numberInfo.recurringRepaymentCount,
         });
+
+        // אם ההלוואה נפרעה במלואה במסגרת הפירעון המרובה - לסגור אותה
+        await closeLoanIfFullyRepaid(loan.id);
         
         remainingAmount -= paymentAmount;
       }

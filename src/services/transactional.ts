@@ -10,7 +10,7 @@ import { commitData } from './database'
 import { logRepaymentCreate, logRepaymentUpdate, logRepaymentDelete, logCompensation } from './auditLog'
 import logger from '../utils/logger'
 import { validateRepaymentAmount, validateRepayment } from './validators'
-
+import { closeLoanIfFullyRepaid } from './repaymentHelpers'
 /**
  * תוצאת פעולה טרנזקציונלית
  */
@@ -157,6 +157,15 @@ export async function addRepaymentAtomic(
       }
       
       guarantorLoansUpdated = true
+    }
+    
+    // שלב 3.5: אם ההלוואה נפרעה במלואה - לסגור אותה
+    // (אחרת היא נשארת 'active' לנצח, כולל בתור פירעונות מחזוריים צפויים)
+    try {
+      await closeLoanIfFullyRepaid(loanId)
+    } catch (closeError) {
+      // לא קריטי לתקינות הפירעון עצמו - רק לוג, לא נכשיל את הפעולה
+      logger.error(`[TX] Failed to auto-close loan ${loanId} after repayment`, closeError)
     }
     
     // שלב 4: commit - הבטחת שמירה לדיסק

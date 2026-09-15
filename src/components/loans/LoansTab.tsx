@@ -47,6 +47,7 @@ import {
 import { borrowersService, guarantorsService, loansService, repaymentsService, guarantorLoansService, blacklistService, waitlistService, type Borrower, type Guarantor, type Loan, type Repayment, type WaitlistEntry } from '../../services/database'
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../../services/documents'
 import { addRepaymentAtomic, updateRepaymentAtomic, deleteRepaymentAtomic } from '../../services/transactional'
+import { closeLoanIfFullyRepaid } from '../../services/repaymentHelpers'
 import { useSettings } from '../../hooks/useSettings'
 import { getDocumentLayout } from '../../utils/documentLayoutHelper'
 import { formatDisplayDate, toHebrewDate } from '../../utils/dateUtils'
@@ -814,7 +815,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         const paymentForThisLoan = Math.min(remainingToDistribute, loanRemaining)
         
         if (paymentForThisLoan > 0) {
-          await repaymentsService.create({
+                   await repaymentsService.create({
             loan_id: loan.id!,
             amount: paymentForThisLoan,
             payment_date: today,
@@ -825,6 +826,9 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           // Update guarantor loans for this loan
           const result = await updateGuarantorLoansAfterRepayment(loan.id!, paymentForThisLoan)
           if (result) guarantorLoansUpdated = true
+
+          // אם ההלוואה נפרעה במלואה במסגרת הפירעון המרובה - לסגור אותה
+          await closeLoanIfFullyRepaid(loan.id!)
         }
       }
 
