@@ -69,15 +69,29 @@ import { saveAppData, loadAppData } from './persistence'
 // scheduler.ts's runStartupChecks) can `await flushPendingSave()`.
 let pendingSave: Promise<void> | null = null
 
+/**
+ * תור לשמירות concurrent - מבטיח שכל saveData תמתין לקודמת
+ * פותר race condition כש-2 writes נקראות במקביל
+ */
+let saveQueue: Promise<void> = Promise.resolve()
+
 function saveData(): void {
-  pendingSave = saveAppData(data)
+  // הכנס לתור: כל save ממתין לסיום הקודם
+  const currentSave = saveQueue
+    .then(() => saveAppData(data))
     .then(() => { 
       logger.info('💾 Data saved') 
     })
     .catch(e => { 
       logger.error('❌ Error saving:', e)
-      throw e  // השגיאה מועברת הלאה במקום להיבלע
+      throw e  // זרוק שגיאה כדי ש-commitData יוכל לזהות כישלון
     })
+  
+  // המשך את התור גם במקרה של שגיאה - catch נוסף רק לתור
+  saveQueue = currentSave.catch(() => {})
+  
+  // שמור reference ל-save הנוכחי בשביל flushPendingSave ו-commitData
+  pendingSave = currentSave
 }
 
 /**
