@@ -134,16 +134,13 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
 
   try {
     // Get all loans with recurring enabled and active status
-    const recurringLoans = await db.query(`
-      SELECT l.*, b.first_name || ' ' || b.last_name as borrower_name
-      FROM loans l
-      JOIN borrowers b ON l.borrower_id = b.id
-      WHERE l.is_recurring = 1 
-      AND l.recurring_months > 0
-      AND l.status = 'active'
-    `) as any[]
+    const recurringLoans = await loanRepository.getRecurringLoansDue()
 
     for (const loan of recurringLoans) {
+      // שליפת שם הלווה
+      const borrower = await borrowersService.getById(loan.borrower_id)
+      const borrower_name = borrower ? `${borrower.first_name} ${borrower.last_name}` : ''
+      
       // If recurring day is greater than last day of month, use last day
       const effectiveDay = Math.min(loan.recurring_day || 1, lastDayOfMonth)
       
@@ -169,8 +166,8 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
 
       if (existingLoan.length === 0) {
         const alertMessage = isPastRecurringDay
-          ? `הלוואה מחזורית באיחור (היתה אמורה להיווצר ב-${effectiveDay} לחודש) - ${loan.borrower_name}`
-          : `הגיע מועד הלוואה מחזורית עבור ${loan.borrower_name}`
+          ? `הלוואה מחזורית באיחור (היתה אמורה להיווצר ב-${effectiveDay} לחודש) - ${borrower_name}`
+          : `הגיע מועד הלוואה מחזורית עבור ${borrower_name}`
         
         alerts.push({
           id: `recurring_${loan.id}_${todayStr}`,
@@ -178,7 +175,7 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
           title: isPastRecurringDay ? 'הלוואה מחזורית באיחור' : 'הלוואה מחזורית',
           message: alertMessage,
           loan_id: loan.id,
-          borrower_name: loan.borrower_name,
+          borrower_name: borrower_name,
           amount: loan.amount,
           created_at: todayStr,
           read: false

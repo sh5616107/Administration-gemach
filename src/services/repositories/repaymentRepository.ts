@@ -15,6 +15,7 @@ export const repaymentRepository = {
    */
   async getForLoanInDateRange(loanId: string, from: string, to: string): Promise<Repayment[]> {
     return getAllItems<Repayment>('repayments')
+      .filter(r => !r.is_deleted)
       .filter(r => r.loan_id === loanId)
       .filter(r => r.payment_date >= from && r.payment_date <= to)
   }

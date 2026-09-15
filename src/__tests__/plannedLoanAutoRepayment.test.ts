@@ -149,10 +149,67 @@ describe('Planned Loan Auto-Repayment Bug Fix', () => {
     expect(alerts).toHaveLength(0)
   })
 
-  it('should verify SQL query includes status check', async () => {
-    // טסט זה מוסר כי אנחנו לא משתמשים יותר ב-db.query
-    // הסינון נעשה ב-repository
-    expect(true).toBe(true)
+  it('should only return active loans with auto-repayment enabled', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-05'))
+
+    // יצירת לווה
+    const borrowerResult = await borrowersService.create({
+      first_name: 'יוסי',
+      last_name: 'כהן',
+      phone: '0501111111',
+      id_number: '',
+      address: '',
+      email: '',
+      notes: ''
+    })
+    const borrowerId = borrowerResult.lastInsertRowid
+
+    // 1. הלוואה active עם auto_repayment (צריכה להופיע)
+    await loansService.create({
+      borrower_id: borrowerId,
+      amount: 1000,
+      loan_date: '2026-05-15',
+      loan_type: 'flexible',
+      auto_repayment: 1,
+      repayment_amount: 200,
+      repayment_day: 5,
+      repayment_start_date: '2026-05-05',
+      is_recurring: 0
+    })
+
+    // 2. הלוואה planned עם auto_repayment (לא צריכה להופיע)
+    await loansService.create({
+      borrower_id: borrowerId,
+      amount: 2000,
+      loan_date: '2026-06-20', // עתידי = planned
+      loan_type: 'flexible',
+      auto_repayment: 1,
+      repayment_amount: 200,
+      repayment_day: 5,
+      repayment_start_date: '2026-06-05',
+      is_recurring: 0
+    })
+
+    // 3. הלוואה active בלי auto_repayment (לא צריכה להופיע)
+    await loansService.create({
+      borrower_id: borrowerId,
+      amount: 3000,
+      loan_date: '2026-05-15',
+      loan_type: 'flexible',
+      auto_repayment: 0,
+      repayment_amount: 0,
+      repayment_day: 5,
+      repayment_start_date: '2026-05-05',
+      is_recurring: 0
+    })
+
+    // בדיקה - רק הלוואה 1 צריכה להופיע
+    const alerts = await checkAutoRepayments()
+
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0].amount).toBe(200)
+    expect(alerts[0].type).toBe('auto_repayment')
   })
 
   it('should not show alert for planned loan with auto-repayment in AlertsDialog logic', () => {

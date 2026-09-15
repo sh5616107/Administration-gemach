@@ -36,5 +36,21 @@ export const loanRepository = {
       .filter(l => (l.repayment_start_date ?? '') <= date)
       .filter(l => l.status === 'active')
       .filter(l => l.remaining > 0)
+  },
+
+  /**
+   * שליפת הלוואות מחזוריות שמועמדות ליצירה
+   * @returns רשימת הלוואות מסוננות לפי כל התנאים הבאים:
+   * - לא מחוקות
+   * - הלוואה מחזורית (is_recurring = 1)
+   * - יש עוד חודשים ליצור (recurring_months > 0)
+   * - סטטוס פעיל
+   */
+  async getRecurringLoansDue(): Promise<Loan[]> {
+    return getAllItems<Loan>('loans')
+      .filter(l => !l.is_deleted)
+      .filter(l => l.is_recurring === 1)
+      .filter(l => (l.recurring_months ?? 0) > 0)
+      .filter(l => l.status === 'active')
   }
 }
