@@ -38,7 +38,6 @@ describe('Auto Repayment History Loading', () => {
       auto_repayment: 1,
       repayment_amount: 1000,
       repayment_day: 5,
-      repayment_frequency: 'monthly',
       repayment_start_date: '2026-01-05'
     })
     const loanId = loanResult.lastInsertRowid
@@ -110,7 +109,6 @@ describe('Auto Repayment History Loading', () => {
       auto_repayment: 1,
       repayment_amount: 500,
       repayment_day: 10,
-      repayment_frequency: 'monthly'
     })
     const loanId = loanResult.lastInsertRowid
 
@@ -323,7 +321,6 @@ describe('Auto Repayment History Loading', () => {
       auto_repayment: 1,
       repayment_amount: 1200,
       repayment_day: 25,
-      repayment_frequency: 'monthly'
     })
     const loanId = loanResult.lastInsertRowid
 

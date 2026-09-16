@@ -57,6 +57,7 @@ let isInitialized = false
 let initializationPromise: Promise<void> | null = null
 
 import { saveAppData, loadAppData } from './persistence'
+import { validateLoan } from './validators/loanValidators'
 
 // Save data (async; persistence handles environment detection)
 // NOTE: this is intentionally still "fire and forget" from setItem/removeItem/
@@ -913,7 +914,9 @@ export interface Loan {
   auto_repayment: number; 
   repayment_amount?: number; 
   repayment_day?: number; 
-  repayment_frequency?: string; 
+  // הערה: אין שדה repayment_frequency — הלוואה מחזורית במערכת היא תמיד
+  // חודשית, אין תמיכה בדו-שבועי/שבועי (הוסר 15/09/2026, ראו
+  // VALIDATOR_INTEGRATION_GAP.md)
   repayment_start_date?: string; 
   guarantor1_id?: string;  // UUID foreign key
   guarantor2_id?: string;  // UUID foreign key
@@ -958,7 +961,14 @@ export const loansService = {
     const id = generateId('loans'); 
     const loan_number = generateNumericId('loans'); 
     const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; 
-    setItem('loans', id, { ...l, id, loan_number, status, is_deleted: false, created_at: new Date().toISOString() }); 
+    const record: Loan = { ...l, id, loan_number, status, is_deleted: false, created_at: new Date().toISOString() };
+    // Validation מרוכזת (P1) - נבדק בלי repayments, כי הלוואה חדשה עוד לא יכולה
+    // להיות עם פירעונות. ראו VALIDATOR_INTEGRATION_GAP.md להיסטוריה.
+    const validation = validateLoan(record);
+    if (!validation.valid) {
+      throw new Error(validation.errors.join(', '));
+    }
+    setItem('loans', id, record); 
     return { lastInsertRowid: id } 
   },
   async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, ...d }) },

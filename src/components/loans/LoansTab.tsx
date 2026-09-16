@@ -475,7 +475,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       setLoanPaymentMethod({ payment_method: '' })
     } catch (error) {
       console.error('Error saving loan:', error)
-      setSnackbar({ open: true, message: 'שגיאה בשמירה', severity: 'error' })
+      setSnackbar({ open: true, message: error instanceof Error ? error.message : 'שגיאה בשמירה', severity: 'error' })
     } finally {
       setIsSavingLoan(false)
     }

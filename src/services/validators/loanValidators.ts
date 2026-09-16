@@ -240,16 +240,17 @@ export function validateLoanDates(
 /**
  * וידוא פרמטרי פירעון מחזורי (auto repayment)
  * 
+ * הלוואה מחזורית במערכת היא תמיד חודשית — אין תמיכה בתדירויות אחרות
+ * (דו-שבועי/שבועי), ולכן אין שדה תדירות לבדוק.
+ * 
  * Invariants:
  * - אם auto_repayment = 1, חייב להיות repayment_amount > 0
  * - אם auto_repayment = 1, חייב להיות repayment_day (1-31)
- * - אם auto_repayment = 1, חייב להיות repayment_frequency
  */
 export function validateAutoRepaymentSettings(loan: {
   auto_repayment: number
   repayment_amount?: number
   repayment_day?: number
-  repayment_frequency?: string
 }): ValidationResult {
   const errors: string[] = []
 
@@ -269,14 +270,6 @@ export function validateAutoRepaymentSettings(loan: {
     errors.push('יום פירעון חייב להיות בין 1 ל-31')
   } else if (!Number.isInteger(loan.repayment_day)) {
     errors.push('יום פירעון חייב להיות מספר שלם')
-  }
-
-  // בדיקת repayment_frequency
-  const validFrequencies = ['monthly', 'biweekly', 'weekly']
-  if (!loan.repayment_frequency) {
-    errors.push('פירעון מחזורי דורש תדירות')
-  } else if (!validFrequencies.includes(loan.repayment_frequency)) {
-    errors.push(`תדירות לא תקינה: ${loan.repayment_frequency}. אפשרויות: ${validFrequencies.join(', ')}`)
   }
 
   return errors.length > 0 ? invalidResult(errors) : validResult()

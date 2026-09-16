@@ -36,7 +36,6 @@ describe('Auto Repayment Edit Button Logic', () => {
       auto_repayment: 1,
       repayment_amount: 1000,
       repayment_day: 15,
-      repayment_frequency: 'monthly',
       repayment_start_date: '2026-02-15',
     })
     const loanId = loanResult.lastInsertRowid
@@ -80,7 +79,6 @@ describe('Auto Repayment Edit Button Logic', () => {
       auto_repayment: 1,
       repayment_amount: 1000,
       repayment_day: 15,
-      repayment_frequency: 'monthly',
       repayment_start_date: futureDateStr,
     })
     const loanId = loanResult.lastInsertRowid
@@ -138,7 +136,6 @@ describe('Auto Repayment Edit Button Logic', () => {
       auto_repayment: 1,
       repayment_amount: 1000,
       repayment_day: 15,
-      repayment_frequency: 'monthly',
       repayment_start_date: pastDateStr,
     })
     const loanId = loanResult.lastInsertRowid
@@ -191,7 +188,6 @@ describe('Auto Repayment Edit Button Logic', () => {
       auto_repayment: 1,
       repayment_amount: 1000,
       repayment_day: 15,
-      repayment_frequency: 'monthly',
       repayment_start_date: '2025-12-15',
     })
     const loanId = loanResult.lastInsertRowid
@@ -261,7 +257,6 @@ describe('Auto Repayment Edit Button Logic', () => {
       auto_repayment: 1,
       repayment_amount: 1000,
       repayment_day: 15,
-      repayment_frequency: 'monthly',
       repayment_start_date: tomorrowStr,
     })
     const loanId = loanResult.lastInsertRowid

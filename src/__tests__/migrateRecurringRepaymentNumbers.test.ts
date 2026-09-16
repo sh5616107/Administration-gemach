@@ -29,7 +29,6 @@ describe('Recurring Repayment Numbers Migration', () => {
       auto_repayment: 1, // פירעון מחזורי מופעל
       repayment_amount: 1000,
       repayment_day: 1,
-      repayment_frequency: 'monthly',
       is_recurring: 0,
       notes: '',
     })
@@ -105,7 +104,6 @@ describe('Recurring Repayment Numbers Migration', () => {
       auto_repayment: 1,
       repayment_amount: 500,
       repayment_day: 15,
-      repayment_frequency: 'monthly',
       is_recurring: 0,
       notes: '',
     })
