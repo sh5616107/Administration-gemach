@@ -3,6 +3,7 @@
 
 import type { Attachment, AttachmentEntityType } from '../types/attachments'
 import logger from '../utils/logger'
+import { depositRepository } from './repositories/depositRepository'
 
 interface DataStore {
   settings: Record<string, string>
@@ -1045,7 +1046,9 @@ export const statsService = {
       (l.status === 'planned' || l.loan_date > today)
     )
     
-    const deps = (await db.query('SELECT * FROM deposits', [])) as { id: number; amount: number; status?: string; is_recurring?: number; recurring_deposit_number?: number; is_deleted?: boolean }[]
+    // ✅ תיקון קריטי: שימוש ב-depositRepository במקום db.query
+    // db.query מחזיר גם רשומות מחוקות!
+    const deps = await depositRepository.getAll()
     
     // חישוב סה"כ הפקדות (כולל מחזוריות, מפחיתים משיכות)
     let totalDeposits = 0
@@ -1056,7 +1059,7 @@ export const statsService = {
       const depositAmount = d.amount
       
       // הפחתת משיכות
-      const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+      const withdrawals = await depositWithdrawalsService.getByDeposit(d.id as any)
       const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
       totalDeposits += (depositAmount - totalWithdrawn)
     }
@@ -1288,6 +1291,9 @@ export const guarantorLoansService = {
   async deleteByOriginalLoan(loanId: string): Promise<void> {
     const loans = await this.getByOriginalLoan(loanId)
     for (const loan of loans) {
+      // ✅ תיקון: מחק ילדים לפני מחיקת האב
+      await guarantorLoanRepaymentsService.deleteByGuarantorLoan(loan.id)
+      await guarantorRefundsService.deleteByGuarantorLoan(loan.id)
       removeItem('guarantorLoans', loan.id)
     }
   },
@@ -1387,6 +1393,16 @@ export const guarantorLoanRepaymentsService = {
     const repayments = await this.getByGuarantorLoan(guarantorLoanId)
     for (const repayment of repayments) {
       removeItem('guarantorLoanRepayments', repayment.id)
+    }
+    
+    // ✅ תיקון: עדכון total_repaid אחרי מחיקה
+    const guarantorLoan = await guarantorLoansService.getById(guarantorLoanId)
+    if (guarantorLoan) {
+      const newTotalRepaid = await this.getTotalRepaid(guarantorLoanId)
+      await guarantorLoansService.update(guarantorLoanId, { 
+        total_repaid: newTotalRepaid,
+        status: newTotalRepaid >= guarantorLoan.amount ? 'paid' : 'active'
+      })
     }
   }
 }
@@ -1522,7 +1538,10 @@ export const guarantorRefundsService = {
 
 // Other services
 export const donorsService = { 
-  async getAll(): Promise<any[]> { return getAllItems<any>('donors') }, 
+  async getAll(): Promise<any[]> { 
+    // ✅ תיקון: סינון is_deleted
+    return getAllItems<any>('donors').filter(d => !d.is_deleted) 
+  }, 
   async search(t: string): Promise<any[]> { 
     const x = t.toLowerCase()
     const allDonors = await this.getAll()
@@ -1532,7 +1551,10 @@ export const donorsService = {
   } 
 }
 export const depositorsService = { 
-  async getAll(): Promise<any[]> { return getAllItems<any>('depositors') }, 
+  async getAll(): Promise<any[]> { 
+    // ✅ תיקון: סינון is_deleted
+    return getAllItems<any>('depositors').filter(d => !d.is_deleted) 
+  }, 
   async search(t: string): Promise<any[]> { 
     const x = t.toLowerCase()
     const allDepositors = await this.getAll()

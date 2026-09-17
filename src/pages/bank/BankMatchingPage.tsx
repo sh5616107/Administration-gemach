@@ -163,20 +163,18 @@ const BankMatchingPage: React.FC = () => {
         });
       } else if (match_type === 'donation') {
         // ✅ תיקון: שימוש במנגנון המרכזי במקום כתיבה ישירה
-        const { donationsService } = await import('../../services/database');
-        await donationsService.update(target_id, {
-          bank_verified: true,
-          bank_transaction_id: transaction_id,
-          verified_at: new Date().toISOString(),
-        });
+        const { db } = await import('../../services/database');
+        await db.run(
+          'UPDATE donations SET bank_verified = ?, bank_transaction_id = ?, verified_at = ? WHERE id = ?',
+          [true, transaction_id, new Date().toISOString(), target_id]
+        );
       } else if (match_type === 'deposit') {
         // ✅ תיקון: שימוש במנגנון המרכזי במקום כתיבה ישירה
-        const { depositsService } = await import('../../services/database');
-        await depositsService.update(target_id, {
-          bank_verified: true,
-          bank_transaction_id: transaction_id,
-          verified_at: new Date().toISOString(),
-        });
+        const { db } = await import('../../services/database');
+        await db.run(
+          'UPDATE deposits SET bank_verified = ?, bank_transaction_id = ?, verified_at = ? WHERE id = ?',
+          [true, transaction_id, new Date().toISOString(), target_id]
+        );
       }
 
       await loadData();

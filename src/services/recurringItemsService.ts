@@ -203,15 +203,26 @@ export async function identifySeriesItems(itemType: ItemType, originalItem: any)
   switch (itemType) {
     case 'loan': {
       const allLoans = await loansService.getAll()
-      // Identify loans in series by: borrower_id, recurring_day, and having recurring_loan_number
-      // We DON'T filter by amount because the amount might have been changed
-      items = allLoans.filter(l =>
-        l.borrower_id === originalItem.borrower_id &&
-        l.recurring_day === originalItem.recurring_day &&
-        l.is_recurring === 1 &&
-        l.recurring_loan_number && // Must have a loan number
-        !l.is_deleted
-      )
+      
+      // ✅ תיקון: שימוש ב-recurring_series_id כמזהה קנוני
+      if (originalItem.recurring_series_id) {
+        // יש series_id - זה המזהה הקנוני
+        items = allLoans.filter(l =>
+          l.recurring_series_id === originalItem.recurring_series_id &&
+          l.is_recurring === 1 &&
+          l.recurring_loan_number && 
+          !l.is_deleted
+        )
+      } else {
+        // אין series_id - fallback לזיהוי לפי borrower_id + recurring_day (הלוואות ישנות)
+        items = allLoans.filter(l =>
+          l.borrower_id === originalItem.borrower_id &&
+          l.recurring_day === originalItem.recurring_day &&
+          l.is_recurring === 1 &&
+          l.recurring_loan_number && // Must have a loan number
+          !l.is_deleted
+        )
+      }
       break
     }
     case 'repayment': {
@@ -756,12 +767,12 @@ async function logSeriesUpdate(
   }
 
   // ✅ תיקון: שימוש ב-auditLog service במקום כתיבה ישירה ל-localStorage
-  const { logAuditEntry } = await import('./auditLog')
-  await logAuditEntry(
-    entityType,
-    entityId,
-    action,
-    details
+  const { logAudit } = await import('./auditLog')
+  await logAudit(
+    'update_series' as any, // action
+    itemType as any, // entity_type
+    itemId, // entity_id
+    { metadata: logEntry } // options
   )
 }
 
