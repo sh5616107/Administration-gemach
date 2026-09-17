@@ -22,12 +22,17 @@ import {
   repaymentsService,
   contactsService as dbContactsService,
   depositWithdrawalsService,
+  donorsService,
+  depositorsService,
+  getAllItems,
   Borrower,
   Guarantor,
   Loan
 } from './database'
 
 import { db } from './database'
+import { donationRepository } from './repositories/donationRepository'
+import { depositRepository } from './repositories/depositRepository'
 
 /**
  * קבלת כל אנשי הקשר מאוחדים
@@ -36,11 +41,12 @@ import { db } from './database'
 export async function getAllContacts(): Promise<UnifiedContact[]> {
   try {
     // קבלת כל הנתונים מהטבלאות
-    const contactsFromDb = await db.query('SELECT * FROM contacts') as any[]
+    // ✅ תיקון: שימוש ב-getAllItems במקום db.query
+    const contactsFromDb = getAllItems<any>('contacts')
     const borrowers = await borrowersService.getAll()
     const guarantors = await guarantorsService.getAll()
-    const donors = await db.query('SELECT * FROM donors')
-    const depositors = await db.query('SELECT * FROM depositors')
+    const donors = await donorsService.getAll()
+    const depositors = await depositorsService.getAll()
 
     // מפה לאחסון אנשי קשר לפי טלפון
     const contactsMap = new Map<string, UnifiedContact>()
@@ -370,14 +376,16 @@ async function calculateContactStats(contact: UnifiedContact): Promise<ContactSt
 
     // סטטיסטיקות תורם
     if (contact.donor_id) {
-      const donations = await db.query('SELECT * FROM donations WHERE donor_id = ?', [contact.donor_id]) as any[]
+      // ✅ תיקון: שימוש ב-donationRepository במקום db.query
+      const donations = await donationRepository.getByDonor(contact.donor_id)
       stats.total_donations = donations.length
       stats.total_donated = donations.reduce((sum, d) => sum + d.amount, 0)
     }
 
     // סטטיסטיקות מפקיד
     if (contact.depositor_id) {
-      const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [contact.depositor_id]) as any[]
+      // ✅ תיקון: שימוש ב-depositRepository במקום db.query
+      const deposits = await depositRepository.getByDepositor(contact.depositor_id)
       
       // חישוב סה"כ הופקד (כולל מחזוריות)
       const totalDeposited = deposits.reduce((sum, d) => {
@@ -486,14 +494,16 @@ export async function getContactStats(phone: string): Promise<ContactStats> {
 
   // סטטיסטיקות תורם
   if (contact.donor_id) {
-    const donations = await db.query('SELECT * FROM donations WHERE donor_id = ?', [contact.donor_id]) as any[]
+    // ✅ תיקון: שימוש ב-donationRepository במקום db.query
+    const donations = await donationRepository.getByDonor(contact.donor_id)
     stats.total_donations = donations.length
     stats.total_donated = donations.reduce((sum, d) => sum + d.amount, 0)
   }
 
   // סטטיסטיקות מפקיד
   if (contact.depositor_id) {
-    const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [contact.depositor_id]) as any[]
+    // ✅ תיקון: שימוש ב-depositRepository במקום db.query
+    const deposits = await depositRepository.getByDepositor(contact.depositor_id)
     
     // חישוב סה"כ הופקד (כולל מחזוריות)
     const totalDeposited = deposits.reduce((sum, d) => {
@@ -590,7 +600,8 @@ export async function getContactActivity(phone: string): Promise<ContactActivity
 
   // תרומות
   if (contact.donor_id) {
-    const donations = await db.query('SELECT * FROM donations WHERE donor_id = ?', [contact.donor_id]) as any[]
+    // ✅ תיקון: שימוש ב-donationRepository במקום db.query
+    const donations = await donationRepository.getByDonor(contact.donor_id)
     for (const donation of donations) {
       activities.push({
         id: `donation-${donation.id}`,
@@ -606,7 +617,8 @@ export async function getContactActivity(phone: string): Promise<ContactActivity
 
   // הפקדות ומשיכות
   if (contact.depositor_id) {
-    const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [contact.depositor_id]) as any[]
+    // ✅ תיקון: שימוש ב-depositRepository במקום db.query
+    const deposits = await depositRepository.getByDepositor(contact.depositor_id)
     for (const deposit of deposits) {
       activities.push({
         id: `deposit-${deposit.id}`,
@@ -873,8 +885,8 @@ export async function convertDepositToDonation(depositId: number, contactPhone: 
   }
 
   // קבלת פרטי ההפקדה
-  const deposits = await db.query('SELECT * FROM deposits WHERE id = ?', [depositId]) as any[]
-  const deposit = deposits[0]
+  // ✅ תיקון: שימוש ב-depositRepository במקום db.query
+  const deposit = await depositRepository.getById(String(depositId))
   
   if (!deposit || deposit.status !== 'active') {
     throw new Error('הפקדה לא נמצאה או לא פעילה')

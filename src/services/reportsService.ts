@@ -4,7 +4,10 @@
  * ללא תלות בסטטוס - רק לפי תאריך התנועה בפועל
  */
 
-import { db, loansService, borrowersService, repaymentsService } from './database'
+import { db, loansService, borrowersService, repaymentsService, donorsService, depositorsService } from './database'
+import { repaymentRepository } from './repositories/repaymentRepository'
+import { donationRepository } from './repositories/donationRepository'
+import { depositRepository } from './repositories/depositRepository'
 
 /**
  * הלוואה מלאה - כולל פרטי לווה ומצב יתרה
@@ -152,7 +155,8 @@ export async function getTransactionsForPeriod(
   
   // 2. שליפת פירעונות שהתקבלו בתקופה
   // שאילתה ישירה על repayments - לפי payment_date, ללא תלות בסטטוס ההלוואה
-  const allRepayments = await db.query('SELECT * FROM repayments WHERE is_deleted = 0') as any[]
+  // ✅ תיקון: שימוש ב-repaymentRepository במקום db.query
+  const allRepayments = await repaymentRepository.getAll()
   
   const periodRepayments = allRepayments.filter(rep => {
     return rep.payment_date >= startDate && rep.payment_date <= endDate
@@ -184,13 +188,19 @@ export async function getTransactionsForPeriod(
   }
   
   // 3. שליפת תרומות שהתקבלו בתקופה
-  const allDonations = await db.query(`
-    SELECT d.*, (dn.first_name || ' ' || dn.last_name) as donor_name
-    FROM donations d
-    JOIN donors dn ON d.donor_id = dn.id
-  `) as any[]
+  // ✅ תיקון: db.query() לא תומך ב-JOIN אמיתי - נבצע בקוד
+  const allDonations = await donationRepository.getAll()
+  const donors = await donorsService.getAll()
   
-  const periodDonations = allDonations.filter(don => {
+  const donationsWithNames = allDonations.map(d => {
+    const donor = donors.find(dn => dn.id === d.donor_id)
+    const donor_name = donor 
+      ? `${donor.first_name} ${donor.last_name}` 
+      : 'תורם לא ידוע'
+    return { ...d, donor_name }
+  })
+  
+  const periodDonations = donationsWithNames.filter(don => {
     return don.donation_date >= startDate && don.donation_date <= endDate
   })
   
@@ -204,14 +214,19 @@ export async function getTransactionsForPeriod(
   }))
   
   // 4. שליפת הפקדות שהתקבלו בתקופה
-  const allDeposits = await db.query(`
-    SELECT d.*, (dp.first_name || ' ' || dp.last_name) as depositor_name
-    FROM deposits d
-    JOIN depositors dp ON d.depositor_id = dp.id
-    WHERE d.is_deleted = 0
-  `) as any[]
+  // ✅ תיקון: db.query() לא תומך ב-JOIN אמיתי - נבצע בקוד
+  const allDeposits = await depositRepository.getAll()
+  const depositors = await depositorsService.getAll()
   
-  const periodDeposits = allDeposits.filter(dep => {
+  const depositsWithNames = allDeposits.map(d => {
+    const depositor = depositors.find(dp => dp.id === d.depositor_id)
+    const depositor_name = depositor 
+      ? `${depositor.first_name} ${depositor.last_name}` 
+      : 'מפקיד לא ידוע'
+    return { ...d, depositor_name }
+  })
+  
+  const periodDeposits = depositsWithNames.filter(dep => {
     return dep.deposit_date >= startDate && dep.deposit_date <= endDate
   })
   

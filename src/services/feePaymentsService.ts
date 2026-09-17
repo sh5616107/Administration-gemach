@@ -1,4 +1,5 @@
 import { db, borrowersService, loansService } from './database'
+import { feePaymentRepository } from './repositories/feePaymentRepository'
 import type {
   FeePayment,
   CreateFeePaymentInput,
@@ -43,7 +44,8 @@ function clearCache() {
 
 // קבלת כל העמלות (ללא מחוקות)
 export async function getAllFeePayments(): Promise<FeePaymentWithDetails[]> {
-  const fees = (await db.query('SELECT * FROM fee_payments', [])) as FeePayment[]
+  // ✅ תיקון: שימוש ב-feePaymentRepository במקום db.query
+  const fees = await feePaymentRepository.getAll()
   
   // טעינה חכמה עם cache
   const borrowersMap = await getBorrowersMap()
@@ -63,10 +65,10 @@ export async function getAllFeePayments(): Promise<FeePaymentWithDetails[]> {
 
 // קבלת עמלה לפי ID
 export async function getFeePaymentById(id: string): Promise<FeePaymentWithDetails | null> {
-  const results = (await db.query('SELECT * FROM fee_payments WHERE id = ?', [id])) as FeePayment[]
-  if (results.length === 0) return null
+  // ✅ תיקון: שימוש ב-feePaymentRepository במקום db.query
+  const fee = await feePaymentRepository.getById(id)
+  if (!fee) return null
   
-  const fee = results[0]
   const borrower = await borrowersService.getById(fee.borrower_id)
   const loan = fee.loan_id ? await loansService.getById(fee.loan_id) : null
   
@@ -79,7 +81,8 @@ export async function getFeePaymentById(id: string): Promise<FeePaymentWithDetai
 
 // קבלת עמלות לפי לווה
 export async function getFeePaymentsByBorrower(borrowerId: string): Promise<FeePaymentWithDetails[]> {
-  const fees = (await db.query('SELECT * FROM fee_payments WHERE borrower_id = ?', [borrowerId])) as FeePayment[]
+  // ✅ תיקון: שימוש ב-feePaymentRepository במקום db.query
+  const fees = await feePaymentRepository.getByBorrower(borrowerId)
   
   const borrower = await borrowersService.getById(borrowerId)
   const loansMap = await getLoansMap()
@@ -97,7 +100,8 @@ export async function getFeePaymentsByBorrower(borrowerId: string): Promise<FeeP
 
 // קבלת עמלות לפי הלוואה
 export async function getFeePaymentsByLoan(loanId: string): Promise<FeePaymentWithDetails[]> {
-  const fees = (await db.query('SELECT * FROM fee_payments WHERE loan_id = ?', [loanId])) as FeePayment[]
+  // ✅ תיקון: שימוש ב-feePaymentRepository במקום db.query
+  const fees = await feePaymentRepository.getByLoan(loanId)
   
   const loansMap = await getLoansMap()
   const borrowersMap = await getBorrowersMap()

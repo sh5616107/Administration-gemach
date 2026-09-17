@@ -1,6 +1,7 @@
 import { loansService, repaymentsService, borrowersService, db, getAllItems, flushPendingSave } from './database'
 import { loanRepository } from './repositories/loanRepository'
 import { repaymentRepository } from './repositories/repaymentRepository'
+import { depositRepository } from './repositories/depositRepository'
 
 interface Alert {
   id: string
@@ -154,17 +155,18 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
       const currentRecurringNumber = loan.recurring_loan_number || 1
       const nextRecurringNumber = currentRecurringNumber + 1
       
-      const existingLoan = await db.query(`
-        SELECT id FROM loans 
-        WHERE borrower_id = ? 
-        AND amount = ? 
-        AND loan_date >= ?
-        AND loan_date <= ?
-        AND is_recurring = 1
-        AND recurring_loan_number = ?
-      `, [loan.borrower_id, loan.amount, firstDayOfMonth, todayStr, nextRecurringNumber])
+      // ✅ תיקון קריטי: החלפת db.query() ב-loanRepository.hasRecurringLoanForPeriod()
+      // db.query() לא מבצע את כל תנאי WHERE באמת - רק התאמת מחרוזת פשוטה
+      // זה יכול לגרום להלוואות כפולות או אי-זיהוי של הלוואות קיימות
+      const existingLoanFound = await loanRepository.hasRecurringLoanForPeriod(
+        loan.borrower_id,
+        loan.amount,
+        firstDayOfMonth,
+        todayStr,
+        nextRecurringNumber
+      )
 
-      if (existingLoan.length === 0) {
+      if (!existingLoanFound) {
         const alertMessage = isPastRecurringDay
           ? `הלוואה מחזורית באיחור (היתה אמורה להיווצר ב-${effectiveDay} לחודש) - ${borrower_name}`
           : `הגיע מועד הלוואה מחזורית עבור ${borrower_name}`
@@ -626,17 +628,16 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   
   try {
-    const deposits = await db.query(`
-      SELECT * FROM deposits 
-      WHERE is_recurring = 1 
-      AND status = 'active'
-      AND recurring_months > 0
-    `) as any[]
+    // ✅ תיקון: החלפת db.query() ב-depositRepository
+    const deposits = await depositRepository.getActiveRecurring()
+    const activeDepositsWithRecurringMonths = deposits.filter(d => 
+      (d.recurring_months ?? 0) > 0
+    )
     
     // Also get deleted deposits to check if a deposit was deleted
     const allDepositsIncludingDeleted = getAllItems<any>('deposits')
     
-    for (const deposit of deposits) {
+    for (const deposit of activeDepositsWithRecurringMonths) {
       // ✅ SOFT-DELETE CHECK: Skip if deposit is marked as deleted
       if (deposit.is_deleted) {
         console.log(`[AUTO-CREATE] Deposit #${deposit.id} is marked as deleted, skipping`)
@@ -785,7 +786,8 @@ export async function activatePlannedDeposits(): Promise<number> {
   console.log('[SCHEDULER] activatePlannedDeposits called, today:', today)
   
   try {
-    const deposits = await db.query('SELECT * FROM deposits WHERE status = ?', ['planned']) as any[]
+    // ✅ תיקון: שימוש ב-depositRepository במקום db.query
+    const deposits = await depositRepository.getByStatus('planned')
     console.log('[SCHEDULER] Planned deposits:', deposits.length)
     
     for (const deposit of deposits) {
@@ -854,15 +856,21 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
 
   try {
     // Get all active recurring deposits
-    const recurringDeposits = await db.query(`
-      SELECT d.*, dp.first_name || ' ' || dp.last_name as depositor_name
-      FROM deposits d
-      JOIN depositors dp ON d.depositor_id = dp.id
-      WHERE d.is_recurring = 1 
-      AND d.status = 'active'
-    `) as any[]
+    // ✅ תיקון: db.query() לא תומך ב-JOIN אמיתי
+    // נבצע את ה-JOIN בקוד
+    const recurringDeposits = await depositRepository.getActiveRecurring()
+    const depositorsService = (await import('./database')).depositorsService
+    const depositors = await depositorsService.getAll()
+    
+    const depositsWithNames = recurringDeposits.map(d => {
+      const depositor = depositors.find(dep => dep.id === d.depositor_id)
+      const depositor_name = depositor 
+        ? `${depositor.first_name} ${depositor.last_name}` 
+        : ''
+      return { ...d, depositor_name }
+    })
 
-    for (const deposit of recurringDeposits) {
+    for (const deposit of depositsWithNames) {
       // בדיקה: רק הפקדות עם recurring_months > 0 צריכות ליצור התראות
       // הפקדה עם recurring_months = 0 היא ההפקדה האחרונה בסדרה
       if (!deposit.recurring_months || deposit.recurring_months <= 0) {
@@ -887,16 +895,17 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
       
       if (shouldAlertToday || isPastRecurringDay) {
         // Check if we already created a deposit this month
-        const existingDepositThisMonth = await db.query(`
-          SELECT id FROM deposits 
-          WHERE depositor_id = ? 
-          AND amount = ? 
-          AND deposit_date >= ?
-          AND deposit_date <= ?
-          AND id != ?
-        `, [deposit.depositor_id, deposit.amount, firstDayOfMonth, todayStr, deposit.id])
+        // ✅ תיקון קריטי: החלפת db.query() ב-depositRepository.hasRecurringDepositForPeriod()
+        // db.query() לא מבצע את כל תנאי WHERE באמת
+        const existingDepositFound = await depositRepository.hasRecurringDepositForPeriod(
+          deposit.depositor_id,
+          deposit.amount,
+          firstDayOfMonth,
+          todayStr,
+          String(deposit.id)
+        )
 
-        if (existingDepositThisMonth.length === 0) {
+        if (!existingDepositFound) {
           const alertMessage = isPastRecurringDay
             ? `הפקדה מחזורית באיחור (היתה אמורה להתבצע ב-${effectiveDay} לחודש) - ${deposit.depositor_name}`
             : `הגיע מועד הפקדה מחזורית עבור ${deposit.depositor_name}`
@@ -927,10 +936,9 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
 // Create a recurring deposit
 export async function createRecurringDeposit(originalDepositId: string): Promise<boolean> {
   try {
-    const deposits = await db.query('SELECT * FROM deposits WHERE id = ?', [originalDepositId]) as any[]
-    if (deposits.length === 0) return false
-    
-    const deposit = deposits[0]
+    // ✅ תיקון: שימוש ב-depositRepository במקום db.query
+    const deposit = await depositRepository.getById(originalDepositId)
+    if (!deposit) return false
     const today = new Date().toISOString().split('T')[0]
     
     // ✅ תיקון באג 3: מציאת ההפקדה האחרונה במשפחה (לפי recurring_deposit_number הגבוה ביותר)

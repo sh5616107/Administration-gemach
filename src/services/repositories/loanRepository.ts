@@ -52,5 +52,72 @@ export const loanRepository = {
       .filter(l => l.is_recurring === 1)
       .filter(l => (l.recurring_months ?? 0) > 0)
       .filter(l => l.status === 'active')
+  },
+
+  /**
+   * בדיקה אם קיימת הלוואה מחזורית בטווח תאריכים נתון
+   * מחליף את db.query() עם כל תנאי WHERE בקוד אמיתי
+   * 
+   * @param borrowerId מזהה הלווה
+   * @param amount סכום ההלוואה
+   * @param fromDate תאריך התחלה (ISO format)
+   * @param toDate תאריך סיום (ISO format)
+   * @param recurringNumber מספר ההלוואה המחזורית
+   * @returns true אם נמצאה הלוואה תואמת
+   */
+  async hasRecurringLoanForPeriod(
+    borrowerId: string,
+    amount: number,
+    fromDate: string,
+    toDate: string,
+    recurringNumber: number
+  ): Promise<boolean> {
+    const loans = getAllItems<Loan>('loans')
+    
+    const found = loans.find(l =>
+      !l.is_deleted &&
+      l.borrower_id === borrowerId &&
+      l.amount === amount &&
+      l.loan_date >= fromDate &&
+      l.loan_date <= toDate &&
+      l.is_recurring === 1 &&
+      l.recurring_loan_number === recurringNumber
+    )
+    
+    return !!found
+  },
+
+  /**
+   * קבלת כל ההלוואות (ללא מחוקות)
+   */
+  async getAll(): Promise<Loan[]> {
+    return getAllItems<Loan>('loans')
+      .filter(l => !l.is_deleted)
+  },
+
+  /**
+   * קבלת הלוואה לפי ID
+   */
+  async getById(id: string): Promise<Loan | undefined> {
+    const loans = getAllItems<Loan>('loans')
+    return loans.find(l => l.id === id && !l.is_deleted)
+  },
+
+  /**
+   * קבלת הלוואות לפי לווה
+   */
+  async getByBorrower(borrowerId: string): Promise<Loan[]> {
+    return getAllItems<Loan>('loans')
+      .filter(l => !l.is_deleted)
+      .filter(l => l.borrower_id === borrowerId)
+      .sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
+  },
+
+  /**
+   * קבלת כל ההלוואות (כולל מחוקות)
+   * שימוש פנימי בלבד
+   */
+  async getAllIncludingDeleted(): Promise<Loan[]> {
+    return getAllItems<Loan>('loans')
   }
 }

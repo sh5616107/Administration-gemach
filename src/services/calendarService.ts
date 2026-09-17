@@ -3,8 +3,10 @@
  * טעינת אירועים פיננסיים לתצוגה בלוח השנה
  */
 
-import { loansService, Loan, repaymentsService } from './database'
+import { loansService, Loan, repaymentsService, depositorsService } from './database'
 import { db } from './database'
+import { repaymentRepository } from './repositories/repaymentRepository'
+import { depositRepository } from './repositories/depositRepository'
 
 // סוגי אירועים
 export type EventType = 
@@ -126,7 +128,8 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
   }
 
   // 2. טעינת פירעונות שבוצעו
-  const allRepayments = await db.query('SELECT * FROM repayments') as any[]
+  // ✅ תיקון: שימוש ב-repaymentRepository במקום db.query
+  const allRepayments = await repaymentRepository.getAll()
   console.log('📅 Calendar: Found repayments:', allRepayments.length, allRepayments.map(r => ({ id: r.id, date: r.payment_date, amount: r.amount })))
   
   for (const repayment of allRepayments) {
@@ -271,17 +274,23 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
     }
   }
 
-  // 3. טעינת הפקדות - עם JOIN לשם המפקיד
-  const deposits = await db.query(`
-    SELECT 
-      d.*,
-      dep.first_name || ' ' || dep.last_name as depositor_name
-    FROM deposits d
-    LEFT JOIN depositors dep ON d.depositor_id = dep.id
-  `) as any[]
-  console.log('📅 Calendar: Found deposits:', deposits.length)
+  // 3. טעינת הפקדות
+  // ✅ תיקון: db.query() לא תומך ב-JOIN אמיתי
+  // נבצע את ה-JOIN בקוד
+  const deposits = await depositRepository.getAll()
+  const depositors = await depositorsService.getAll()
   
-  for (const deposit of deposits) {
+  const depositsWithNames = deposits.map(d => {
+    const depositor = depositors.find(dep => dep.id === d.depositor_id)
+    const depositor_name = depositor 
+      ? `${depositor.first_name} ${depositor.last_name}` 
+      : ''
+    return { ...d, depositor_name }
+  })
+  
+  console.log('📅 Calendar: Found deposits:', depositsWithNames.length)
+  
+  for (const deposit of depositsWithNames) {
     // הפקדות מחזוריות (recurring_deposit)
     if (deposit.is_recurring && deposit.status === 'active') {
       const depositDateStr = deposit.deposit_date?.split('T')[0]
