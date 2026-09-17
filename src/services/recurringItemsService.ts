@@ -755,10 +755,14 @@ async function logSeriesUpdate(
     affectedItems
   }
 
-  // Save to localStorage
-  const logs = JSON.parse(localStorage.getItem('audit_log') || '[]')
-  logs.push(logEntry)
-  localStorage.setItem('audit_log', JSON.stringify(logs))
+  // ✅ תיקון: שימוש ב-auditLog service במקום כתיבה ישירה ל-localStorage
+  const { logAuditEntry } = await import('./auditLog')
+  await logAuditEntry(
+    entityType,
+    entityId,
+    action,
+    details
+  )
 }
 
 // ============================================================================

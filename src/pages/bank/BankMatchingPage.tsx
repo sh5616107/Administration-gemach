@@ -162,31 +162,21 @@ const BankMatchingPage: React.FC = () => {
           verified_at: new Date().toISOString(),
         });
       } else if (match_type === 'donation') {
-        // Update donation in localStorage
-        const data = JSON.parse(localStorage.getItem('gemach_data') || '{}');
-        const donation = data.donations?.[target_id];
-        if (donation) {
-          data.donations[target_id] = {
-            ...donation,
-            bank_verified: true,
-            bank_transaction_id: transaction_id,
-            verified_at: new Date().toISOString(),
-          };
-          localStorage.setItem('gemach_data', JSON.stringify(data));
-        }
+        // ✅ תיקון: שימוש במנגנון המרכזי במקום כתיבה ישירה
+        const { donationsService } = await import('../../services/database');
+        await donationsService.update(target_id, {
+          bank_verified: true,
+          bank_transaction_id: transaction_id,
+          verified_at: new Date().toISOString(),
+        });
       } else if (match_type === 'deposit') {
-        // Update deposit in localStorage
-        const data = JSON.parse(localStorage.getItem('gemach_data') || '{}');
-        const deposit = data.deposits?.[target_id];
-        if (deposit) {
-          data.deposits[target_id] = {
-            ...deposit,
-            bank_verified: true,
-            bank_transaction_id: transaction_id,
-            verified_at: new Date().toISOString(),
-          };
-          localStorage.setItem('gemach_data', JSON.stringify(data));
-        }
+        // ✅ תיקון: שימוש במנגנון המרכזי במקום כתיבה ישירה
+        const { depositsService } = await import('../../services/database');
+        await depositsService.update(target_id, {
+          bank_verified: true,
+          bank_transaction_id: transaction_id,
+          verified_at: new Date().toISOString(),
+        });
       }
 
       await loadData();
