@@ -209,7 +209,7 @@ export async function getTransactionsForPeriod(
     donor_name: don.donor_name,
     amount: don.amount,
     donation_date: don.donation_date,
-    payment_method: don.payment_method,
+    payment_method: (don as any).payment_method,
     notes: don.notes
   }))
   

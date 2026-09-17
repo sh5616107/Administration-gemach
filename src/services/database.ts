@@ -1090,7 +1090,8 @@ export const statsService = {
     const loans = getAllItems<any>('loans')
     const repayments = getAllItems<any>('repayments')
     const donations = getAllItems<any>('donations')
-    const deposits = (await db.query('SELECT * FROM deposits WHERE is_deleted IS NULL OR is_deleted = 0')) as any[]
+    // ✅ תיקון ריפקטור: החלפת db.query() ב-getAllItems עם סינון
+    const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted)
     const expenses = getAllItems<any>('expenses')
     
     const methods = ['cash', 'credit', 'transfer', 'check', 'other']

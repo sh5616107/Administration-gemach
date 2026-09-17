@@ -13,7 +13,7 @@ interface Alert {
   amount: number
   created_at: string
   read: boolean
-  deposit_id?: number
+  deposit_id?: string
   depositor_name?: string
 }
 
@@ -943,10 +943,9 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     
     // ✅ תיקון באג 3: מציאת ההפקדה האחרונה במשפחה (לפי recurring_deposit_number הגבוה ביותר)
     // כדי לחשב נכון את המספר הבא
-    const allDeposits = await db.query(
-      'SELECT * FROM deposits WHERE depositor_id = ? AND is_recurring = 1',
-      [deposit.depositor_id]
-    ) as any[]
+    // ✅ תיקון ריפקטור: החלפת db.query() ב-depositRepository
+    const allDeposits = (await depositRepository.getByDepositor(deposit.depositor_id))
+      .filter(d => d.is_recurring === 1)
     
     const latestDeposit = allDeposits.reduce((latest, current) => {
       const latestNum = latest.recurring_deposit_number || 1

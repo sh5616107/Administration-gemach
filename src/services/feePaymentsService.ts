@@ -59,7 +59,7 @@ export async function getAllFeePayments(): Promise<FeePaymentWithDetails[]> {
       ...fee,
       borrower_name: borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע',
       loan_number: loan?.loan_number
-    }
+    } as FeePaymentWithDetails
   })
 }
 
@@ -76,7 +76,7 @@ export async function getFeePaymentById(id: string): Promise<FeePaymentWithDetai
     ...fee,
     borrower_name: borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע',
     loan_number: loan?.loan_number
-  }
+  } as FeePaymentWithDetails
 }
 
 // קבלת עמלות לפי לווה
@@ -94,7 +94,7 @@ export async function getFeePaymentsByBorrower(borrowerId: string): Promise<FeeP
       ...fee,
       borrower_name: borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע',
       loan_number: loan?.loan_number
-    }
+    } as FeePaymentWithDetails
   })
 }
 
@@ -114,7 +114,7 @@ export async function getFeePaymentsByLoan(loanId: string): Promise<FeePaymentWi
       ...fee,
       borrower_name: borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע',
       loan_number: loan?.loan_number
-    }
+    } as FeePaymentWithDetails
   })
 }
 

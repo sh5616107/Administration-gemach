@@ -630,12 +630,12 @@ export async function getContactActivity(phone: string): Promise<ContactActivity
         related_entity_id: deposit.id
       })
 
-      if (deposit.status === 'withdrawn' && deposit.withdrawal_date) {
+      if (deposit.status === 'withdrawn' && (deposit as any).withdrawal_date) {
         activities.push({
           id: `withdrawal-${deposit.id}`,
           type: 'withdrawal',
-          date: deposit.withdrawal_date,
-          amount: deposit.withdrawn_amount || deposit.amount,
+          date: (deposit as any).withdrawal_date,
+          amount: (deposit as any).withdrawn_amount || deposit.amount,
           status: 'completed',
           description: `משיכת הפקדה #${deposit.id}`,
           related_entity_id: deposit.id
