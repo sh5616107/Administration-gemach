@@ -30,7 +30,7 @@ function normalizePhone(phone: string): string {
  */
 export async function checkDuplicatePhone(
   phone: string,
-  excludeId?: string
+  excludeId?: string | number
 ): Promise<DuplicatePhoneResult> {
   // ייבוא דינמי למניעת circular dependency
   const { borrowersService, guarantorsService } = await import('../services/database')
@@ -95,11 +95,11 @@ export async function checkDuplicatePhone(
   try {
     const donors = await donorsService.getAll()
     for (const donor of donors) {
-      if (donor.id !== excludeId && donor.phone) {
+      if (String(donor.id) !== String(excludeId) && donor.phone) {
         const donorPhone = normalizePhone(donor.phone)
         if (donorPhone === normalizedPhone) {
           duplicates.push({
-            id: donor.id,
+            id: String(donor.id),
             name: `${donor.first_name} ${donor.last_name}`,
             role: 'תורם',
             phone: donor.phone
@@ -115,11 +115,11 @@ export async function checkDuplicatePhone(
   try {
     const depositors = await depositorsService.getAll()
     for (const depositor of depositors) {
-      if (depositor.id !== excludeId && depositor.phone) {
+      if (String(depositor.id) !== String(excludeId) && depositor.phone) {
         const depositorPhone = normalizePhone(depositor.phone)
         if (depositorPhone === normalizedPhone) {
           duplicates.push({
-            id: depositor.id,
+            id: String(depositor.id),
             name: `${depositor.first_name} ${depositor.last_name}`,
             role: 'מפקיד',
             phone: depositor.phone

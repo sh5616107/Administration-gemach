@@ -50,7 +50,7 @@ import {
   AccountBalanceWallet as DepositIcon,
   Payment as PaymentIcon,
 } from '@mui/icons-material';
-import { db, depositWithdrawalsService } from '../services/database';
+import { db, depositWithdrawalsService, depositsService } from '../services/database';
 import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
 import { generateDepositorReport, generateDepositDocument, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
@@ -403,12 +403,12 @@ export default function Deposits() {
     if (!(await confirmAction('האם למחוק את ההפקדה?'))) return;
 
     try {
-      await db.run('DELETE FROM deposits WHERE id = ?', [deposit.id]);
+      await depositsService.delete(deposit.id);
       setSnackbar({ open: true, message: 'ההפקדה נמחקה', severity: 'success' });
       if (selectedDepositor) loadDepositsForDepositor(selectedDepositor.id);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting deposit:', error);
-      setSnackbar({ open: true, message: 'שגיאה במחיקה', severity: 'error' });
+      setSnackbar({ open: true, message: error.message || 'שגיאה במחיקה', severity: 'error' });
     }
   };
 

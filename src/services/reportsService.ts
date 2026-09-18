@@ -193,7 +193,7 @@ export async function getTransactionsForPeriod(
   const donors = await donorsService.getAll()
   
   const donationsWithNames = allDonations.map(d => {
-    const donor = donors.find(dn => dn.id === d.donor_id)
+    const donor = donors.find(dn => dn.id === Number(d.donor_id))
     const donor_name = donor 
       ? `${donor.first_name} ${donor.last_name}` 
       : 'תורם לא ידוע'
@@ -219,7 +219,7 @@ export async function getTransactionsForPeriod(
   const depositors = await depositorsService.getAll()
   
   const depositsWithNames = allDeposits.map(d => {
-    const depositor = depositors.find(dp => dp.id === d.depositor_id)
+    const depositor = depositors.find(dp => dp.id === Number(d.depositor_id))
     const depositor_name = depositor 
       ? `${depositor.first_name} ${depositor.last_name}` 
       : 'מפקיד לא ידוע'

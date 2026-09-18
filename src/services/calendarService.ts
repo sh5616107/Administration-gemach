@@ -281,7 +281,7 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
   const depositors = await depositorsService.getAll()
   
   const depositsWithNames = deposits.map(d => {
-    const depositor = depositors.find(dep => dep.id === d.depositor_id)
+    const depositor = depositors.find(dep => dep.id === Number(d.depositor_id))
     const depositor_name = depositor 
       ? `${depositor.first_name} ${depositor.last_name}` 
       : ''

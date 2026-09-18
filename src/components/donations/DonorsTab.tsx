@@ -32,7 +32,7 @@ import {
   Description as DocIcon,
   Email as EmailIcon,
 } from '@mui/icons-material'
-import { db } from '../../services/database'
+import { db, depositWithdrawalsService, donorsService } from '../../services/database'
 import { generateDonorReport, openEmailWithDocument, createDonorReportEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
@@ -173,12 +173,12 @@ export default function DonorsTab({ onSelectDonor, selectedDonorId }: DonorsTabP
     if (!(await confirmAction(confirmDeleteMessage(`האם למחוק את התורם ${donor.first_name} ${donor.last_name}?`)))) return
 
     try {
-      await db.run('DELETE FROM donors WHERE id = ?', [donor.id])
+      await donorsService.delete(donor.id)
       setSnackbar({ open: true, message: 'התורם נמחק בהצלחה', severity: 'success' })
       loadDonors()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting donor:', error)
-      setSnackbar({ open: true, message: 'שגיאה במחיקה', severity: 'error' })
+      setSnackbar({ open: true, message: error.message || 'שגיאה במחיקה', severity: 'error' })
     }
   }
 

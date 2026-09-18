@@ -32,7 +32,7 @@ import {
   Description as DocIcon,
   Email as EmailIcon,
 } from '@mui/icons-material'
-import { db, depositWithdrawalsService } from '../../services/database'
+import { db, depositWithdrawalsService, depositorsService } from '../../services/database'
 import { generateDepositorReport, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../../services/documents'
 import { useSettings } from '../../hooks/useSettings'
 import { getDocumentLayout } from '../../utils/documentLayoutHelper'
@@ -201,18 +201,12 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
     if (!(await confirmAction(confirmDeleteMessage(`האם למחוק את המפקיד ${depositor.first_name} ${depositor.last_name}?`)))) return
 
     try {
-      // מחיקת כל ההפקדות של המפקיד
-      const deposits = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [depositor.id]) as any[]
-      for (const dep of deposits) {
-        await db.run('DELETE FROM deposits WHERE id = ?', [dep.id])
-      }
-      // מחיקת המפקיד
-      await db.run('DELETE FROM depositors WHERE id = ?', [depositor.id])
+      await depositorsService.delete(depositor.id)
       setSnackbar({ open: true, message: 'המפקיד נמחק בהצלחה', severity: 'success' })
       loadDepositors()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting depositor:', error)
-      setSnackbar({ open: true, message: 'שגיאה במחיקה', severity: 'error' })
+      setSnackbar({ open: true, message: error.message || 'שגיאה במחיקה', severity: 'error' })
     }
   }
 

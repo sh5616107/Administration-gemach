@@ -33,7 +33,7 @@ import {
   Delete as DeleteIcon,
   Close as CloseIcon,
 } from '@mui/icons-material';
-import { db } from '../services/database';
+import { db, donationsService } from '../services/database';
 import { 
   generateDonorReport, 
   generateDonationReceipt,
@@ -357,13 +357,13 @@ export default function Donations() {
     if (!(await confirmAction(confirmDeleteMessage('האם למחוק את התרומה?')))) return;
 
     try {
-      await db.run('DELETE FROM donations WHERE id = ?', [donation.id]);
+      await donationsService.delete(donation.id);
       setSnackbar({ open: true, message: 'התרומה נמחקה', severity: 'success' });
       if (selectedDonor) loadDonationsForDonor(selectedDonor.id);
       loadDonors();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting donation:', error);
-      setSnackbar({ open: true, message: 'שגיאה במחיקה', severity: 'error' });
+      setSnackbar({ open: true, message: error.message || 'שגיאה במחיקה', severity: 'error' });
     }
   };
 

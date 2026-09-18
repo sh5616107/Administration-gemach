@@ -206,7 +206,7 @@ export function getAllItems<T>(storeName: keyof DataStore): T[] {
  * - Safari 15.4+ (March 2022)
  * - Edge 92+ (September 2021)
  */
-function generateId(storeName: keyof DataStore): string {
+export function generateId(storeName: keyof DataStore): string {
   // Use native crypto.randomUUID() if available (modern browsers)
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -242,7 +242,7 @@ export function getItem<T>(storeName: keyof DataStore, id: string): T | null {
   return (data[storeName] as Record<string, T>)[id] || null
 }
 
-function setItem<T>(storeName: keyof DataStore, id: string, value: T): void {
+export function setItem<T>(storeName: keyof DataStore, id: string, value: T): void {
   ;(data[storeName] as Record<string, T>)[id] = value
   saveData()
 }
@@ -1535,35 +1535,39 @@ export const guarantorRefundsService = {
   
   async delete(id: string): Promise<void> {
     const existing = await this.getById(id)
-    if (existing) {
-      // ✅ תיקון production-readiness: חשב total_refunded לפני מחיקת הrefund
-      // אחרת getTotalRefunded() לא מוצא את הrefund כי הוא כבר נמחק
-      const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
-      
-      // מחק את הrefund
+    if (!existing) return  // אין מה למחוק
+    
+    const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
+    if (!guarantorLoan) {
+      // אין parent - פשוט מחק
       removeItem('guarantorRefunds', id)
-      
-      // עדכון total_refunded בהלוואת הערב
-      if (guarantorLoan) {
-        const newTotalRefunded = await this.getTotalRefunded(existing.guarantor_loan_id)
-        const updates: Partial<GuarantorLoan> = { 
-          total_refunded: newTotalRefunded
-        }
-        
-        // אם הוחזר הכל, נסיר את ההערה "מגיע החזר לערב"
-        // אם לא הוחזר הכל, נוודא שההערה קיימת
-        if (newTotalRefunded >= guarantorLoan.total_repaid) {
-          const cleanNotes = (guarantorLoan.notes || '')
-            .split('\n')
-            .filter(line => !line.includes('מגיע החזר לערב'))
-            .join('\n')
-            .trim()
-          updates.notes = cleanNotes
-        }
-        
-        await guarantorLoansService.update(existing.guarantor_loan_id, updates)
-      }
+      return
     }
+    
+    // ✅ תיקון BLOCKER: חשב total_refunded לפני המחיקה
+    // על ידי הפחתת הסכום הנוכחי מהסה"כ הקיים
+    const currentTotal = guarantorLoan.total_refunded || 0
+    const newTotalRefunded = Math.max(0, currentTotal - existing.amount)
+    
+    // מחק את הrefund
+    removeItem('guarantorRefunds', id)
+    
+    // עדכן את הparent
+    const updates: Partial<GuarantorLoan> = { 
+      total_refunded: newTotalRefunded
+    }
+    
+    // אם הוחזר הכל, נסיר את ההערה "מגיע החזר לערב"
+    if (newTotalRefunded >= guarantorLoan.total_repaid) {
+      const cleanNotes = (guarantorLoan.notes || '')
+        .split('\n')
+        .filter(line => !line.includes('מגיע החזר לערב'))
+        .join('\n')
+        .trim()
+      updates.notes = cleanNotes
+    }
+    
+    await guarantorLoansService.update(existing.guarantor_loan_id, updates)
   },
   
   async deleteByGuarantorLoan(guarantorLoanId: string): Promise<void> {
@@ -1574,32 +1578,186 @@ export const guarantorRefundsService = {
   }
 }
 
-// Other services
+// Donors Service
+export interface Donor {
+  id: number
+  first_name: string
+  last_name: string
+  phone: string
+  id_number: string
+  address: string
+  email: string
+  notes: string
+  created_at: string
+  is_deleted?: boolean
+  deleted_at?: string
+}
+
 export const donorsService = { 
-  async getAll(): Promise<any[]> { 
-    // ✅ תיקון: סינון is_deleted
-    return getAllItems<any>('donors').filter(d => !d.is_deleted) 
-  }, 
-  async search(t: string): Promise<any[]> { 
+  async getAll(): Promise<Donor[]> { 
+    return getAllItems<Donor>('donors').filter(d => !d.is_deleted) 
+  },
+  async getById(id: number | string): Promise<Donor | null> {
+    const donor = getItem<Donor>('donors', String(id))
+    return (donor && !donor.is_deleted) ? donor : null
+  },
+  async search(t: string): Promise<Donor[]> { 
     const x = t.toLowerCase()
     const allDonors = await this.getAll()
     return allDonors
       .filter(d => d.first_name?.toLowerCase().includes(x) || d.last_name?.toLowerCase().includes(x) || d.phone?.includes(t))
       .slice(0, 5) 
-  } 
+  },
+  async delete(id: number | string): Promise<void> {
+    // בדיקה: האם לתורם יש תרומות פעילות?
+    const donations = getAllItems<any>('donations').filter(d => !d.is_deleted && d.donor_id === Number(id))
+    
+    if (donations.length > 0) {
+      throw new Error(`לא ניתן למחוק תורם עם ${donations.length} תרומות. יש למחוק את התרומות תחילה.`)
+    }
+    
+    // Soft delete
+    const donor = await this.getById(id)
+    if (donor) {
+      setItem('donors', String(id), { ...donor, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('donor', String(id))
+    }
+  }
 }
+
+// Depositors Service
+export interface Depositor {
+  id: number
+  first_name: string
+  last_name: string
+  phone: string
+  id_number: string
+  address: string
+  email: string
+  notes: string
+  created_at: string
+  is_deleted?: boolean
+  deleted_at?: string
+}
+
 export const depositorsService = { 
-  async getAll(): Promise<any[]> { 
-    // ✅ תיקון: סינון is_deleted
-    return getAllItems<any>('depositors').filter(d => !d.is_deleted) 
-  }, 
-  async search(t: string): Promise<any[]> { 
+  async getAll(): Promise<Depositor[]> { 
+    return getAllItems<Depositor>('depositors').filter(d => !d.is_deleted) 
+  },
+  async getById(id: number | string): Promise<Depositor | null> {
+    const depositor = getItem<Depositor>('depositors', String(id))
+    return (depositor && !depositor.is_deleted) ? depositor : null
+  },
+  async search(t: string): Promise<Depositor[]> { 
     const x = t.toLowerCase()
     const allDepositors = await this.getAll()
     return allDepositors
       .filter(d => d.first_name?.toLowerCase().includes(x) || d.last_name?.toLowerCase().includes(x) || d.phone?.includes(t))
       .slice(0, 5) 
-  } 
+  },
+  async delete(id: number | string): Promise<void> {
+    // בדיקה: האם למפקיד יש הפקדות פעילות?
+    const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted && d.depositor_id === Number(id))
+    const activeDeposits = deposits.filter(d => d.status === 'active' || d.status === 'planned')
+    
+    if (activeDeposits.length > 0) {
+      throw new Error(`לא ניתן למחוק מפקיד עם ${activeDeposits.length} הפקדות פעילות. יש למחוק את ההפקדות תחילה.`)
+    }
+    
+    // Soft delete - גם של כל ההפקדות שלו
+    for (const deposit of deposits) {
+      await depositsService.delete(deposit.id)
+    }
+    
+    const depositor = await this.getById(id)
+    if (depositor) {
+      setItem('depositors', String(id), { ...depositor, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('depositor', String(id))
+    }
+  }
+}
+
+// Deposits Service
+export interface Deposit {
+  id: number
+  depositor_id: number
+  amount: number
+  deposit_date: string
+  period_type: string
+  due_date: string
+  is_recurring: number
+  recurring_day?: number
+  recurring_months?: number
+  recurring_deposit_number?: number
+  recurring_deposit_count?: number
+  recurring_series_id?: string
+  notes: string
+  status: string
+  withdrawal_date?: string
+  withdrawn_amount?: number
+  withdrawal_payment_method?: string
+  withdrawal_payment_details?: string
+  created_at?: string
+  is_deleted?: boolean
+  deleted_at?: string
+}
+
+export const depositsService = {
+  async getAll(): Promise<Deposit[]> {
+    return getAllItems<Deposit>('deposits').filter(d => !d.is_deleted)
+  },
+  async getById(id: number | string): Promise<Deposit | null> {
+    const deposit = getItem<Deposit>('deposits', String(id))
+    return (deposit && !deposit.is_deleted) ? deposit : null
+  },
+  async delete(id: number | string): Promise<void> {
+    // Soft delete - גם של כל המשיכות שלו
+    const withdrawals = await depositWithdrawalsService.getByDeposit(Number(id))
+    for (const withdrawal of withdrawals) {
+      await depositWithdrawalsService.delete(withdrawal.id)
+    }
+    
+    const deposit = await this.getById(id)
+    if (deposit) {
+      setItem('deposits', String(id), { ...deposit, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('deposit', String(id))
+    }
+  }
+}
+
+// Donations Service
+export interface Donation {
+  id: number
+  donor_id: number
+  amount: number
+  donation_date: string
+  notes: string
+  payment_method?: string
+  payment_details?: string
+  receipt_number?: string
+  created_at?: string
+  is_deleted?: boolean
+  deleted_at?: string
+}
+
+export const donationsService = {
+  async getAll(): Promise<Donation[]> {
+    return getAllItems<Donation>('donations').filter(d => !d.is_deleted)
+  },
+  async getById(id: number | string): Promise<Donation | null> {
+    const donation = getItem<Donation>('donations', String(id))
+    return (donation && !donation.is_deleted) ? donation : null
+  },
+  async getByDonor(donorId: number): Promise<Donation[]> {
+    return (await this.getAll()).filter(d => d.donor_id === donorId)
+  },
+  async delete(id: number | string): Promise<void> {
+    const donation = await this.getById(id)
+    if (donation) {
+      setItem('donations', String(id), { ...donation, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('donation', String(id))
+    }
+  }
 }
 
 // Blacklist Service
@@ -1811,7 +1969,7 @@ export const waitlistService = {
 
 // Deposit Withdrawals Service - משיכות הפקדות
 export interface DepositWithdrawal {
-  id: number
+  id: string
   deposit_id: number
   amount: number
   withdrawal_date: string
@@ -1828,7 +1986,7 @@ export const depositWithdrawalsService = {
     )
   },
   
-  async getById(id: number): Promise<DepositWithdrawal | null> {
+  async getById(id: string): Promise<DepositWithdrawal | null> {
     return getItem<DepositWithdrawal>('depositWithdrawals', String(id))
   },
   
@@ -1847,7 +2005,43 @@ export const depositWithdrawalsService = {
   },
   
   async delete(id: string): Promise<void> {
+    const withdrawal = await this.getById(id)
+    if (!withdrawal) return  // אין מה למחוק
+    
+    // ✅ תיקון BLOCKER: עדכן את הdeposit parent אחרי מחיקת withdrawal
+    const depositId = String(withdrawal.deposit_id)
+    
+    // מחק את הwithdrawal
     removeItem('depositWithdrawals', id)
+    
+    // חשב מחדש את total withdrawn מכל הwithdrawals הנותרים
+    const remainingWithdrawals = await this.getByDeposit(depositId)
+    const newTotalWithdrawn = remainingWithdrawals.reduce((sum, w) => sum + w.amount, 0)
+    
+    // קבל את הdeposit ועדכן אותו ישירות
+    const deposit = getItem<any>('deposits', depositId)
+    if (deposit) {
+      const depositAmount = deposit.amount || 0
+      
+      // חישוב סטטוס חדש
+      const newStatus = newTotalWithdrawn >= depositAmount ? 'withdrawn' : 'active'
+      
+      // עדכון הdeposit
+      if (newTotalWithdrawn === 0) {
+        // אין withdrawals - נקה הכל
+        deposit.status = 'active'
+        deposit.withdrawal_date = null
+        deposit.withdrawn_amount = 0
+        deposit.withdrawal_payment_method = null
+        deposit.withdrawal_payment_details = null
+      } else {
+        // יש עדיין withdrawals - עדכן רק סכום וסטטוס
+        deposit.status = newStatus
+        deposit.withdrawn_amount = newTotalWithdrawn
+      }
+      
+      setItem('deposits', depositId, deposit)
+    }
   },
   
   async getTotalWithdrawn(depositId: string | number): Promise<number> {
