@@ -296,17 +296,23 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
       seriesId = crypto.randomUUID()
       console.log(`[CREATE RECURRING] Creating new series_id for loan family: ${seriesId}`)
       
-      // עדכון כל ההלוואות במשפחה עם ה-series_id החדש
-      // (זיהוי לפי borrower_id + recurring_day - זה הסטנדרט הישן)
-      const allLoans = await loansService.getAll() as any[]
-      for (const l of allLoans) {
-        if (l.borrower_id === loan.borrower_id && 
-            l.recurring_day === loan.recurring_day &&
-            l.is_recurring === 1) {
-          await loansService.update(l.id, {
-            recurring_series_id: seriesId
-          })
+      // ניסיון לעדכן כל ההלוואות במשפחה עם ה-series_id החדש
+      // אם הbackfill נכשל - לרשום שגיאה אבל להמשיך ליצור את ההלוואה החדשה
+      try {
+        const allLoans = await loansService.getAll() as any[]
+        if (Array.isArray(allLoans)) {
+          for (const l of allLoans) {
+            if (l.borrower_id === loan.borrower_id && 
+                l.recurring_day === loan.recurring_day &&
+                l.is_recurring === 1) {
+              await loansService.update(l.id, {
+                recurring_series_id: seriesId
+              })
+            }
+          }
         }
+      } catch (backfillError) {
+        console.error(`[CREATE RECURRING] Failed to backfill series_id for loan family. Loan: ${originalLoanId}, Borrower: ${loan.borrower_id}. Continuing with new loan creation.`, backfillError)
       }
     }
     
