@@ -24,8 +24,8 @@ import PaymentMethodSelect, { PaymentMethodData } from '../PaymentMethodSelect';
 import AttachmentsSection from '../attachments/AttachmentsSection';
 
 interface Deposit {
-  id: number;
-  depositor_id: number;
+  id: string;
+  depositor_id: string;
   amount: number;
   deposit_date: string;
   period_type: string;
@@ -40,7 +40,7 @@ interface Deposit {
 }
 
 interface Depositor {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;
   phone: string;

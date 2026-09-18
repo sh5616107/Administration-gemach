@@ -4,7 +4,7 @@ import DepositorForm from './DepositorForm';
 import AttachmentsSection from '../attachments/AttachmentsSection';
 
 interface Depositor {
-  id?: number
+  id?: string
   first_name: string
   last_name: string
   id_number: string

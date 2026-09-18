@@ -1093,7 +1093,7 @@ export const statsService = {
       const depositAmount = d.amount
       
       // הפחתת משיכות
-      const withdrawals = await depositWithdrawalsService.getByDeposit(d.id as any)
+      const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
       const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
       totalDeposits += (depositAmount - totalWithdrawn)
     }
@@ -1679,8 +1679,8 @@ export const depositorsService = {
 
 // Deposits Service
 export interface Deposit {
-  id: number
-  depositor_id: number
+  id: string
+  depositor_id: string
   amount: number
   deposit_date: string
   period_type: string
@@ -1706,21 +1706,21 @@ export const depositsService = {
   async getAll(): Promise<Deposit[]> {
     return getAllItems<Deposit>('deposits').filter(d => !d.is_deleted)
   },
-  async getById(id: number | string): Promise<Deposit | null> {
-    const deposit = getItem<Deposit>('deposits', String(id))
+  async getById(id: string): Promise<Deposit | null> {
+    const deposit = getItem<Deposit>('deposits', id)
     return (deposit && !deposit.is_deleted) ? deposit : null
   },
-  async delete(id: number | string): Promise<void> {
+  async delete(id: string): Promise<void> {
     // Soft delete - גם של כל המשיכות שלו
-    const withdrawals = await depositWithdrawalsService.getByDeposit(Number(id))
+    const withdrawals = await depositWithdrawalsService.getByDeposit(id)
     for (const withdrawal of withdrawals) {
       await depositWithdrawalsService.delete(withdrawal.id)
     }
     
     const deposit = await this.getById(id)
     if (deposit) {
-      setItem('deposits', String(id), { ...deposit, is_deleted: true, deleted_at: new Date().toISOString() })
-      await attachmentsService.softDeleteByEntity('deposit', String(id))
+      setItem('deposits', id, { ...deposit, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('deposit', id)
     }
   }
 }
@@ -1970,7 +1970,7 @@ export const waitlistService = {
 // Deposit Withdrawals Service - משיכות הפקדות
 export interface DepositWithdrawal {
   id: string
-  deposit_id: number
+  deposit_id: string
   amount: number
   withdrawal_date: string
   payment_method?: string
@@ -1990,7 +1990,7 @@ export const depositWithdrawalsService = {
     return getItem<DepositWithdrawal>('depositWithdrawals', String(id))
   },
   
-  async getByDeposit(depositId: number | string): Promise<DepositWithdrawal[]> {
+  async getByDeposit(depositId: string): Promise<DepositWithdrawal[]> {
     return (await this.getAll()).filter(w => w.deposit_id === depositId)
   },
   

@@ -132,14 +132,14 @@ const MOCK_BORROWER_REPORT_WITH_REPAY = {
 const MOCK_DEPOSITOR_REPORT_NO_WITHDRAW = {
   gemachName: 'גמ"ח לדוגמה', depositorName: 'יעקב לוי', totalActive: 10000, totalWithdrawn: 0,
   deposits: [
-    { id: 1, amount: 10000, deposit_date: '2026-01-01', period_type: 'fixed', status: 'active', is_recurring: 0, remaining: 10000, withdrawn_amount: 0 },
+    { id: 'mock-dep-1', amount: 10000, deposit_date: '2026-01-01', period_type: 'fixed', status: 'active', is_recurring: 0, remaining: 10000, withdrawn_amount: 0 },
   ],
 }
 const MOCK_DEPOSITOR_REPORT_WITH_WITHDRAW = {
   gemachName: 'גמ"ח לדוגמה', depositorName: 'יעקב לוי', totalActive: 6000, totalWithdrawn: 4000,
   deposits: [
     {
-      id: 1, amount: 10000, deposit_date: '2026-01-01', period_type: 'fixed', status: 'active', is_recurring: 0,
+      id: 'mock-dep-2', amount: 10000, deposit_date: '2026-01-01', period_type: 'fixed', status: 'active', is_recurring: 0,
       remaining: 6000, withdrawn_amount: 4000,
       withdrawals: [{ amount: 4000, withdrawal_date: '2026-05-01' }],
     },

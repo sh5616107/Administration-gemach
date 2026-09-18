@@ -1617,7 +1617,7 @@ type DepositorReportData = {
   depositorPhone?: string
   depositorIdNumber?: string
   deposits: Array<{
-    id: number
+    id: string
     amount: number
     deposit_date: string
     period_type: string
@@ -1790,7 +1790,7 @@ export async function generateDepositorReport(data: {
   depositorPhone?: string
   depositorIdNumber?: string
   deposits: Array<{
-    id: number
+    id: string
     amount: number
     deposit_date: string
     period_type: string

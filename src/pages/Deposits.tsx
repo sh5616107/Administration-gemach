@@ -62,7 +62,7 @@ import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMet
 import AmountInput from '../components/AmountInput';
 
 interface Depositor {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;
   phone: string;
@@ -76,8 +76,8 @@ interface Depositor {
 }
 
 interface Deposit {
-  id: number;
-  depositor_id: number;
+  id: string;
+  depositor_id: string;
   amount: number;
   deposit_date: string;
   period_type: string;
@@ -135,7 +135,7 @@ export default function Deposits() {
   const [selectedDepositForHistory, setSelectedDepositForHistory] = useState<Deposit | null>(null);
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
   const [manageRecurringDialogOpen, setManageRecurringDialogOpen] = useState(false);
-  const [selectedRecurringDepositId, setSelectedRecurringDepositId] = useState<number | null>(null);
+  const [selectedRecurringDepositId, setSelectedRecurringDepositId] = useState<string | null>(null);
 
   // Snackbar
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -266,7 +266,7 @@ export default function Deposits() {
     }
   };
 
-  const loadDepositsForDepositor = async (depositorId: number) => {
+  const loadDepositsForDepositor = async (depositorId: string) => {
     setLoadingDeposits(true);
     try {
       const data = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [depositorId]) as Deposit[];
@@ -1160,14 +1160,13 @@ export default function Deposits() {
                       try {
                         // Prepare deposits data with withdrawals
                         const depositsWithDetails = await Promise.all(
-                          deposits.map(async (dep, index) => {
+                          deposits.map(async (dep) => {
                             const withdrawals = await depositWithdrawalsService.getByDeposit(dep.id);
                             const withdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
                             const remaining = dep.amount - withdrawn;
                             
                             return {
                               ...dep,
-                              id: index + 1, // Use sequential number instead of UUID
                               withdrawals: withdrawals.map(w => ({
                                 amount: w.amount,
                                 withdrawal_date: w.withdrawal_date

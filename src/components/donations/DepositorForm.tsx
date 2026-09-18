@@ -23,7 +23,7 @@ import { generateDepositorReport, openEmailWithDocument, createDepositorReportEm
 import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
 
 interface Depositor {
-  id?: number
+  id?: string
   first_name: string
   last_name: string
   id_number: string
