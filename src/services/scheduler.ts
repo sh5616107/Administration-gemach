@@ -43,9 +43,19 @@ interface MissedLoanAlert {
 // series-editor could each pick a DIFFERENT loan/deposit as "the latest one",
 // causing "finish series early" to silently fail to stop future creations.
 function isSameLoanSeries(a: any, b: any): boolean {
+  // ✅ תיקון production-readiness: שימוש ב-recurring_series_id כמזהה קנוני
+  if (a.recurring_series_id && b.recurring_series_id) {
+    return a.recurring_series_id === b.recurring_series_id
+  }
+  // Fallback לזיהוי ישן (loans ישנים ללא series_id)
   return a.borrower_id === b.borrower_id && a.recurring_day === b.recurring_day
 }
 function isSameDepositSeries(a: any, b: any): boolean {
+  // ✅ תיקון production-readiness: שימוש ב-recurring_series_id כמזהה קנוני
+  if (a.recurring_series_id && b.recurring_series_id) {
+    return a.recurring_series_id === b.recurring_series_id
+  }
+  // Fallback לזיהוי ישן (deposits ישנים ללא series_id)
   return a.depositor_id === b.depositor_id && a.recurring_day === b.recurring_day
 }
 
@@ -286,10 +296,18 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
       seriesId = crypto.randomUUID()
       console.log(`[CREATE RECURRING] Creating new series_id for loan family: ${seriesId}`)
       
-      // עדכון ההלוואה המקורית עם ה-series_id החדש
-      await loansService.update(originalLoanId, {
-        recurring_series_id: seriesId
-      })
+      // עדכון כל ההלוואות במשפחה עם ה-series_id החדש
+      // (זיהוי לפי borrower_id + recurring_day - זה הסטנדרט הישן)
+      const allLoans = await loansService.getAll() as any[]
+      for (const l of allLoans) {
+        if (l.borrower_id === loan.borrower_id && 
+            l.recurring_day === loan.recurring_day &&
+            l.is_recurring === 1) {
+          await loansService.update(l.id, {
+            recurring_series_id: seriesId
+          })
+        }
+      }
     }
     
     await loansService.create({
@@ -960,6 +978,26 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     
     console.log(`[CREATE-RECURRING] Creating deposit #${newDepositNumber} from latest #${originalNumber} (original deposit id: ${originalDepositId})`)
     
+    // ✅ תיקון production-readiness: אם להפקדה המקורית אין recurring_series_id, ליצור לה אחד
+    let seriesId = (latestDeposit as any).recurring_series_id
+    if (!seriesId) {
+      // יצירת UUID חדש למשפחה
+      seriesId = `series-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+      console.log(`[CREATE-RECURRING] Created new series_id for deposit family: ${seriesId}`)
+      
+      // עדכון כל ההפקדות במשפחה עם ה-series_id החדש
+      // (זיהוי לפי depositor_id + recurring_day - זה הסטנדרט הישן)
+      for (const d of allDeposits) {
+        if (d.depositor_id === latestDeposit.depositor_id && 
+            d.recurring_day === latestDeposit.recurring_day) {
+          await db.run(
+            'UPDATE deposits SET recurring_series_id = ? WHERE id = ?',
+            [seriesId, d.id]
+          )
+        }
+      }
+    }
+    
     // ✅ תיקון באג 3: בדיקה מדויקת - האם כבר קיימת הפקדה עם המספר הבא?
     const allDepositsIncludingDeleted = getAllItems<any>('deposits')
     const existingDeposit = allDepositsIncludingDeleted.find(d =>
@@ -975,7 +1013,7 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     }
     
     await db.run(
-      'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, recurring_series_id, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         latestDeposit.depositor_id, 
         latestDeposit.amount, 
@@ -987,6 +1025,7 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
         latestDeposit.recurring_months ? latestDeposit.recurring_months - 1 : 0,
         newDepositNumber,
         totalCount,
+        seriesId,  // ✅ העברת ה-series_id להפקדה החדשה
         `הפקדה מחזורית מהפקדה #${originalDepositId} (${newDepositNumber}/${totalCount})`, 
         'active', 
         latestDeposit.payment_method || '', 

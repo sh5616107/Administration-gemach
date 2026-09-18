@@ -4,7 +4,7 @@
  */
 
 import * as XLSX from 'xlsx'
-import { borrowersService, guarantorsService, loansService, donorsService, depositorsService, repaymentsService, db } from './database'
+import { borrowersService, guarantorsService, loansService, donorsService, depositorsService, repaymentsService, db, getAllItems } from './database'
 
 // סוגי נתונים לייבוא
 export type ImportType = 'borrowers' | 'guarantors' | 'loans' | 'repayments' | 'donations' | 'deposits' | 'waitlist'
@@ -1528,7 +1528,8 @@ export async function exportToExcel(): Promise<Blob> {
   
   // 5. יצוא תרומות
   const donors = await donorsService.getAll()
-  const allDonations = await db.query('SELECT * FROM donations') as any[]
+  // ✅ תיקון production-readiness: סינון is_deleted
+  const allDonations = getAllItems<any>('donations').filter(d => !d.is_deleted)
   const donationsData: any[] = []
   for (const d of allDonations) {
     const donor = donors.find((don: any) => don.id === d.donor_id)
@@ -1550,7 +1551,8 @@ export async function exportToExcel(): Promise<Blob> {
   
   // 6. יצוא הפקדות
   const depositors = await depositorsService.getAll()
-  const allDeposits = await db.query('SELECT * FROM deposits') as any[]
+  // ✅ תיקון production-readiness: סינון is_deleted
+  const allDeposits = getAllItems<any>('deposits').filter(d => !d.is_deleted)
   const depositsData: any[] = []
   for (const d of allDeposits) {
     const depositor = depositors.find((dep: any) => dep.id === d.depositor_id)

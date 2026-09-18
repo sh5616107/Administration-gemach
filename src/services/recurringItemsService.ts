@@ -92,6 +92,7 @@ interface Deposit {
   recurring_months?: number
   recurring_deposit_number?: number
   recurring_deposit_count?: number
+  recurring_series_id?: string  // UUID - מזהה קנוני למשפחת הפקדות מחזוריות
   notes?: string
   status: string
   payment_method?: string
@@ -251,14 +252,26 @@ export async function identifySeriesItems(itemType: ItemType, originalItem: any)
     }
     case 'deposit': {
       const allDeposits = getAllItems<Deposit>('deposits')
-      // Identify deposits in series by: depositor_id, recurring_day, and having recurring_deposit_number
-      items = allDeposits.filter(d =>
-        d.depositor_id === originalItem.depositor_id &&
-        d.recurring_day === originalItem.recurring_day &&
-        d.is_recurring === 1 &&
-        d.recurring_deposit_number && // Must have a deposit number
-        !d.is_deleted
-      )
+      
+      // ✅ תיקון production-readiness: שימוש ב-recurring_series_id כמזהה קנוני
+      if (originalItem.recurring_series_id) {
+        // יש series_id - זה המזהה הקנוני
+        items = allDeposits.filter(d =>
+          d.recurring_series_id === originalItem.recurring_series_id &&
+          d.is_recurring === 1 &&
+          d.recurring_deposit_number && 
+          !d.is_deleted
+        )
+      } else {
+        // אין series_id - fallback לזיהוי לפי depositor_id + recurring_day (הפקדות ישנות)
+        items = allDeposits.filter(d =>
+          d.depositor_id === originalItem.depositor_id &&
+          d.recurring_day === originalItem.recurring_day &&
+          d.is_recurring === 1 &&
+          d.recurring_deposit_number && // Must have a deposit number
+          !d.is_deleted
+        )
+      }
       break
     }
     default:

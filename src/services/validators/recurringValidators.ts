@@ -24,6 +24,7 @@ export interface Deposit {
   recurring_months?: number
   recurring_deposit_number?: number
   recurring_deposit_count?: number
+  recurring_series_id?: string  // UUID - מזהה קנוני למשפחת הפקדות מחזוריות
   status: string
   withdrawn_amount?: number
   is_deleted?: boolean

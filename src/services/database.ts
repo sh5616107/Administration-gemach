@@ -666,26 +666,52 @@ export const db = {
       return { lastInsertRowid: 0, changes: 1 }
     }
     if (normalizedSql.includes('INSERT INTO deposits') && params) { 
-      const id = generateId('deposits'); 
-      setItem('deposits', String(id), { 
-        id, 
-        depositor_id: params[0], 
-        amount: params[1], 
-        deposit_date: params[2], 
-        period_type: params[3], 
-        due_date: params[4], 
-        is_recurring: params[5], 
-        recurring_day: params[6], 
-        recurring_months: params[7],
-        recurring_deposit_number: params[8],
-        recurring_deposit_count: params[9],
-        notes: params[10], 
-        status: params[11], 
-        payment_method: params[12] || '', 
-        payment_details: params[13] || '', 
-        is_deleted: false,
-        created_at: new Date().toISOString() 
-      }); 
+      const id = generateId('deposits');
+      // תמיכה ב-2 פורמטים: 14 פרמטרים (ישן, ללא recurring_series_id) ו-15 (חדש)
+      if (params.length === 15) {
+        // פורמט חדש עם recurring_series_id
+        setItem('deposits', String(id), { 
+          id, 
+          depositor_id: params[0], 
+          amount: params[1], 
+          deposit_date: params[2], 
+          period_type: params[3], 
+          due_date: params[4], 
+          is_recurring: params[5], 
+          recurring_day: params[6], 
+          recurring_months: params[7],
+          recurring_deposit_number: params[8],
+          recurring_deposit_count: params[9],
+          recurring_series_id: params[10],
+          notes: params[11], 
+          status: params[12], 
+          payment_method: params[13] || '', 
+          payment_details: params[14] || '', 
+          is_deleted: false,
+          created_at: new Date().toISOString() 
+        });
+      } else {
+        // פורמט ישן ללא recurring_series_id (14 פרמטרים)
+        setItem('deposits', String(id), { 
+          id, 
+          depositor_id: params[0], 
+          amount: params[1], 
+          deposit_date: params[2], 
+          period_type: params[3], 
+          due_date: params[4], 
+          is_recurring: params[5], 
+          recurring_day: params[6], 
+          recurring_months: params[7],
+          recurring_deposit_number: params[8],
+          recurring_deposit_count: params[9],
+          notes: params[10], 
+          status: params[11], 
+          payment_method: params[12] || '', 
+          payment_details: params[13] || '', 
+          is_deleted: false,
+          created_at: new Date().toISOString() 
+        });
+      }
       return { lastInsertRowid: id, changes: 1 } 
     }
 
@@ -742,6 +768,14 @@ export const db = {
       const d = getItem<any>('deposits', String(params[params.length - 1]));
       if (d) {
         d.recurring_months = params[0]
+        setItem('deposits', String(params[params.length - 1]), d)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
+    if (normalizedSql.includes('UPDATE deposits SET recurring_series_id') && params) {
+      const d = getItem<any>('deposits', String(params[params.length - 1]));
+      if (d) {
+        d.recurring_series_id = params[0]
         setItem('deposits', String(params[params.length - 1]), d)
       }
       return { lastInsertRowid: 0, changes: 1 }
@@ -1502,10 +1536,14 @@ export const guarantorRefundsService = {
   async delete(id: string): Promise<void> {
     const existing = await this.getById(id)
     if (existing) {
+      // ✅ תיקון production-readiness: חשב total_refunded לפני מחיקת הrefund
+      // אחרת getTotalRefunded() לא מוצא את הrefund כי הוא כבר נמחק
+      const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
+      
+      // מחק את הrefund
       removeItem('guarantorRefunds', id)
       
       // עדכון total_refunded בהלוואת הערב
-      const guarantorLoan = await guarantorLoansService.getById(existing.guarantor_loan_id)
       if (guarantorLoan) {
         const newTotalRefunded = await this.getTotalRefunded(existing.guarantor_loan_id)
         const updates: Partial<GuarantorLoan> = { 

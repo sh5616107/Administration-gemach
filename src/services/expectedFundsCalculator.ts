@@ -30,6 +30,7 @@ export interface Deposit {
   is_recurring?: number
   recurring_months?: number
   recurring_day?: number
+  recurring_series_id?: string  // UUID - מזהה קנוני למשפחת הפקדות מחזוריות
 }
 
 export interface ExpectedFunds {
