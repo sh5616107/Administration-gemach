@@ -93,18 +93,21 @@ describe('Property 3: Event Data Loading Completeness', () => {
     'all events in month range should be loaded with correct types',
     async (year, month, mockLoans, mockDeposits) => {
       // Setup: Mock the database services
-      const { loansService, db } = await import('../services/database')
+      const { loansService, depositorsService } = await import('../services/database')
+      const { depositRepository } = await import('../services/repositories/depositRepository')
+      const { repaymentRepository } = await import('../services/repositories/repaymentRepository')
       
       // Mock loansService.getAll
       vi.spyOn(loansService, 'getAll').mockResolvedValue(mockLoans as any)
       
-      // Mock db.query for deposits
-      vi.spyOn(db, 'query').mockImplementation(async (sql: string) => {
-        if (sql.includes('FROM deposits')) {
-          return mockDeposits
-        }
-        return []
-      })
+      // Mock depositRepository.getAll
+      vi.spyOn(depositRepository, 'getAll').mockResolvedValue(mockDeposits as any)
+      
+      // Mock depositorsService.getAll - מחזיר רשימה ריקה כברירת מחדל
+      vi.spyOn(depositorsService, 'getAll').mockResolvedValue([])
+      
+      // Mock repaymentRepository.getAll - מחזיר רשימה ריקה כברירת מחדל
+      vi.spyOn(repaymentRepository, 'getAll').mockResolvedValue([])
       
       try {
         // Execute

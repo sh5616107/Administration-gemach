@@ -152,6 +152,35 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
       const borrower = await borrowersService.getById(loan.borrower_id)
       const borrower_name = borrower ? `${borrower.first_name} ${borrower.last_name}` : ''
       
+      // ✅ תיקון: רק ההלוואה האחרונה במשפחה צריכה ליצור התראות
+      // אחרת נקבל כפילויות - כל הלוואה במשפחה תנסה ליצור את ההלוואה הבאה
+      const allLoans = await loansService.getAll() as any[]
+      const newerLoanInSeries = allLoans.find((l: any) => 
+        l.borrower_id === loan.borrower_id &&
+        l.is_recurring === 1 &&
+        l.recurring_day === loan.recurring_day &&
+        l.amount === loan.amount &&
+        l.recurring_loan_number > loan.recurring_loan_number &&
+        !l.is_deleted &&
+        l.status === 'active'
+      )
+      
+      if (newerLoanInSeries) {
+        continue
+      }
+      
+      // ✅ תיקון: אם ההלוואה הנוכחית נוצרה החודש הזה, לא צריך להתריע
+      // (ההתראה היא רק להלוואות שכבר היו קיימות בחודשים קודמים)
+      const loanDate = new Date(loan.loan_date)
+      const loanMonth = loanDate.getMonth()
+      const loanYear = loanDate.getFullYear()
+      const currentMonth = today.getMonth()
+      const currentYear = today.getFullYear()
+      
+      if (loanYear === currentYear && loanMonth === currentMonth) {
+        continue
+      }
+      
       // If recurring day is greater than last day of month, use last day
       const effectiveDay = Math.min(loan.recurring_day || 1, lastDayOfMonth)
       
