@@ -147,6 +147,9 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
     // Get all loans with recurring enabled and active status
     const recurringLoans = await loanRepository.getRecurringLoansDue()
 
+    // ✅ תיקון ביצועים: נטען פעם אחת מחוץ ללולאה (היה נטען מחדש בכל איטרציה - O(n²))
+    const allLoans = await loansService.getAll() as any[]
+
     for (const loan of recurringLoans) {
       // שליפת שם הלווה
       const borrower = await borrowersService.getById(loan.borrower_id)
@@ -154,7 +157,6 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
       
       // ✅ תיקון: רק ההלוואה האחרונה במשפחה צריכה ליצור התראות
       // אחרת נקבל כפילויות - כל הלוואה במשפחה תנסה ליצור את ההלוואה הבאה
-      const allLoans = await loansService.getAll() as any[]
       const newerLoanInSeries = allLoans.find((l: any) => 
         l.borrower_id === loan.borrower_id &&
         l.is_recurring === 1 &&
@@ -903,9 +905,6 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
   
   // Get last day of current month
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-  
-  // Get the first day of current month
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
 
   try {
     // Get all active recurring deposits
@@ -923,6 +922,10 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
       return { ...d, depositor_name }
     })
 
+    // ✅ תיקון: נדרש כדי לזהות הפקדה חדשה יותר באותה סדרה (ראו הבדיקות למטה),
+    // באותה תבנית שכבר קיימת ומוכחת ב-autoCreateRecurringDeposits ובעדכון המקביל ל-checkRecurringLoans
+    const allDepositsIncludingDeleted = getAllItems<any>('deposits')
+
     for (const deposit of depositsWithNames) {
       // בדיקה: רק הפקדות עם recurring_months > 0 צריכות ליצור התראות
       // הפקדה עם recurring_months = 0 היא ההפקדה האחרונה בסדרה
@@ -932,6 +935,29 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
       
       // בדיקה: אם ההפקדה נוצרה היום, לא צריך התראה
       if (deposit.deposit_date === todayStr) {
+        continue
+      }
+
+      // ✅ תיקון: רק ההפקדה האחרונה בסדרה צריכה ליצור התראות
+      // (מקביל לתיקון שכבר קיים ב-autoCreateRecurringDeposits וב-checkRecurringLoans)
+      const newerDepositExists = allDepositsIncludingDeleted.find((d: any) =>
+        isSameDepositSeries(d, deposit) &&
+        d.id !== deposit.id &&
+        d.is_recurring === 1 &&
+        d.recurring_deposit_number > (deposit.recurring_deposit_number || 1) &&
+        !d.is_deleted
+      )
+      if (newerDepositExists) {
+        continue
+      }
+
+      // ✅ תיקון: אם ההפקדה הנוכחית (האחרונה בסדרה) נוצרה החודש הזה, לא צריך להתריע.
+      // מחליף את התלות ב-hasRecurringDepositForPeriod, שהחזירה false-negative
+      // כאשר ההפקדה הנבדקת היא הרשומה היחידה בטווח (excludeId הוציא אותה מהחיפוש
+      // של עצמה) - בדיוק התרחיש של "הפקדה מחזורית שכבר נוצרה החודש".
+      const depositDate = new Date(deposit.deposit_date)
+      if (depositDate.getFullYear() === today.getFullYear() &&
+          depositDate.getMonth() === today.getMonth()) {
         continue
       }
       
@@ -947,36 +973,26 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
       const isPastRecurringDay = todayDay > effectiveDay
       
       if (shouldAlertToday || isPastRecurringDay) {
-        // Check if we already created a deposit this month
-        // ✅ תיקון קריטי: החלפת db.query() ב-depositRepository.hasRecurringDepositForPeriod()
-        // db.query() לא מבצע את כל תנאי WHERE באמת
-        const existingDepositFound = await depositRepository.hasRecurringDepositForPeriod(
-          deposit.depositor_id,
-          deposit.amount,
-          firstDayOfMonth,
-          todayStr,
-          String(deposit.id)
-        )
-
-        if (!existingDepositFound) {
-          const alertMessage = isPastRecurringDay
-            ? `הפקדה מחזורית באיחור (היתה אמורה להתבצע ב-${effectiveDay} לחודש) - ${deposit.depositor_name}`
-            : `הגיע מועד הפקדה מחזורית עבור ${deposit.depositor_name}`
-          
-          alerts.push({
-            id: `recurring_deposit_${deposit.id}_${todayStr}`,
-            type: 'recurring_deposit',
-            title: isPastRecurringDay ? 'הפקדה מחזורית באיחור' : 'הפקדה מחזורית',
-            message: alertMessage,
-            loan_id: '', // No loan for deposits
-            borrower_name: '',
-            deposit_id: deposit.id,
-            depositor_name: deposit.depositor_name,
-            amount: deposit.amount,
-            created_at: todayStr,
-            read: false
-          })
-        }
+        // הבדיקה אם כבר נוצרה הפקדה החודש מתבצעת עכשיו למעלה (סדרה + חודש יצירה),
+        // באותה תבנית שכבר קיימת ומוכחת עבור הלוואות מחזוריות. hasRecurringDepositForPeriod
+        // לא נדרשת יותר כאן.
+        const alertMessage = isPastRecurringDay
+          ? `הפקדה מחזורית באיחור (היתה אמורה להתבצע ב-${effectiveDay} לחודש) - ${deposit.depositor_name}`
+          : `הגיע מועד הפקדה מחזורית עבור ${deposit.depositor_name}`
+        
+        alerts.push({
+          id: `recurring_deposit_${deposit.id}_${todayStr}`,
+          type: 'recurring_deposit',
+          title: isPastRecurringDay ? 'הפקדה מחזורית באיחור' : 'הפקדה מחזורית',
+          message: alertMessage,
+          loan_id: '', // No loan for deposits
+          borrower_name: '',
+          deposit_id: deposit.id,
+          depositor_name: deposit.depositor_name,
+          amount: deposit.amount,
+          created_at: todayStr,
+          read: false
+        })
       }
     }
   } catch (error) {

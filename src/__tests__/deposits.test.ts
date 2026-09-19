@@ -383,10 +383,7 @@ describe('checkRecurringDeposits', () => {
     expect(alerts.length).toBe(0)
   })
 
-  it.skip('should NOT create duplicate alert if deposit already exists this month', async () => {
-    // TODO: This test fails because hasRecurringDepositForPeriod() doesn't find existing deposits correctly
-    // This is a pre-existing bug, not a regression from recent changes
-    // Needs investigation of depositRepository.hasRecurringDepositForPeriod()
+  it('should NOT create duplicate alert if deposit already exists this month', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-10'))
 
