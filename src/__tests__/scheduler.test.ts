@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock the database module
+// Mock the database module - use real implementations, only wrap with vi.fn for inspection
 vi.mock('../services/database', async (importOriginal) => {
   const actual = await importOriginal() as any
   return {
@@ -406,22 +406,33 @@ describe('checkRecurringDeposits', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-10'))
 
-    const recurringDeposit = {
+    const { resetDatabase, setItem } = await import('../services/database')
+    await resetDatabase()
+
+    // יצירת מפקיד ישירות ב-storage
+    setItem('depositors', '1', {
+      id: 1,
+      first_name: 'משה',
+      last_name: 'כהן',
+      phone: '0501234567',
+      city: 'ירושלים',
+      notes: '',
+      is_deleted: false
+    })
+
+    // יצירת הפקדה מחזורית מהחודש שעבר
+    setItem('deposits', '1', {
       id: 1,
       depositor_id: 1,
-      depositor_name: 'משה כהן',
       amount: 2000,
-      is_recurring: 1,
-      recurring_day: 10, // היום!
-      recurring_months: 5, // יש עוד 5 הפקדות ליצור
-      status: 'active',
       deposit_date: '2025-12-10',
-    }
-
-    vi.mocked(db.query).mockImplementation(async (sql: string) => {
-      if (sql.includes('is_recurring = 1')) return [recurringDeposit]
-      if (sql.includes('SELECT id FROM deposits')) return [] // לא נוצרה הפקדה החודש
-      return []
+      is_recurring: 1,
+      recurring_day: 10,
+      recurring_months: 5,
+      status: 'active',
+      period_type: 'monthly',
+      notes: '',
+      is_deleted: false
     })
 
     const { checkRecurringDeposits } = await import('../services/scheduler')
