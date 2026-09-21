@@ -865,8 +865,8 @@ export const borrowersService = {
     return (b && !b.is_deleted) ? b : null
   },
   async search(term: string): Promise<Borrower[]> { const t = term.toLowerCase(); return (await this.getAll()).filter(b => b.first_name?.toLowerCase().includes(t) || b.last_name?.toLowerCase().includes(t) || b.phone?.includes(term) || b.id_number?.includes(term) || b.city?.toLowerCase().includes(t)) },
-  async create(b: Omit<Borrower, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('borrowers'); setItem('borrowers', id, { ...b, id, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
-  async update(id: string, d: Partial<Borrower>): Promise<void> { const e = await this.getById(id); if (e) setItem('borrowers', id, { ...e, ...d }) },
+  async create(b: Omit<Borrower, 'id' | 'created_at'>): Promise<{ lastInsertRowid: string }> { const id = generateId('borrowers'); setItem('borrowers', id, { ...b, id, is_deleted: false, created_at: new Date().toISOString() }); await flushPendingSave(); return { lastInsertRowid: id } },
+  async update(id: string, d: Partial<Borrower>): Promise<void> { const e = await this.getById(id); if (e) { setItem('borrowers', id, { ...e, ...d }); await flushPendingSave() } },
   async delete(id: string): Promise<void> { 
     // בדיקה: האם ללווה יש הלוואה פעילה עם יתרה?
     const loans = getAllItems<Loan>('loans').filter(l => !l.is_deleted && l.borrower_id === id)
@@ -887,6 +887,7 @@ export const borrowersService = {
     const borrower = await this.getById(id)
     if (borrower) {
       setItem('borrowers', id, { ...borrower, is_deleted: true, deleted_at: new Date().toISOString() })
+      await flushPendingSave()
       await attachmentsService.softDeleteByEntity('borrower', id)
     }
   },
@@ -915,13 +916,14 @@ export const guarantorsService = {
     return (g && !g.is_deleted) ? g : null
   },
   async search(term: string): Promise<Guarantor[]> { const t = term.toLowerCase(); return (await this.getAll()).filter(g => g.first_name?.toLowerCase().includes(t) || g.last_name?.toLowerCase().includes(t) || g.phone?.includes(term) || g.id_number?.includes(term)) },
-  async create(g: Omit<Guarantor, 'id' | 'created_at' | 'is_blacklisted'>): Promise<{ lastInsertRowid: string }> { const id = generateId('guarantors'); setItem('guarantors', id, { ...g, id, is_blacklisted: 0, is_deleted: false, created_at: new Date().toISOString() }); return { lastInsertRowid: id } },
-  async update(id: string, d: Partial<Guarantor>): Promise<void> { const e = await this.getById(id); if (e) setItem('guarantors', id, { ...e, ...d }) },
+  async create(g: Omit<Guarantor, 'id' | 'created_at' | 'is_blacklisted'>): Promise<{ lastInsertRowid: string }> { const id = generateId('guarantors'); setItem('guarantors', id, { ...g, id, is_blacklisted: 0, is_deleted: false, created_at: new Date().toISOString() }); await flushPendingSave(); return { lastInsertRowid: id } },
+  async update(id: string, d: Partial<Guarantor>): Promise<void> { const e = await this.getById(id); if (e) { setItem('guarantors', id, { ...e, ...d }); await flushPendingSave() } },
   async delete(id: string): Promise<void> { 
     // Soft delete - לא מחיקה פיזית
     const guarantor = await this.getById(id)
     if (guarantor) {
       setItem('guarantors', id, { ...guarantor, is_deleted: true, deleted_at: new Date().toISOString() })
+      await flushPendingSave()
       await attachmentsService.softDeleteByEntity('guarantor', id)
     }
   },
@@ -1004,10 +1006,11 @@ export const loansService = {
       throw new Error(validation.errors.join(', '));
     }
     setItem('loans', id, record); 
+    await flushPendingSave();
     return { lastInsertRowid: id } 
   },
-  async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, ...d }) },
-  async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }); await attachmentsService.softDeleteByEntity('loan', id) },
+  async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) { setItem('loans', id, { ...e, ...d }); await flushPendingSave() } },
+  async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) { setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }); await flushPendingSave() }; await attachmentsService.softDeleteByEntity('loan', id) },
   async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
   
   /**
