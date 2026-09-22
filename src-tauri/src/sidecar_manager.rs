@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tokio::time::timeout;
 
 #[cfg(target_os = "windows")]
@@ -51,6 +51,7 @@ struct SidecarIo {
 pub struct SidecarManager {
     process: Option<Arc<Mutex<Child>>>,
     io: Option<Arc<Mutex<SidecarIo>>>,
+    #[allow(dead_code)]
     app_handle: AppHandle,
 }
 

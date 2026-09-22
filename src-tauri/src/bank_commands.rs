@@ -5,13 +5,9 @@
  * All commands are async and return Result<T, String> for error handling.
  */
 
-use crate::bank_integration::{
-    calculate_match_score, detect_duplicates, parse_transaction_description, ConfidenceLevel,
-    MatchStatus, MatchType,
-};
 use crate::bank_storage::{
-    load_bank_data, save_bank_data, AccountSyncResult, BankAccount, BankData, BankTransaction,
-    EncryptedCredentials, MatchSuggestion, SyncSession,
+    load_bank_data, save_bank_data, BankAccount,
+    EncryptedCredentials,
 };
 use crate::encryption::EncryptionService;
 use crate::sidecar_manager::SidecarManager;

@@ -5,14 +5,14 @@
  */
 
 use crate::bank_commands::AppState;
-use crate::bank_integration::{detect_duplicates, parse_transaction_description};
+use crate::bank_integration::detect_duplicates;
 use crate::bank_storage::{
     load_bank_data, save_bank_data, AccountSyncResult, BankTransaction, SyncSession,
 };
 use crate::sidecar_manager::SidecarManager;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 // ============================================================================
 // Request/Response Types

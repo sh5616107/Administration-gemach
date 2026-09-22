@@ -9,6 +9,7 @@ use crate::bank_storage::BankTransaction;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(dead_code)]
 pub enum MatchType {
     Repayment,
     Donation,
@@ -25,6 +26,7 @@ pub enum ConfidenceLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(dead_code)]
 pub enum MatchStatus {
     Pending,
     Approved,
@@ -32,6 +34,7 @@ pub enum MatchStatus {
     Skipped,
 }
 
+#[allow(dead_code)]
 impl MatchType {
     pub fn as_str(&self) -> &str {
         match self {
@@ -68,6 +71,7 @@ impl ConfidenceLevel {
     }
 }
 
+#[allow(dead_code)]
 impl MatchStatus {
     pub fn as_str(&self) -> &str {
         match self {
@@ -83,7 +87,9 @@ impl MatchStatus {
 #[derive(Debug, Clone)]
 pub struct ParsedTransaction {
     pub phone_numbers: Vec<String>,
+    #[allow(dead_code)]
     pub amounts: Vec<f64>,
+    #[allow(dead_code)]
     pub keywords: Vec<String>,
     pub extracted_names: Vec<String>, // New: extracted person names
 }
@@ -276,6 +282,7 @@ fn levenshtein_distance(a: &str, b: &str) -> usize {
 }
 
 /// Parse transaction description AND memo to extract useful information
+#[allow(dead_code)]
 pub fn parse_transaction_description(description: &str) -> ParsedTransaction {
     parse_transaction_with_memo(description, None)
 }
@@ -716,7 +723,7 @@ pub fn create_auto_match_suggestions(
 
     // Check loan disbursements (money OUT to borrowers - when loan is given)
     if transaction.amount < 0.0 {
-        for (loan_id, borrower_id, first_name, last_name, amount, date, loan_purpose) in loan_disbursements {
+        for (loan_id, _borrower_id, first_name, last_name, amount, date, loan_purpose) in loan_disbursements {
             let full_name = format!("{} {}", first_name, last_name);
             let (score, reasons) = calculate_match_score(
                 transaction,

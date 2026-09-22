@@ -4,9 +4,9 @@
  * Tauri commands for transaction matching and approval.
  */
 
-use crate::bank_integration::{calculate_match_score, ConfidenceLevel, MatchStatus};
+use crate::bank_integration::ConfidenceLevel;
 use crate::bank_storage::{load_bank_data, save_bank_data, MatchSuggestion};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 
 // ============================================================================
@@ -28,6 +28,7 @@ pub struct ApproveMatchRequest {
 #[derive(Debug, Deserialize)]
 pub struct RejectMatchRequest {
     pub suggestion_id: String,
+    #[allow(dead_code)]
     pub reason: Option<String>,
 }
 
