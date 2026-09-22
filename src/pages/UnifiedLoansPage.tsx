@@ -136,13 +136,12 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
   const [editAutoRepaymentDialogOpen, setEditAutoRepaymentDialogOpen] = useState(false);
   const [selectedAutoRepaymentLoanId, setSelectedAutoRepaymentLoanId] = useState<string | null>(null);
 
-  // Manual repayment dialog (for recording ad-hoc repayments on recurring loans)
-  const [manualRepaymentDialogOpen, setManualRepaymentDialogOpen] = useState(false);
-  const [manualRepaymentLoanId, setManualRepaymentLoanId] = useState<string | null>(null);
-  const [manualRepaymentAmount, setManualRepaymentAmount] = useState(0);
-  const [manualRepaymentDate, setManualRepaymentDate] = useState(new Date().toISOString().split('T')[0]);
-  const [manualRepaymentMethod, setManualRepaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
-  const [isSubmittingManualRepayment, setIsSubmittingManualRepayment] = useState(false);
+  // Manual repayment dialog (for recording repayments on any loan)
+  const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false);
+  const [repaymentLoanId, setRepaymentLoanId] = useState<string | null>(null);
+  const [repaymentAmount, setRepaymentAmount] = useState(0);
+  const [repaymentPaymentMethod, setRepaymentPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
+  const [isSubmittingRepayment, setIsSubmittingRepayment] = useState(false);
 
   // Loan families expansion state (tracks which recurring_series_id are expanded)
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
@@ -554,35 +553,40 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
     }
   };
 
-  const handleManualRepayment = async () => {
-    if (!manualRepaymentLoanId || manualRepaymentAmount <= 0) return;
+  const handleRepayment = async () => {
+    if (!repaymentLoanId || repaymentAmount <= 0) return;
     
-    // מניעת הגשה כפולה
-    if (isSubmittingManualRepayment) return;
-    setIsSubmittingManualRepayment(true);
+    const loan = loans.find(l => l.id === repaymentLoanId);
+    if (!loan) return;
+    
+    const remaining = loan.amount - (loan.total_repaid ?? 0);
+    if (repaymentAmount > remaining) {
+      setSnackbar({ open: true, message: 'סכום הפירעון גבוה מהיתרה', severity: 'error' });
+      return;
+    }
+    
+    if (isSubmittingRepayment) return;
+    setIsSubmittingRepayment(true);
     
     try {
       await createRepaymentWithNumbering({
-        loanId: manualRepaymentLoanId,
-        amount: manualRepaymentAmount,
-        paymentDate: manualRepaymentDate,
-        paymentMethod: manualRepaymentMethod.payment_method,
-        paymentDetails: JSON.stringify(manualRepaymentMethod),
-        notes: 'פירעון חריג ידני',
+        loanId: repaymentLoanId,
+        amount: repaymentAmount,
+        paymentMethod: repaymentPaymentMethod.payment_method,
+        paymentDetails: JSON.stringify(repaymentPaymentMethod),
       });
       
       setSnackbar({ open: true, message: 'פירעון נרשם בהצלחה', severity: 'success' });
-      setManualRepaymentDialogOpen(false);
-      setManualRepaymentLoanId(null);
-      setManualRepaymentAmount(0);
-      setManualRepaymentDate(new Date().toISOString().split('T')[0]);
-      setManualRepaymentMethod({ payment_method: '' });
+      setRepaymentDialogOpen(false);
+      setRepaymentLoanId(null);
+      setRepaymentAmount(0);
+      setRepaymentPaymentMethod({ payment_method: '' });
       if (selectedBorrower) loadLoansForBorrower(selectedBorrower.id);
     } catch (error) {
-      console.error('Error in manual repayment:', error);
+      console.error('Error in repayment:', error);
       setSnackbar({ open: true, message: 'שגיאה ברישום פירעון', severity: 'error' });
     } finally {
-      setIsSubmittingManualRepayment(false);
+      setIsSubmittingRepayment(false);
     }
   };
 
@@ -962,6 +966,26 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                                       boxShadow: 2,
                                     }}
                                   >
+                                    {/* Add repayment button - show for all active loans */}
+                                    {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && (
+                                      <Tooltip title="הוסף פירעון">
+                                        <IconButton
+                                          size="small"
+                                          color="primary"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setRepaymentLoanId(loan.id!);
+                                            setRepaymentAmount(0);
+                                            setRepaymentPaymentMethod({ payment_method: '' });
+                                            setRepaymentDialogOpen(true);
+                                          }}
+                                          sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                                        >
+                                          <PaymentIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                    )}
+                                    
                                     <Tooltip title="עריכה">
                                       <IconButton
                                         size="small"
@@ -1068,21 +1092,27 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                                   <EditNoteIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="רשום פירעון חריג">
-                                <IconButton
-                                  size="small"
-                                  color="primary"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setManualRepaymentLoanId(loan.id!);
-                                    setManualRepaymentDialogOpen(true);
-                                  }}
-                                  sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                                >
-                                  <PaymentIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
                             </>
+                          )}
+
+                          {/* Add repayment button - show for all active loans */}
+                          {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && (
+                            <Tooltip title="הוסף פירעון">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRepaymentLoanId(loan.id!);
+                                  setRepaymentAmount(0);
+                                  setRepaymentPaymentMethod({ payment_method: '' });
+                                  setRepaymentDialogOpen(true);
+                                }}
+                                sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                              >
+                                <PaymentIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           )}
 
                           <Tooltip title="עריכה">
@@ -1285,6 +1315,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
         onSaved={(borrowerId) => {
           loadBorrowers(borrowerId);
           setCreatingNewBorrower(false);
+          setBorrowerPanelOpen(false);
         }}
       />
 
@@ -1362,45 +1393,56 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
         />
       )}
 
-      {/* Manual Repayment Dialog */}
-      <Dialog open={manualRepaymentDialogOpen} onClose={() => setManualRepaymentDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>רישום פירעון חריג</DialogTitle>
+      {/* Repayment Dialog */}
+      <Dialog open={repaymentDialogOpen} onClose={() => setRepaymentDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>הוספת פירעון - הלוואה #{loans.find(l => l.id === repaymentLoanId)?.loan_number}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            רשום פירעון עם מספור אוטומטי נכון (מוקדם/מאוחר/חלקי)
-          </Typography>
-          <Stack spacing={2}>
-            <AmountInput
-              label="סכום"
-              value={manualRepaymentAmount}
-              onChange={setManualRepaymentAmount}
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              label="תאריך פירעון"
-              type="date"
-              value={manualRepaymentDate}
-              onChange={(e) => setManualRepaymentDate(e.target.value)}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-            />
-            {settings.show_payment_method === 'yes' && (
-              <PaymentMethodSelect
-                value={manualRepaymentMethod}
-                onChange={setManualRepaymentMethod}
-              />
-            )}
-          </Stack>
+          {repaymentLoanId && (() => {
+            const loan = loans.find(l => l.id === repaymentLoanId);
+            if (!loan) return null;
+            const remaining = loan.amount - (loan.total_repaid ?? 0);
+            return (
+              <>
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                  <Typography>סכום הלוואה: ₪{loan.amount.toLocaleString()}</Typography>
+                  <Typography>שולם עד כה: ₪{(loan.total_repaid ?? 0).toLocaleString()}</Typography>
+                  <Typography fontWeight="bold" color="primary">
+                    יתרה לתשלום: ₪{remaining.toLocaleString()}
+                  </Typography>
+                </Box>
+                <AmountInput
+                  fullWidth
+                  label="סכום הפירעון"
+                  value={repaymentAmount}
+                  onChange={setRepaymentAmount}
+                  autoFocus
+                />
+                {settings.show_payment_method === 'yes' && (
+                  <Box sx={{ mt: 2 }}>
+                    <PaymentMethodSelect
+                      value={repaymentPaymentMethod}
+                      onChange={setRepaymentPaymentMethod}
+                      label="אמצעי תשלום"
+                    />
+                  </Box>
+                )}
+              </>
+            );
+          })()}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setManualRepaymentDialogOpen(false)} disabled={isSubmittingManualRepayment}>ביטול</Button>
+          <Button onClick={() => setRepaymentDialogOpen(false)} disabled={isSubmittingRepayment}>ביטול</Button>
           <Button
             variant="contained"
-            onClick={handleManualRepayment}
-            disabled={manualRepaymentAmount <= 0 || (settings.show_payment_method === 'yes' && !manualRepaymentMethod.payment_method) || isSubmittingManualRepayment}
+            onClick={handleRepayment}
+            disabled={
+              repaymentAmount <= 0 || 
+              repaymentAmount > (loans.find(l => l.id === repaymentLoanId)?.amount ?? 0) - (loans.find(l => l.id === repaymentLoanId)?.total_repaid ?? 0) ||
+              (settings.show_payment_method === 'yes' && !repaymentPaymentMethod.payment_method) ||
+              isSubmittingRepayment
+            }
           >
-            {isSubmittingManualRepayment ? 'רושם פירעון...' : 'רשום פירעון'}
+            {isSubmittingRepayment ? 'מוסיף פירעון...' : 'הוסף פירעון'}
           </Button>
         </DialogActions>
       </Dialog>
