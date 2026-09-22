@@ -966,8 +966,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                                       boxShadow: 2,
                                     }}
                                   >
-                                    {/* Add repayment button - show for all active loans */}
-                                    {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && (
+                                    {/* Add repayment button - show for all active loans (not planned) */}
+                                    {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= new Date().toISOString().split('T')[0] && (
                                       <Tooltip title="הוסף פירעון">
                                         <IconButton
                                           size="small"
@@ -1095,8 +1095,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                             </>
                           )}
 
-                          {/* Add repayment button - show for all active loans */}
-                          {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && (
+                          {/* Add repayment button - show for all active loans (not planned) */}
+                          {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= new Date().toISOString().split('T')[0] && (
                             <Tooltip title="הוסף פירעון">
                               <IconButton
                                 size="small"
