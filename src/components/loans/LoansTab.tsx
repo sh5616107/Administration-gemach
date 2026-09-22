@@ -1488,6 +1488,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   label="סכום ההלוואה *"
                   value={formData.amount || 0}
                   onChange={(value) => setFormData({ ...formData, amount: value })}
+                  disabled={selectedLoan?.status === 'closed'}
+                  helperText={selectedLoan?.status === 'closed' ? 'לא ניתן לשנות סכום של הלוואה שנסגרה (נפרעה במלואה)' : undefined}
                 />
               </Grid>
               <Grid item xs={12} md={4}>

@@ -1009,7 +1009,32 @@ export const loansService = {
     await flushPendingSave();
     return { lastInsertRowid: id } 
   },
-  async update(id: string, d: Partial<Loan>): Promise<void> { const e = await this.getById(id); if (e) { setItem('loans', id, { ...e, ...d }); await flushPendingSave() } },
+  async update(id: string, d: Partial<Loan>): Promise<void> {
+    const e = await this.getById(id) // e.total_repaid / e.remaining מחושבים דינמית ב-getById
+    if (!e) return
+
+    // חסימה: אין לשנות את סכום הלוואה שכבר נסגרה (נפרעה במלואה).
+    // status='closed' הוא סופי (ראו validateLoanStatusTransition) — עריכת amount
+    // בדיעבד הייתה משאירה את ההלוואה תקועה כ-closed למרות יתרה חדשה וחיובית,
+    // והייתה נעלמת מ"לווים פעילים" בדף הבית. אם צריך לתקן סכום של הלוואה
+    // שנסגרה, יש ליצור הלוואה חדשה במקום.
+    if (e.status === 'closed' && d.amount !== undefined && d.amount !== e.amount) {
+      throw new Error('לא ניתן לשנות את סכום ההלוואה לאחר שההלוואה נסגרה (נפרעה במלואה). יש ליצור הלוואה חדשה במקום.')
+    }
+
+    // חסימה: אין לשנות את סכום ההלוואה לערך הנמוך מסך הפירעונות שכבר בוצעו —
+    // אחרת מתקבלת יתרה שלילית (remaining) בלי שום התראה.
+    if (d.amount !== undefined) {
+      const totalRepaid = e.total_repaid || 0
+      const tolerance = 0.01
+      if (d.amount - totalRepaid < -tolerance) {
+        throw new Error(`לא ניתן לשנות את סכום ההלוואה ל-${d.amount} ש"ח: כבר נפרעו ${totalRepaid} ש"ח (היתרה תהיה שלילית)`)
+      }
+    }
+
+    setItem('loans', id, { ...e, ...d })
+    await flushPendingSave()
+  },
   async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) { setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }); await flushPendingSave() }; await attachmentsService.softDeleteByEntity('loan', id) },
   async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
   
