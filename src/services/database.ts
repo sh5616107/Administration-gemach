@@ -752,6 +752,15 @@ export const db = {
           d.recurring_deposit_count = params[8]
           d.notes = params[9]
         }
+        // 7 פרמטרים: 6 שדות + status + id (מ-DepositSidePanel)
+        else if (params.length === 7) {
+          d.amount = params[0]
+          d.deposit_date = params[1]
+          d.period_type = params[2]
+          d.due_date = params[3]
+          d.notes = params[4]
+          d.status = params[5]
+        }
         // תאימות לאחור - 6 פרמטרים (בלי שדות מחזוריים)
         else if (params.length === 6) {
           d.amount = params[0]
