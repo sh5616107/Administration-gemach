@@ -10,7 +10,7 @@ import {
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 15 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 16 // Increment this when adding new migrations
 
 // הערה חשובה: stores.settings (מ-database.ts) הוא store נפרד וסינכרוני,
 // המשמש כאן רק למעקב אחר migration_version — הוא *לא* אותו store שממנו
@@ -1516,7 +1516,59 @@ export async function runPendingMigrations(): Promise<void> {
     console.log(`✅ Migration v15 complete: migrated=${result.migrated}, verified=${result.verified}${result.error ? `, error=${result.error}` : ''}`)
   }
 
+  // Migration v16: Fix deposit statuses (planned vs active)
+  if (currentVersion < 16) {
+    console.log('📋 Running migration v16: Fix deposit statuses')
+    const result = await fixDepositStatuses()
+    console.log(`✅ Migration v16 complete: ${result.fixed} deposits fixed`)
+  }
+
   // Update migration version
   setMigrationVersion(CURRENT_MIGRATION_VERSION)
   console.log(`✅ All migrations complete. Version updated to ${CURRENT_MIGRATION_VERSION}`)
+}
+
+
+/**
+ * Migration v16: Fix deposit statuses
+ * קובע מחדש את הסטטוס של כל ההפקדות לפי התאריך שלהן:
+ * - אם deposit_date עתידי -> 'planned'
+ * - אם deposit_date עבר ו-status לא 'withdrawn' -> 'active'
+ * - אם כבר 'withdrawn' -> נשאר 'withdrawn'
+ */
+export async function fixDepositStatuses(): Promise<{ fixed: number }> {
+  console.log('🔄 Starting fix deposit statuses migration...')
+  
+  const { db, getAllItems } = await import('./database')
+  const today = new Date().toISOString().split('T')[0]
+  
+  const allDeposits = getAllItems('deposits') as any[]
+  const deposits = allDeposits.filter(d => !d.is_deleted)
+  let fixed = 0
+  
+  for (const deposit of deposits) {
+    let newStatus: string | null = null
+    
+    // אם כבר נמשכה - לא נוגעים
+    if (deposit.status === 'withdrawn') {
+      continue
+    }
+    
+    // חישוב הסטטוס הנכון לפי התאריך
+    if (deposit.deposit_date > today) {
+      newStatus = 'planned'
+    } else {
+      newStatus = 'active'
+    }
+    
+    // אם הסטטוס שונה מהקיים - מעדכנים
+    if (deposit.status !== newStatus) {
+      console.log(`[fixDepositStatuses] Fixing deposit ${deposit.id}: ${deposit.status} -> ${newStatus} (date: ${deposit.deposit_date})`)
+      await db.run('UPDATE deposits SET status = ? WHERE id = ?', [newStatus, deposit.id])
+      fixed++
+    }
+  }
+  
+  console.log(`✅ Fixed ${fixed} deposit statuses`)
+  return { fixed }
 }
