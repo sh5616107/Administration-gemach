@@ -1219,6 +1219,18 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
 
   const canAddRepayment = selectedLoan && (selectedLoan.remaining || 0) > 0 && 
     selectedLoan.loan_date <= new Date().toISOString().split('T')[0]
+  
+  // פונקציה שמחזירה את הטקסט הנכון לכפתור פירעון
+  const getRepaymentButtonText = () => {
+    if (!selectedLoan) return 'הוסף פירעון';
+    if (selectedLoan.loan_date > new Date().toISOString().split('T')[0]) {
+      return 'טרם החלה';
+    }
+    if ((selectedLoan.remaining || 0) <= 0) {
+      return 'נפרעה במלואה';
+    }
+    return 'הוסף פירעון';
+  }
 
   return (
     <Box>
@@ -1808,7 +1820,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                     disabled={!canAddRepayment}
                     color={canAddRepayment ? 'primary' : 'inherit'}
                   >
-                    {canAddRepayment ? 'הוסף פירעון' : 'נפרעה במלואה'}
+                    {getRepaymentButtonText()}
                   </Button>
                   <Button
                     variant="outlined"
