@@ -287,14 +287,18 @@ export default function Dashboard() {
   const fetchDeposits = async () => {
     setDialogLoading(true)
     try {
-      const allDeposits = await db.query('SELECT * FROM deposits ORDER BY deposit_date DESC') as any[]
+      // ✅ שימוש ב-depositRepository במקום db.query כדי לסנן is_deleted
+      const { depositRepository } = await import('../services/repositories/depositRepository')
+      const allDeposits = await depositRepository.getAll()
       const depositors = await db.query('SELECT * FROM depositors') as any[]
-      const depositsWithNames = allDeposits.map(d => ({
-        ...d,
-        depositor_name: depositors.find((dep: any) => dep.id === d.depositor_id)
-          ? `${depositors.find((dep: any) => dep.id === d.depositor_id)?.first_name || ''} ${depositors.find((dep: any) => dep.id === d.depositor_id)?.last_name || ''}`.trim()
-          : 'לא ידוע'
-      }))
+      const depositsWithNames = allDeposits
+        .map(d => ({
+          ...d,
+          depositor_name: depositors.find((dep: any) => dep.id === d.depositor_id)
+            ? `${depositors.find((dep: any) => dep.id === d.depositor_id)?.first_name || ''} ${depositors.find((dep: any) => dep.id === d.depositor_id)?.last_name || ''}`.trim()
+            : 'לא ידוע'
+        }))
+        .sort((a, b) => new Date(b.deposit_date).getTime() - new Date(a.deposit_date).getTime())
       setDeposits(depositsWithNames)
     } catch (error) {
       console.error('Error fetching deposits:', error)
@@ -444,6 +448,22 @@ export default function Dashboard() {
       align: 'center' as const,
       format: (deposit: any) => new Date(deposit.deposit_date).toLocaleDateString('he-IL'),
       sortValue: (deposit: any) => new Date(deposit.deposit_date).getTime(),
+    },
+    {
+      id: 'status',
+      label: 'סטטוס',
+      align: 'center' as const,
+      format: (deposit: any) => {
+        const today = new Date().toISOString().split('T')[0]
+        if (deposit.status === 'planned' || deposit.deposit_date > today) {
+          return 'מתוכננת'
+        } else if (deposit.status === 'withdrawn') {
+          return 'נמשכה'
+        } else {
+          return 'פעילה'
+        }
+      },
+      sortValue: (deposit: any) => deposit.status === 'planned' ? 0 : deposit.status === 'active' ? 1 : 2,
     },
   ]
 
