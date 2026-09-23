@@ -1486,11 +1486,6 @@ export default function AdvancedTools() {
           </Card>
         </Grid>
 
-        {/* Attachments maintenance (check missing / clean up soft-deleted) */}
-        <Grid item xs={12}>
-          <AttachmentMaintenanceTools />
-        </Grid>
-
         {/* Reports */}
         <Grid item xs={12} md={6}>
           <Card>
@@ -1746,6 +1741,11 @@ export default function AdvancedTools() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Attachments maintenance - בדיקת מסמכים חסרים וניקוי מסמכים ישנים */}
+      <Box sx={{ mt: 3 }}>
+        <AttachmentMaintenanceTools />
+      </Box>
 
       {/* Expense Dialog */}
       <Dialog open={expenseDialogOpen} onClose={handleCloseExpenseDialog} maxWidth="sm" fullWidth>

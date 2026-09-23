@@ -20,11 +20,15 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material'
 import {
   FindInPage as FindInPageIcon,
   CleaningServices as CleaningServicesIcon,
   WarningAmber as WarningIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material'
 import { resolveAttachmentEntityLabel } from '../../services/database'
 import {
@@ -123,121 +127,150 @@ export default function AttachmentMaintenanceTools() {
   return (
     <>
       <Card>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FindInPageIcon /> בדיקת מסמכים חסרים
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            סורק את כל המסמכים המצורפים במערכת ובודק שהקובץ הפיזי שלהם עדיין קיים בארכיון.
-          </Typography>
-          <Button variant="contained" startIcon={scanning ? <CircularProgress size={16} /> : <FindInPageIcon />} onClick={handleScan} disabled={scanning}>
-            {scanning ? 'סורק...' : 'הרץ בדיקה'}
-          </Button>
-
-          {scanError && <Alert severity="error" sx={{ mt: 2 }}>{scanError}</Alert>}
-
-          {scanResult && (
-            <Box sx={{ mt: 2 }}>
-              <Alert severity={scanResult.missing.length === 0 ? 'success' : 'warning'}>
-                נבדקו {scanResult.checked} מסמכים — {scanResult.missing.length === 0 ? 'כולם נמצאו תקינים.' : `${scanResult.missing.length} מסמכים חסרים.`}
-              </Alert>
-              {scanResult.missing.length > 0 && (
-                <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>ישות</TableCell>
-                        <TableCell>קטגוריה</TableCell>
-                        <TableCell>שם קובץ</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {scanResult.missing.map(att => (
-                        <TableRow key={att.id}>
-                          <TableCell>{resolveAttachmentEntityLabel(att.entityType, att.entityId)}</TableCell>
-                          <TableCell>{att.category === 'אחר' && att.customLabel ? att.customLabel : att.category}</TableCell>
-                          <TableCell>{att.fileName}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
+      <CardContent>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          תחזוקת מסמכים מצורפים
+        </Typography>
+        
+        {/* בדיקת מסמכים חסרים */}
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FindInPageIcon fontSize="small" />
+              <Typography>בדיקת מסמכים חסרים</Typography>
             </Box>
-          )}
-        </CardContent>
-      </Card>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              סורק את כל המסמכים המצורפים במערכת ובודק שהקובץ הפיזי שלהם עדיין קיים בארכיון.
+            </Typography>
+            <Button 
+              variant="contained" 
+              size="small"
+              startIcon={scanning ? <CircularProgress size={16} /> : <FindInPageIcon />} 
+              onClick={handleScan} 
+              disabled={scanning}
+            >
+              {scanning ? 'סורק...' : 'הרץ בדיקה'}
+            </Button>
 
-      <Card sx={{ mt: 3 }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CleaningServicesIcon /> ניקוי מסמכים ישנים שסומנו למחיקה
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            מציג מסמכים שסומנו למחיקה יחד עם הישות שאליה היו מצורפים (למשל הלוואה שנמחקה) לפני 90 יום ומעלה,
-            ומאפשר למחוק אותם פיזית לצמיתות מהארכיון.
-          </Typography>
-          <Button variant="outlined" startIcon={loadingCandidates ? <CircularProgress size={16} /> : <CleaningServicesIcon />} onClick={handleLoadCandidates} disabled={loadingCandidates}>
-            {loadingCandidates ? 'טוען...' : 'הצג מסמכים לניקוי'}
-          </Button>
+            {scanError && <Alert severity="error" sx={{ mt: 2 }}>{scanError}</Alert>}
 
-          {cleanupError && <Alert severity="error" sx={{ mt: 2 }}>{cleanupError}</Alert>}
-          {lastCleanedCount !== null && (
-            <Alert severity="success" sx={{ mt: 2 }}>נמחקו {lastCleanedCount} מסמכים לצמיתות.</Alert>
-          )}
-
-          {candidates && (
-            <Box sx={{ mt: 2 }}>
-              {candidates.length === 0 ? (
-                <Alert severity="success">אין מסמכים שממתינים לניקוי.</Alert>
-              ) : (
-                <>
-                  <TableContainer component={Paper} variant="outlined">
+            {scanResult && (
+              <Box sx={{ mt: 2 }}>
+                <Alert severity={scanResult.missing.length === 0 ? 'success' : 'warning'}>
+                  נבדקו {scanResult.checked} מסמכים — {scanResult.missing.length === 0 ? 'כולם נמצאו תקינים.' : `${scanResult.missing.length} מסמכים חסרים.`}
+                </Alert>
+                {scanResult.missing.length > 0 && (
+                  <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell padding="checkbox" />
                           <TableCell>ישות</TableCell>
+                          <TableCell>קטגוריה</TableCell>
                           <TableCell>שם קובץ</TableCell>
-                          <TableCell>גודל</TableCell>
-                          <TableCell>ימים מאז הסימון</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {candidates.map(({ attachment, daysSinceDeleted }) => (
-                          <TableRow key={attachment.id}>
-                            <TableCell padding="checkbox">
-                              <Checkbox
-                                checked={selectedIds.has(attachment.id)}
-                                onChange={() => toggleSelected(attachment.id)}
-                              />
-                            </TableCell>
-                            <TableCell>{resolveAttachmentEntityLabel(attachment.entityType, attachment.entityId)}</TableCell>
-                            <TableCell>{attachment.fileName}</TableCell>
-                            <TableCell>{formatFileSize(attachment.fileSize)}</TableCell>
-                            <TableCell>
-                              <Chip size="small" label={`${daysSinceDeleted} ימים`} />
-                            </TableCell>
+                        {scanResult.missing.map(att => (
+                          <TableRow key={att.id}>
+                            <TableCell>{resolveAttachmentEntityLabel(att.entityType, att.entityId)}</TableCell>
+                            <TableCell>{att.category === 'אחר' && att.customLabel ? att.customLabel : att.category}</TableCell>
+                            <TableCell>{att.fileName}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </TableContainer>
-                  <Button
-                    variant="contained"
-                    color="error"
-                    sx={{ mt: 2 }}
-                    disabled={selectedIds.size === 0}
-                    onClick={() => setCleanupConfirmOpen(true)}
-                  >
-                    מחק {selectedIds.size > 0 ? `${selectedIds.size} ` : ''}מסמכים נבחרים לצמיתות
-                  </Button>
-                </>
-              )}
+                )}
+              </Box>
+            )}
+          </AccordionDetails>
+        </Accordion>
+
+        {/* ניקוי מסמכים ישנים */}
+        <Accordion sx={{ mt: 1 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CleaningServicesIcon fontSize="small" />
+              <Typography>ניקוי מסמכים ישנים שסומנו למחיקה</Typography>
             </Box>
-          )}
-        </CardContent>
-      </Card>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              מציג מסמכים שסומנו למחיקה יחד עם הישות שאליה היו מצורפים (למשל הלוואה שנמחקה) לפני 90 יום ומעלה,
+              ומאפשר למחוק אותם פיזית לצמיתות מהארכיון.
+            </Typography>
+            <Button 
+              variant="outlined" 
+              size="small"
+              startIcon={loadingCandidates ? <CircularProgress size={16} /> : <CleaningServicesIcon />} 
+              onClick={handleLoadCandidates} 
+              disabled={loadingCandidates}
+            >
+              {loadingCandidates ? 'טוען...' : 'הצג מסמכים לניקוי'}
+            </Button>
+
+            {cleanupError && <Alert severity="error" sx={{ mt: 2 }}>{cleanupError}</Alert>}
+            {lastCleanedCount !== null && (
+              <Alert severity="success" sx={{ mt: 2 }}>נמחקו {lastCleanedCount} מסמכים לצמיתות.</Alert>
+            )}
+
+            {candidates && (
+              <Box sx={{ mt: 2 }}>
+                {candidates.length === 0 ? (
+                  <Alert severity="success">אין מסמכים שממתינים לניקוי.</Alert>
+                ) : (
+                  <>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell padding="checkbox" />
+                            <TableCell>ישות</TableCell>
+                            <TableCell>שם קובץ</TableCell>
+                            <TableCell>גודל</TableCell>
+                            <TableCell>ימים מאז הסימון</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {candidates.map(({ attachment, daysSinceDeleted }) => (
+                            <TableRow key={attachment.id}>
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  checked={selectedIds.has(attachment.id)}
+                                  onChange={() => toggleSelected(attachment.id)}
+                                />
+                              </TableCell>
+                              <TableCell>{resolveAttachmentEntityLabel(attachment.entityType, attachment.entityId)}</TableCell>
+                              <TableCell>{attachment.fileName}</TableCell>
+                              <TableCell>{formatFileSize(attachment.fileSize)}</TableCell>
+                              <TableCell>
+                                <Chip size="small" label={`${daysSinceDeleted} ימים`} />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      color="error"
+                      sx={{ mt: 2 }}
+                      disabled={selectedIds.size === 0}
+                      onClick={() => setCleanupConfirmOpen(true)}
+                    >
+                      מחק {selectedIds.size > 0 ? `${selectedIds.size} ` : ''}מסמכים נבחרים לצמיתות
+                    </Button>
+                  </>
+                )}
+              </Box>
+            )}
+          </AccordionDetails>
+        </Accordion>
+      </CardContent>
+    </Card>
 
       <Dialog open={cleanupConfirmOpen} onClose={() => !cleaning && setCleanupConfirmOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
