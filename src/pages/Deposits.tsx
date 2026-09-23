@@ -201,6 +201,7 @@ export default function Deposits() {
       
       const depositorsWithStats = await Promise.all(deps.map(async dep => {
         const depositorDeposits = deposits.filter(d => d.depositor_id === dep.id);
+        const today = new Date().toISOString().split('T')[0];
         
         let totalDeposited = 0;
         let totalActive = 0;
@@ -216,7 +217,10 @@ export default function Deposits() {
           
           totalDeposited += depositAmount;
           
-          if (deposit.status === 'active' || deposit.status === 'planned') {
+          // 🐛 BUG FIX: הפקדות מתוכננות (status === 'planned' או deposit_date עתידי)
+          // לא צריכות להיכלל בחישוב היתרה הפעילה כי הכסף עדיין לא הגיע לקופה.
+          // בדיוק כמו שנעשה ב-getDashboardStats() ב-database.ts
+          if (deposit.status === 'active' && deposit.deposit_date <= today) {
             const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id);
             const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
             const remaining = depositAmount - totalWithdrawn;
@@ -834,8 +838,23 @@ export default function Deposits() {
                                   )}
                                 </Box>
                                 <Chip
-                                  label={balance <= 0 ? 'נמשכה' : 'פעילה'}
-                                  color={balance <= 0 ? 'default' : 'success'}
+                                  // 🐛 BUG FIX: התווית התבססה רק על balance <= 0 ולכן
+                                  // הפקדה עתידית (status === 'planned') הוצגה כ"פעילה"
+                                  // עוד לפני שתאריך ההפקדה הגיע בפועל.
+                                  label={
+                                    deposit.status === 'planned'
+                                      ? 'מתוכננת'
+                                      : balance <= 0
+                                        ? 'נמשכה'
+                                        : 'פעילה'
+                                  }
+                                  color={
+                                    deposit.status === 'planned'
+                                      ? 'info'
+                                      : balance <= 0
+                                        ? 'default'
+                                        : 'success'
+                                  }
                                   size="small"
                                 />
                               </Box>
