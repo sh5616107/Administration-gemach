@@ -75,7 +75,6 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
   // Load deposit data when editing
   useEffect(() => {
     if (deposit && open) {
-      console.log('📝 Loading deposit for edit:', deposit);
       setFormData({
         amount: deposit.amount,
         deposit_date: deposit.deposit_date,
@@ -128,17 +127,6 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
               ? 'planned'
               : 'active';
 
-        console.log('📝 [DepositSidePanel] עריכת הפקדה:', {
-          depositId: deposit.id,
-          oldStatus: deposit.status,
-          oldDate: deposit.deposit_date,
-          newDate: formData.deposit_date,
-          today: today,
-          recalculatedStatus: recalculatedStatus,
-          statusChanged: deposit.status !== recalculatedStatus,
-          dateChanged: deposit.deposit_date !== formData.deposit_date
-        });
-
         await db.run(
           `UPDATE deposits SET 
             amount = ?, 
@@ -159,12 +147,6 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
           ]
         );
         
-        console.log('✅ [DepositSidePanel] הפקדה עודכנה במסד הנתונים');
-        
-        // Verify the update was saved
-        const verifyUpdate = await db.query('SELECT id, status, deposit_date FROM deposits WHERE id = ?', [deposit.id]);
-        console.log('🔍 [DepositSidePanel] אימות עדכון במסד נתונים:', verifyUpdate);
-        
         setSnackbar({ open: true, message: 'ההפקדה עודכנה בהצלחה', severity: 'success' });
       } else {
         // Create new deposit
@@ -180,15 +162,6 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         // לעולם לא מוצא מה לקדם, וההפקדה נחשבת "קיימת בקופה" עוד לפני שהגיע תאריכה.
         const today = new Date().toISOString().split('T')[0];
         const depositStatus = formData.deposit_date > today ? 'planned' : 'active';
-
-        console.log('➕ [DepositSidePanel] יצירת הפקדה חדשה:', {
-          depositorId: depositor.id,
-          depositDate: formData.deposit_date,
-          today: today,
-          calculatedStatus: depositStatus,
-          isFuture: formData.deposit_date > today,
-          isRecurring: isRecurring
-        });
 
         await db.run(
           `INSERT INTO deposits (
