@@ -10,7 +10,7 @@ import {
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = 'migration_version'
-const CURRENT_MIGRATION_VERSION = 16 // Increment this when adding new migrations
+const CURRENT_MIGRATION_VERSION = 17 // Increment this when adding new migrations
 
 // הערה חשובה: stores.settings (מ-database.ts) הוא store נפרד וסינכרוני,
 // המשמש כאן רק למעקב אחר migration_version — הוא *לא* אותו store שממנו
@@ -1523,6 +1523,13 @@ export async function runPendingMigrations(): Promise<void> {
     console.log(`✅ Migration v16 complete: ${result.fixed} deposits fixed`)
   }
 
+  // Migration v17: Fix loan statuses (planned vs active)
+  if (currentVersion < 17) {
+    console.log('📋 Running migration v17: Fix loan statuses')
+    const result = await fixLoanStatuses()
+    console.log(`✅ Migration v17 complete: ${result.fixed} loans fixed`)
+  }
+
   // Update migration version
   setMigrationVersion(CURRENT_MIGRATION_VERSION)
   console.log(`✅ All migrations complete. Version updated to ${CURRENT_MIGRATION_VERSION}`)
@@ -1570,5 +1577,49 @@ export async function fixDepositStatuses(): Promise<{ fixed: number }> {
   }
   
   console.log(`✅ Fixed ${fixed} deposit statuses`)
+  return { fixed }
+}
+
+
+/**
+ * Migration v17: Fix loan statuses
+ * קובע מחדש את הסטטוס של כל ההלוואות לפי התאריך שלהן:
+ * - אם loan_date עתידי -> 'planned'
+ * - אם loan_date עבר ו-status לא 'closed'/'transferred' -> 'active'
+ */
+export async function fixLoanStatuses(): Promise<{ fixed: number }> {
+  console.log('🔄 Starting fix loan statuses migration...')
+  
+  const { db, getAllItems } = await import('./database')
+  const today = new Date().toISOString().split('T')[0]
+  
+  const allLoans = getAllItems('loans') as any[]
+  const loans = allLoans.filter(l => !l.is_deleted)
+  let fixed = 0
+  
+  for (const loan of loans) {
+    let newStatus: string | null = null
+    
+    // אם כבר סגורה או הועברה לערב - לא נוגעים
+    if (loan.status === 'closed' || loan.status === 'transferred') {
+      continue
+    }
+    
+    // חישוב הסטטוס הנכון לפי התאריך
+    if (loan.loan_date > today) {
+      newStatus = 'planned'
+    } else {
+      newStatus = 'active'
+    }
+    
+    // אם הסטטוס שונה מהקיים - מעדכנים
+    if (loan.status !== newStatus) {
+      console.log(`[fixLoanStatuses] Fixing loan ${loan.id}: ${loan.status} -> ${newStatus} (date: ${loan.loan_date})`)
+      await db.run('UPDATE loans SET status = ? WHERE id = ?', [newStatus, loan.id])
+      fixed++
+    }
+  }
+  
+  console.log(`✅ Fixed ${fixed} loan statuses`)
   return { fixed }
 }

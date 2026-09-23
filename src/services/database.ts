@@ -1032,6 +1032,18 @@ export const loansService = {
       }
     }
 
+    // 🐛 BUG FIX: אם loan_date השתנה, צריך לעדכן את ה-status בהתאם:
+    // - אם loan_date עתידי -> status = 'planned'
+    // - אם loan_date הגיע/עבר ו-status לא 'closed'/'transferred' -> status = 'active'
+    // זה בדיוק כמו התיקון שעשינו להפקדות ב-DepositSidePanel
+    if (d.loan_date !== undefined && d.loan_date !== e.loan_date) {
+      const today = new Date().toISOString().split('T')[0]
+      // שומרים סטטוסים סופיים (closed, transferred)
+      if (e.status !== 'closed' && e.status !== 'transferred') {
+        d.status = d.loan_date > today ? 'planned' : 'active'
+      }
+    }
+
     setItem('loans', id, { ...e, ...d })
     await flushPendingSave()
   },
@@ -1111,10 +1123,20 @@ export const statsService = {
     // ✅ תיקון קריטי: שימוש ב-depositRepository במקום db.query
     // db.query מחזיר גם רשומות מחוקות!
     const deps = await depositRepository.getAll()
-    
+
+    // 🐛 BUG FIX: הפקדות עתידיות/מתוכננות (status === 'planned' או
+    // deposit_date שעדיין לא הגיע) לא נחשבות ככסף שכבר נמצא בקופה.
+    // בדיוק כמו שההפרדה הזו כבר קיימת עבור הלוואות (ראו `planned` למעלה),
+    // וגם עבור הפקדות עצמן בחישוב "סה״כ פעיל" ב-Deposits.tsx.
+    // בלי הסינון הזה, הפקדה עתידית נספרת ל"כסף זמין" ביום הרישום שלה,
+    // לפני שהכסף בפועל הגיע לגמ"ח.
+    const realizedDeposits = deps.filter(d =>
+      d.status !== 'planned' && d.deposit_date <= today
+    )
+
     // חישוב סה"כ הפקדות (כולל מחזוריות, מפחיתים משיכות)
     let totalDeposits = 0
-    for (const d of deps) {
+    for (const d of realizedDeposits) {
       // BUG FIX: removed `* recurring_deposit_number` multiplication — see
       // Deposits.tsx for the full explanation. Each recurring deposit row is
       // its own independent monthly contribution.
