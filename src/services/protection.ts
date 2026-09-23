@@ -2,9 +2,6 @@ import localforage from 'localforage'
 
 const protectionStore = localforage.createInstance({ name: 'gemach', storeName: 'protection' })
 
-// מספר קסם לאלגוריתם קוד מאסטר
-const MAGIC_NUMBER = 7391
-
 // ============================================
 // 🔐 Web Crypto API - Password Security
 // ============================================
@@ -95,43 +92,25 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
 }
 
 /**
- * חישוב יום בשנה (1-366)
+ * קוד מאסטר קבוע (למפתח בלבד) - נשמר כ-hash, לא כטקסט גלוי
+ *
+ * ⚠️ זהו placeholder בלבד! לפני production, יש להריץ:
+ *   node scripts/generateMasterCodeHash.cjs "הקוד-שבחרת"
+ * ולהחליף את הערך הבא בפלט של הסקריפט.
+ *
+ * למה hash ולא נוסחה: קוד המאסטר הקודם היה פונקציה גלויה בקוד המקור
+ * (year × dayOfYear + magicNumber) - כל מי שראה את הקוד (הריפו ציבורי
+ * בגיטהאב) יכול היה לחשב את הקוד של כל יום. עכשיו רק ה-hash גלוי,
+ * בדיוק כמו סיסמת משתמש - אי אפשר לגזור ממנו את הקוד המקורי.
  */
-function getDayOfYear(date: Date): number {
-  const start = new Date(date.getFullYear(), 0, 0)
-  const diff = date.getTime() - start.getTime()
-  const oneDay = 1000 * 60 * 60 * 24
-  return Math.floor(diff / oneDay)
-}
-
-/**
- * יצירת קוד מאסטר יומי לפי האלגוריתם (למפתח בלבד)
- * האלגוריתם: (year × dayOfYear) + magicNumber mod 999999
- */
-export function generateMasterCode(date: Date = new Date()): string {
-  const year = date.getFullYear()
-  const dayOfYear = getDayOfYear(date)
-  const code = ((year * dayOfYear) + MAGIC_NUMBER) % 999999
-  return code.toString().padStart(6, '0')
-}
-
-/**
- * רמז לקוד מאסטר (למפתח)
- */
-export function getMasterCodeHint(): string {
-  const today = new Date()
-  const dayOfYear = getDayOfYear(today)
-  const year = today.getFullYear()
-  return `שנה (${year}) × יום בשנה (${dayOfYear}) + מספר קסם`
-}
+const MASTER_CODE_HASH = '4e0e6e5c0ae339fdce2facd3299b20e0:5f23e493bf54ade55f4bc7f6c1cc69251ff3fb3aa3459ea4b4289896c5898b7d'
 
 /**
  * אימות קוד - בודק סיסמת משתמש או קוד מאסטר
  */
 export async function verifyCode(inputCode: string): Promise<boolean> {
-  // בדיקת קוד מאסטר יומי (למפתח)
-  const masterCode = generateMasterCode()
-  if (inputCode === masterCode) {
+  // בדיקת קוד מאסטר קבוע (למפתח) - השוואה מאובטחת מול ה-hash
+  if (await verifyPassword(inputCode, MASTER_CODE_HASH)) {
     return true
   }
   
@@ -203,6 +182,12 @@ export async function getUserPassword(): Promise<string | null> {
  */
 export { hashPassword as _hashPasswordForTesting }
 export { verifyPassword as _verifyPasswordForTesting }
+
+/**
+ * קוד המאסטר בטקסט גלוי - **לבדיקות בלבד**, תואם ל-MASTER_CODE_HASH למעלה.
+ * @internal
+ */
+export const _MASTER_CODE_PLAINTEXT_FOR_TESTING = 'CHANGE-ME-8492'
 
 /**
  * בדיקה אם המשתמש מאומת (בסשן הנוכחי)

@@ -5,7 +5,7 @@ import {
   getUserPassword,
   setProtectionEnabled,
   isProtectionEnabled,
-  generateMasterCode,
+  _MASTER_CODE_PLAINTEXT_FOR_TESTING,
   _hashPasswordForTesting as hashPassword,
   _verifyPasswordForTesting as verifyPassword,
 } from '../services/protection'
@@ -126,9 +126,7 @@ describe('Password Security - Web Crypto API', () => {
     })
 
     it('should verify master code', async () => {
-      const masterCode = generateMasterCode()
-      
-      const isValid = await verifyCode(masterCode)
+      const isValid = await verifyCode(_MASTER_CODE_PLAINTEXT_FOR_TESTING)
       expect(isValid).toBe(true)
     })
 
