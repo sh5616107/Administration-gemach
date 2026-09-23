@@ -264,13 +264,14 @@ export default function Dashboard() {
   const fetchScheduledLoans = async () => {
     setDialogLoading(true)
     try {
+      const today = new Date().toISOString().split('T')[0]
       const allLoans = await loansService.getAll() as any[]
       const borrowers = await borrowersService.getAll()
       const existingBorrowerIds = new Set(borrowers.map(b => b.id))
       
       const scheduled = allLoans
         .filter(l => 
-          l.status === 'planned' &&
+          (l.status === 'planned' || l.loan_date > today) &&
           existingBorrowerIds.has(l.borrower_id)
         )
         .sort((a, b) => new Date(a.loan_date).getTime() - new Date(b.loan_date).getTime())
