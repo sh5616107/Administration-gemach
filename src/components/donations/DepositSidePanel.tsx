@@ -115,13 +115,27 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
     try {
       if (deposit?.id) {
         // Update existing deposit
+
+        // 🐛 BUG FIX: status לא עודכן כאן בכלל, אז שינוי deposit_date בעריכה
+        // (למשל מהיום לעתיד, או להיפך) לא שינה את הסטטוס בפועל. מחשבים
+        // מחדש planned/active לפי התאריך החדש — אבל בלי לדרוס 'withdrawn',
+        // כי הפקדה שכבר נמשכה צריכה להישאר כ-withdrawn ללא קשר לתאריך.
+        const today = new Date().toISOString().split('T')[0];
+        const recalculatedStatus =
+          deposit.status === 'withdrawn'
+            ? 'withdrawn'
+            : formData.deposit_date > today
+              ? 'planned'
+              : 'active';
+
         await db.run(
           `UPDATE deposits SET 
             amount = ?, 
             deposit_date = ?, 
             period_type = ?, 
             due_date = ?,
-            notes = ?
+            notes = ?,
+            status = ?
           WHERE id = ?`,
           [
             formData.amount,
@@ -129,6 +143,7 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
             formData.period_type,
             formData.due_date || null,
             formData.notes,
+            recalculatedStatus,
             deposit.id
           ]
         );
@@ -141,6 +156,12 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         const recurringMonths = isRecurring ? formData.recurring_total - 1 : null;
         const recurringDepositNumber = isRecurring ? 1 : null;
         const recurringDepositCount = isRecurring ? formData.recurring_total : null;
+
+        // 🐛 BUG FIX: הפקדה עם תאריך עתידי חייבת להיכנס כ-'planned' ולא כ-'active',
+        // בדיוק כפי שנעשה עבור הלוואות. אחרת activatePlannedDeposits() ב-scheduler
+        // לעולם לא מוצא מה לקדם, וההפקדה נחשבת "קיימת בקופה" עוד לפני שהגיע תאריכה.
+        const today = new Date().toISOString().split('T')[0];
+        const depositStatus = formData.deposit_date > today ? 'planned' : 'active';
 
         await db.run(
           `INSERT INTO deposits (
@@ -160,7 +181,7 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
             recurringDepositNumber,
             recurringDepositCount,
             formData.notes,
-            'active'
+            depositStatus
           ]
         );
         setSnackbar({ open: true, message: isRecurring ? 'ההפקדה המחזורית נוספה בהצלחה' : 'ההפקדה נוספה בהצלחה', severity: 'success' });
