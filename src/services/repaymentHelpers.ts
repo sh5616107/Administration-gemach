@@ -6,6 +6,23 @@
 import { repaymentsService, loansService } from './database'
 import { calculateNextRepaymentNumber } from './recurringRepaymentsService'
 
+/**
+ * אירוע גלובלי שמשודר בכל פעם שנרשם פירעון, מכל אחת מנקודות היצירה
+ * באפליקציה (addRepaymentAtomic, processAutoRepayment, פירעון מרובה,
+ * createRepaymentWithNumbering) - דרך closeLoanIfFullyRepaid, שנקרא אחרי
+ * כל אחת מהן.
+ *
+ * הבעיה שהאירוע פותר: מסך "לווים והלוואות" (UnifiedLoansPage) ודף הבית
+ * (Dashboard) טוענים את הנתונים שלהם פעם אחת (ב-state מקומי), ואין ביניהם
+ * ובין AlertsDialog (הנגיש מכל מקום דרך Layout) שום ערוץ תקשורת. לכן
+ * פירעון שנרשם מה-AlertsDialog (או מכל מקום אחר) לא היה משתקף ב"כרטיס
+ * הלווה" הפתוח אלא רק אחרי ריענון/בחירה מחדש של הלווה.
+ *
+ * הפתרון עוקב אחרי התבנית הקיימת ב-useSettings.ts (SETTINGS_CHANGED_EVENT):
+ * window.dispatchEvent + window.addEventListener במקום state management גלובלי.
+ */
+export const REPAYMENT_RECORDED_EVENT = 'gemach-repayment-recorded'
+
 export interface CreateRepaymentParams {
   loanId: string
   amount: number
@@ -71,6 +88,17 @@ export async function createRepaymentWithNumbering(params: CreateRepaymentParams
 export async function closeLoanIfFullyRepaid(loanId: string): Promise<boolean> {
   const loan = await loansService.getById(loanId)
   if (!loan) return false
+
+  // משודר תמיד כשמגיעים לכאן עם הלוואה קיימת - כלומר אחרי כל פירעון שנרשם
+  // בפועל בכל אחת מנקודות היצירה באפליקציה. ראו תיעוד ה-event למעלה.
+  // הבדיקה על dispatchEvent (ולא רק על window) חשובה כי בסביבת הטסטים
+  // (vitest, environment: 'node') יש מוק חלקי ל-window בלי dispatchEvent/CustomEvent.
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent(REPAYMENT_RECORDED_EVENT, {
+      detail: { loanId, borrowerId: loan.borrower_id }
+    }))
+  }
+
   if (loan.status !== 'active' && loan.status !== 'overdue') return false
 
   const remaining = loan.remaining ?? (loan.amount - (loan.total_repaid || 0))

@@ -46,6 +46,7 @@ import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmai
 import { useSettings } from '../hooks/useSettings'
 import { getDocumentLayout } from '../utils/documentLayoutHelper'
 import ItemsListDialog from '../components/ItemsListDialog'
+import { REPAYMENT_RECORDED_EVENT } from '../services/repaymentHelpers'
 
 interface DashboardStats {
   activeLoans: { count: number; total: number }
@@ -97,6 +98,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadData()
+  }, [])
+
+  // האזנה לפירעונות שנרשמו מכל מקום באפליקציה (בעיקר AlertsDialog, הנגיש
+  // מכל מקום דרך Layout) - כדי שדף הבית יתעדכן מיד גם כשהפירעון לא נרשם
+  // דרך מסך זה עצמו. ראו תיעוד ב-repaymentHelpers.ts.
+  useEffect(() => {
+    const handleRepaymentRecorded = () => {
+      loadData()
+    }
+    window.addEventListener(REPAYMENT_RECORDED_EVENT, handleRepaymentRecorded)
+    return () => window.removeEventListener(REPAYMENT_RECORDED_EVENT, handleRepaymentRecorded)
   }, [])
 
   const loadData = async () => {

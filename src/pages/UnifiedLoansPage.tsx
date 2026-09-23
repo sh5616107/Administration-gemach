@@ -46,7 +46,7 @@ import { useSettings } from '../hooks/useSettings';
 import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
 import { getLoanFamily, calculateNextRepaymentNumber } from '../services/recurringRepaymentsService';
-import { createRepaymentWithNumbering, closeLoanIfFullyRepaid } from '../services/repaymentHelpers';
+import { createRepaymentWithNumbering, closeLoanIfFullyRepaid, REPAYMENT_RECORDED_EVENT } from '../services/repaymentHelpers';
 import LoanCard from '../components/loans/LoanCard';
 import LoanSidePanel from '../components/loans/LoanSidePanel';
 import BorrowerSidePanel from '../components/loans/BorrowerSidePanel';
@@ -218,6 +218,20 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
     } else {
       setLoans([]);
     }
+  }, [selectedBorrower]);
+
+  // האזנה לפירעונות שנרשמו מכל מקום אחר באפליקציה (בעיקר AlertsDialog,
+  // הנגיש מכל מקום דרך Layout) - כדי ש"כרטיס הלווה" יתעדכן מיד גם כשהפירעון
+  // לא נרשם דרך מסך זה עצמו. ראו תיעוד ב-repaymentHelpers.ts.
+  useEffect(() => {
+    const handleRepaymentRecorded = (event: Event) => {
+      const borrowerId = (event as CustomEvent<{ borrowerId?: string }>).detail?.borrowerId;
+      if (selectedBorrower && (!borrowerId || borrowerId === selectedBorrower.id)) {
+        loadLoansForBorrower(selectedBorrower.id);
+      }
+    };
+    window.addEventListener(REPAYMENT_RECORDED_EVENT, handleRepaymentRecorded);
+    return () => window.removeEventListener(REPAYMENT_RECORDED_EVENT, handleRepaymentRecorded);
   }, [selectedBorrower]);
 
   const loadBorrowers = async (selectBorrowerId?: string) => {
