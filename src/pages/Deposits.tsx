@@ -271,9 +271,11 @@ export default function Deposits() {
   };
 
   const loadDepositsForDepositor = async (depositorId: string) => {
+    console.log('🔄 [Deposits] טוען הפקדות עבור מפקיד:', depositorId);
     setLoadingDeposits(true);
     try {
       const data = await db.query('SELECT * FROM deposits WHERE depositor_id = ?', [depositorId]) as Deposit[];
+      console.log('📦 [Deposits] הפקדות נטענו מהמסד נתונים:', data.map(d => ({ id: d.id, status: d.status, date: d.deposit_date })));
       // Sort newest first
       const sorted = [...data].sort(
         (a, b) => new Date(b.deposit_date).getTime() - new Date(a.deposit_date).getTime()

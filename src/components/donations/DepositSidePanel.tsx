@@ -160,6 +160,11 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         );
         
         console.log('✅ [DepositSidePanel] הפקדה עודכנה במסד הנתונים');
+        
+        // Verify the update was saved
+        const verifyUpdate = await db.query('SELECT id, status, deposit_date FROM deposits WHERE id = ?', [deposit.id]);
+        console.log('🔍 [DepositSidePanel] אימות עדכון במסד נתונים:', verifyUpdate);
+        
         setSnackbar({ open: true, message: 'ההפקדה עודכנה בהצלחה', severity: 'success' });
       } else {
         // Create new deposit
