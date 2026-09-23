@@ -1032,17 +1032,21 @@ export const loansService = {
       }
     }
 
-    // 🐛 BUG FIX: אם loan_date השתנה, צריך לעדכן את ה-status בהתאם:
-    // - אם loan_date עתידי -> status = 'planned'
-    // - אם loan_date הגיע/עבר ו-status לא 'closed'/'transferred' -> status = 'active'
-    // זה בדיוק כמו התיקון שעשינו להפקדות ב-DepositSidePanel
-    if (d.loan_date !== undefined && d.loan_date !== e.loan_date) {
-      const today = new Date().toISOString().split('T')[0]
-      // שומרים סטטוסים סופיים (closed, transferred)
-      if (e.status !== 'closed' && e.status !== 'transferred') {
-        d.status = d.loan_date > today ? 'planned' : 'active'
-      }
-    }
+    // 🐛 BUG FIX: אם loan_date השתנה לתאריך עתידי והסטטוס הוא 'planned',
+    // צריך לוודא שזה יישאר 'planned'. אבל:
+    // 1. אין מעבר active → planned (לפי validateLoanStatusTransition)
+    // 2. אין מעבר overdue → planned
+    // 3. אין מעבר closed → planned
+    // 
+    // לכן, אם loan_date עתידי אבל הסטטוס לא 'planned', זו אי-עקביות
+    // שצריך למנוע בUI (לא לאפשר לשנות תאריך של הלוואה פעילה לעתיד).
+    // 
+    // המימוש הנוכחי: לא עושים כלום - נשאיר את הסטטוס כפי שהוא.
+    // זה מאפשר הלוואות עם loan_date עתידי וstatus='active' (אי-עקביות),
+    // אבל זה עדיף על פני הפרת הכללים העסקיים של מעברי הסטטוסים.
+    //
+    // TODO: צריך לטפל בזה ב-UI - לא לאפשר שינוי תאריך של הלוואה שכבר
+    // לא במצב 'planned' לתאריך עתידי.
 
     setItem('loans', id, { ...e, ...d })
     await flushPendingSave()
