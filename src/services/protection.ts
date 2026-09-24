@@ -103,7 +103,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
  * בגיטהאב) יכול היה לחשב את הקוד של כל יום. עכשיו רק ה-hash גלוי,
  * בדיוק כמו סיסמת משתמש - אי אפשר לגזור ממנו את הקוד המקורי.
  */
-const MASTER_CODE_HASH = '4e0e6e5c0ae339fdce2facd3299b20e0:5f23e493bf54ade55f4bc7f6c1cc69251ff3fb3aa3459ea4b4289896c5898b7d'
+const MASTER_CODE_HASH = 'b57ec5483e7d0146e6f8d43a4a5ed9dd:702d4bac6dcdde6f583c7f151586f135b692b37bdad3369dd8d4c5687625e6fb'
 
 /**
  * אימות קוד - בודק סיסמת משתמש או קוד מאסטר
