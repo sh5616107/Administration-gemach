@@ -147,7 +147,7 @@ export default function LockScreen({ onUnlock }: LockScreenProps) {
                 שכחת סיסמה?
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                שלח למפתח את התאריך של היום וקבל קוד שחזור:
+                צור קשר עם המפתח וקבל קוד שחזור:
               </Typography>
               <Typography 
                 variant="body2" 

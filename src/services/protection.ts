@@ -103,7 +103,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
  * בגיטהאב) יכול היה לחשב את הקוד של כל יום. עכשיו רק ה-hash גלוי,
  * בדיוק כמו סיסמת משתמש - אי אפשר לגזור ממנו את הקוד המקורי.
  */
-const MASTER_CODE_HASH = 'b57ec5483e7d0146e6f8d43a4a5ed9dd:702d4bac6dcdde6f583c7f151586f135b692b37bdad3369dd8d4c5687625e6fb'
+let MASTER_CODE_HASH = 'b57ec5483e7d0146e6f8d43a4a5ed9dd:702d4bac6dcdde6f583c7f151586f135b692b37bdad3369dd8d4c5687625e6fb'
 
 /**
  * אימות קוד - בודק סיסמת משתמש או קוד מאסטר
@@ -184,10 +184,20 @@ export { hashPassword as _hashPasswordForTesting }
 export { verifyPassword as _verifyPasswordForTesting }
 
 /**
- * קוד המאסטר בטקסט גלוי - **לבדיקות בלבד**, תואם ל-MASTER_CODE_HASH למעלה.
+ * מחליף את MASTER_CODE_HASH בזמן ריצה - **לבדיקות בלבד**.
+ *
+ * למה זה קיים: קוד המאסטר האמיתי מתחלף מדי פעם (יוני מריץ
+ * generateMasterCodeHash.cjs עם קוד חדש ומעדכן את הקבוע למעלה). טסט
+ * שמניח פלייינטקסט קבוע היה נשבר בכל רוטציה כזו - ולא ניתן לחשוף את
+ * הקוד האמיתי בקוד המקור/בטסטים מבלי לבטל את כל הנקודה של ה-hash.
+ * הפתרון: הטסט מייצר hash משלו (עם _hashPasswordForTesting) לקוד
+ * שהוא בעצמו בוחר, מזריק אותו כאן, ובודק את verifyCode() מולו - בלי
+ * שום תלות בקוד המאסטר האמיתי.
  * @internal
  */
-export const _MASTER_CODE_PLAINTEXT_FOR_TESTING = 'CHANGE-ME-8492'
+export function _setMasterCodeHashForTesting(hash: string): void {
+  MASTER_CODE_HASH = hash
+}
 
 /**
  * בדיקה אם המשתמש מאומת (בסשן הנוכחי)

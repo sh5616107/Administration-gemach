@@ -5,7 +5,7 @@ import {
   getUserPassword,
   setProtectionEnabled,
   isProtectionEnabled,
-  _MASTER_CODE_PLAINTEXT_FOR_TESTING,
+  _setMasterCodeHashForTesting,
   _hashPasswordForTesting as hashPassword,
   _verifyPasswordForTesting as verifyPassword,
 } from '../services/protection'
@@ -126,7 +126,13 @@ describe('Password Security - Web Crypto API', () => {
     })
 
     it('should verify master code', async () => {
-      const isValid = await verifyCode(_MASTER_CODE_PLAINTEXT_FOR_TESTING)
+      // הטסט מייצר קוד-מאסטר משלו (לא תלוי בקוד האמיתי, שמתחלף בעצמו
+      // מדי פעם ולא נחשף בקוד המקור) - ראו הערה ב-_setMasterCodeHashForTesting
+      const testCode = 'test-master-code-only'
+      const testHash = await hashPassword(testCode)
+      _setMasterCodeHashForTesting(testHash)
+
+      const isValid = await verifyCode(testCode)
       expect(isValid).toBe(true)
     })
 
