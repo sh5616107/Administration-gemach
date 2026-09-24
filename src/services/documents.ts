@@ -640,10 +640,10 @@ export function buildLoanDocumentHtml(data: LoanDocumentData, layout?: DocumentL
       
       <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;" />
       
+      ${renderCustomBlocks('footer', layout)}
       <div style="text-align: right; font-size: 11px; color: #666;">
         תאריך הפקת השטר: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
       </div>
-      ${renderCustomBlocks('footer', layout)}
     </div>
   `
 }
@@ -957,10 +957,10 @@ export function buildDepositDocumentHtml(data: {
       
       <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
       
+      ${renderCustomBlocks('footer', layout)}
       <div style="text-align: right; font-size: 12px; color: #666;">
         תאריך הפקת השטר: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
       </div>
-      ${renderCustomBlocks('footer', layout)}
     </div>
   `
 }
