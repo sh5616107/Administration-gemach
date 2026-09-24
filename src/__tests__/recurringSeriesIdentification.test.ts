@@ -6,7 +6,6 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { borrowersService, loansService, db } from '../services/database'
-import { recurringItemsService } from '../services/recurringItemsService'
 
 describe('Recurring Series Identification', () => {
   beforeEach(async () => {
@@ -15,6 +14,8 @@ describe('Recurring Series Identification', () => {
 
   describe('הלוואות מחזוריות - זיהוי סדרה', () => {
     it('צריך למצוא את כל ההלוואות בסדרה גם אם הסכום שונה', async () => {
+      // Dynamic import to avoid circular dependency
+      const { recurringItemsService } = await import('../services/recurringItemsService')
       // יצירת לווה
       const borrower = await borrowersService.create({
         first_name: 'ישראל',
@@ -124,6 +125,9 @@ describe('Recurring Series Identification', () => {
     })
 
     it('לא צריך לכלול הלוואות של לווה אחר', async () => {
+      // Dynamic import to avoid circular dependency
+      const { recurringItemsService } = await import('../services/recurringItemsService')
+      
       // יצירת שני לווים
       const borrower1 = await borrowersService.create({
         first_name: 'ישראל',
@@ -192,6 +196,9 @@ describe('Recurring Series Identification', () => {
     })
 
     it('לא צריך לכלול הלוואות עם יום שונה', async () => {
+      // Dynamic import to avoid circular dependency
+      const { recurringItemsService } = await import('../services/recurringItemsService')
+      
       // יצירת לווה
       const borrower = await borrowersService.create({
         first_name: 'ישראל',
@@ -253,6 +260,9 @@ describe('Recurring Series Identification', () => {
     })
 
     it('לא צריך לכלול הלוואות שנמחקו (soft-delete)', async () => {
+      // Dynamic import to avoid circular dependency
+      const { recurringItemsService } = await import('../services/recurringItemsService')
+      
       // יצירת לווה
       const borrower = await borrowersService.create({
         first_name: 'ישראל',
@@ -318,6 +328,9 @@ describe('Recurring Series Identification', () => {
 
   describe('הפקדות מחזוריות - זיהוי סדרה', () => {
     it('צריך למצוא את כל ההפקדות בסדרה גם אם הסכום שונה', async () => {
+      // Dynamic import to avoid circular dependency
+      const { recurringItemsService } = await import('../services/recurringItemsService')
+      
       // יצירת מפקיד
       const depositorResult = await db.run(
         'INSERT INTO depositors (first_name, last_name, phone, id_number, address, email, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
