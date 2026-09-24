@@ -8,7 +8,7 @@ export interface CustomTextBlock {
   id: string
   anchorId: string
   text: string
-  align: 'right' | 'center' | 'left'
+  align: 'right' | 'center' | 'left' | 'justify'
   bold: boolean
   underline: boolean
   fontFamily: DocumentFontFamily
@@ -192,7 +192,7 @@ export const DOCUMENT_ANCHORS: Record<DocumentType, AnchorDefinition[]> = {
     },
     { id: 'beforeSignature', label: 'לפני שורת החתימה' },
     { id: 'afterGuarantors', label: 'אחרי פרטי הערבים', conditional: true, description: 'מוצג רק אם יש ערב 1 ו/או ערב 2' },
-    { id: 'footer', label: 'תחתית המסמך (אחרי תאריך הפקה)' },
+    { id: 'footer', label: 'תחתית המסמך (לפני תאריך ההפקה)' },
   ],
   borrowerReport: [
     { id: 'header', label: 'כותרת הדוח' },
@@ -225,7 +225,7 @@ export const DOCUMENT_ANCHORS: Record<DocumentType, AnchorDefinition[]> = {
       description: 'קיים תמיד בזרימה גם כשאין משיכות (fallback: מיד אחרי beforeWithdrawalsTable)',
     },
     { id: 'beforeSignature', label: 'לפני שורות החתימה' },
-    { id: 'footer', label: 'תחתית המסמך (אחרי תאריך הפקה)' },
+    { id: 'footer', label: 'תחתית המסמך (לפני תאריך ההפקה)' },
   ],
   depositorReport: [
     { id: 'header', label: 'כותרת הדוח' },

@@ -12,8 +12,9 @@ import {
   ExpandMore as ExpandMoreIcon, ArrowUpward as ArrowUpwardIcon,
   ArrowDownward as ArrowDownwardIcon, Save as SaveIcon, Info as InfoIcon,
   FormatAlignRight as FormatAlignRightIcon, FormatAlignCenter as FormatAlignCenterIcon,
-  FormatAlignLeft as FormatAlignLeftIcon, FormatBold as FormatBoldIcon,
-  FormatUnderlined as FormatUnderlinedIcon,
+  FormatAlignLeft as FormatAlignLeftIcon, FormatAlignJustify as FormatAlignJustifyIcon,
+  FormatBold as FormatBoldIcon,
+  FormatUnderlined as FormatUnderlinedIcon, Edit as EditIcon,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
 import {
@@ -219,26 +220,57 @@ interface AnchorEditorProps {
   onChange: (blocks: CustomTextBlock[]) => void
 }
 
+const EMPTY_DRAFT: Omit<CustomTextBlock, 'id' | 'anchorId' | 'order'> = {
+  text: '', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15,
+}
+
 function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: AnchorEditorProps) {
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState<Omit<CustomTextBlock, 'id' | 'anchorId' | 'order'>>({
-    text: '', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15,
-  })
+  // מזהה הבלוק שנערך כרגע; null = טופס ה"הוספה" הרגיל, לא עריכה של בלוק קיים.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Omit<CustomTextBlock, 'id' | 'anchorId' | 'order'>>(EMPTY_DRAFT)
 
-  const addBlock = () => {
-    if (!draft.text.trim()) return
-    const newBlock: CustomTextBlock = {
-      ...draft,
-      id: `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      anchorId,
-      order: blocks.length,
-    }
-    onChange([...blocks, newBlock])
-    setDraft({ text: '', align: 'right', bold: false, underline: false, fontFamily: 'Arial', fontSize: 15 })
+  const openAddForm = () => {
+    setDraft(EMPTY_DRAFT)
+    setEditingId(null)
+    setAdding(true)
+  }
+
+  const openEditForm = (block: CustomTextBlock) => {
+    const { id: _id, anchorId: _anchorId, order: _order, ...rest } = block
+    setDraft(rest)
+    setEditingId(block.id)
+    setAdding(true)
+  }
+
+  const closeForm = () => {
+    setDraft(EMPTY_DRAFT)
+    setEditingId(null)
     setAdding(false)
   }
 
-  const removeBlock = (id: string) => onChange(blocks.filter(b => b.id !== id))
+  // שומר בלוק חדש (editingId === null) או מעדכן בלוק קיים במקום, בלי לגעת
+  // ב-id/order שלו — כך שסדר הבלוקים בעוגן וקישורים אחרים ל-id נשמרים.
+  const saveBlock = () => {
+    if (!draft.text.trim()) return
+    if (editingId) {
+      onChange(blocks.map(b => (b.id === editingId ? { ...b, ...draft } : b)))
+    } else {
+      const newBlock: CustomTextBlock = {
+        ...draft,
+        id: `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        anchorId,
+        order: blocks.length,
+      }
+      onChange([...blocks, newBlock])
+    }
+    closeForm()
+  }
+
+  const removeBlock = (id: string) => {
+    onChange(blocks.filter(b => b.id !== id))
+    if (editingId === id) closeForm()
+  }
 
   const moveBlock = (id: string, dir: -1 | 1) => {
     const idx = blocks.findIndex(b => b.id === id)
@@ -257,19 +289,27 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
           {conditional && <Chip size="small" label="מותנה" sx={{ mr: 1, fontSize: 11 }} />}
         </Typography>
         {!adding && (
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setAdding(true)}>
+          <Button size="small" startIcon={<AddIcon />} onClick={openAddForm}>
             הוסף טקסט
           </Button>
         )}
       </Box>
 
       {blocks.map((b, i) => (
-        <Box key={b.id} sx={{ mt: 1, p: 1, bgcolor: '#f7f7f7', borderRadius: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box
+          key={b.id}
+          sx={{
+            mt: 1, p: 1, bgcolor: editingId === b.id ? '#fff3e0' : '#f7f7f7', borderRadius: 1,
+            display: 'flex', alignItems: 'center', gap: 1,
+            outline: editingId === b.id ? '1px solid #ffb74d' : 'none',
+          }}
+        >
           <Typography variant="body2" sx={{ flex: 1, direction: b.align === 'left' ? 'ltr' : 'rtl', fontWeight: b.bold ? 'bold' : 'normal', textDecoration: b.underline ? 'underline' : 'none' }}>
             {b.text}
           </Typography>
           <IconButton size="small" disabled={i === 0} onClick={() => moveBlock(b.id, -1)}><ArrowUpwardIcon fontSize="small" /></IconButton>
           <IconButton size="small" disabled={i === blocks.length - 1} onClick={() => moveBlock(b.id, 1)}><ArrowDownwardIcon fontSize="small" /></IconButton>
+          <IconButton size="small" onClick={() => openEditForm(b)}><EditIcon fontSize="small" /></IconButton>
           <IconButton size="small" color="error" onClick={() => removeBlock(b.id)}><DeleteIcon fontSize="small" /></IconButton>
         </Box>
       ))}
@@ -322,6 +362,18 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
                   }}
                 >
                   <FormatAlignLeftIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="יישור לשני הצדדים">
+                <IconButton 
+                  size="small" 
+                  onClick={() => setDraft({ ...draft, align: 'justify' })}
+                  sx={{ 
+                    bgcolor: draft.align === 'justify' ? 'primary.light' : 'transparent',
+                    '&:hover': { bgcolor: draft.align === 'justify' ? 'primary.light' : 'grey.200' }
+                  }}
+                >
+                  <FormatAlignJustifyIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </Box>
@@ -393,8 +445,8 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
 
           {/* כפתורי פעולה */}
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-            <Button size="small" onClick={() => setAdding(false)}>ביטול</Button>
-            <Button size="small" variant="contained" onClick={addBlock}>הוסף</Button>
+            <Button size="small" onClick={closeForm}>ביטול</Button>
+            <Button size="small" variant="contained" onClick={saveBlock}>{editingId ? 'עדכן' : 'הוסף'}</Button>
           </Box>
         </Box>
       )}
