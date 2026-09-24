@@ -172,7 +172,7 @@ export default function Settings() {
       setAppVersion(version)
     } catch (err) {
       console.error('שגיאה בטעינת גרסה:', err)
-      setAppVersion('4.4.11')
+      setAppVersion('4.6.0')
     }
   }
 
