@@ -319,6 +319,11 @@ export default function WaitlistTab() {
       // הלוואות עם תאריך פירעון
       for (const loan of activeLoans) {
         if (loan.due_date && !loan.auto_repayment) {
+          const remaining = loan.remaining || 0
+
+          // הלוואה שנפרעה במלואה - אין מה להציג, מדובר במידע לא רלוונטי
+          if (remaining <= 0) continue
+
           const dueDate = new Date(loan.due_date)
           dueDate.setHours(0, 0, 0, 0)
           const borrower = allBorrowers.find(b => b.id === loan.borrower_id)
@@ -333,7 +338,7 @@ export default function WaitlistTab() {
             loansWithDueDate.push({
               id: loan.id,
               borrower_name: borrowerName,
-              amount: loan.remaining || 0,
+              amount: remaining,
               due_date: loan.due_date,
               period
             })
@@ -344,10 +349,14 @@ export default function WaitlistTab() {
       // הלוואות עם פירעון מחזורי
       for (const loan of activeLoans) {
         if (loan.auto_repayment === 1 && loan.repayment_amount) {
+          const remaining = loan.remaining || 0
+
+          // הלוואה שנפרעה במלואה - אין מה להציג, מדובר במידע לא רלוונטי
+          if (remaining <= 0) continue
+
           const borrower = allBorrowers.find(b => b.id === loan.borrower_id)
           const borrowerName = borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע'
           const monthlyAmount = loan.repayment_amount
-          const remaining = loan.remaining || 0
           
           // שבוע
           loansWithAutoRepayment.push({
