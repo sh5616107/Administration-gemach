@@ -13,6 +13,69 @@ import {
   Alert,
 } from '@mui/material'
 
+// הופך שורת טקסט עם **הדגשות** למקטעי JSX, בלי תלות בספריית markdown חיצונית
+function renderInlineBold(line: string, keyPrefix: string) {
+  const parts = line.split(/(\*\*[^*]+\*\*)/g).filter((p) => p.length > 0)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${keyPrefix}-${i}`}>{part.slice(2, -2)}</strong>
+    }
+    return <span key={`${keyPrefix}-${i}`}>{part}</span>
+  })
+}
+
+// רינדור פשוט של "מה חדש" (מקורו בסעיף CHANGELOG.md): כותרות ###, רשימות עם - ותת-רשימות מוזחות, והדגשות **טקסט**
+function ReleaseNotes({ text }: { text: string }) {
+  const lines = text.split('\n')
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      {lines.map((rawLine, idx) => {
+        const line = rawLine.trimEnd()
+        const key = `line-${idx}`
+
+        if (line.trim() === '') {
+          return <Box key={key} sx={{ height: 6 }} />
+        }
+
+        const headerMatch = line.match(/^#{1,3}\s+(.*)$/)
+        if (headerMatch) {
+          return (
+            <Typography key={key} variant="subtitle1" sx={{ fontWeight: 700, mt: 1 }}>
+              {renderInlineBold(headerMatch[1], key)}
+            </Typography>
+          )
+        }
+
+        const bulletMatch = line.match(/^(\s*)-\s+(.*)$/)
+        if (bulletMatch) {
+          const indented = bulletMatch[1].length > 0
+          return (
+            <Box key={key} sx={{ display: 'flex', gap: 1, pr: indented ? 3 : 1.5 }}>
+              <Typography variant="body2" component="span">•</Typography>
+              <Typography variant="body2" component="span">
+                {renderInlineBold(bulletMatch[2], key)}
+              </Typography>
+            </Box>
+          )
+        }
+
+        return (
+          <Typography key={key} variant="body2">
+            {renderInlineBold(line, key)}
+          </Typography>
+        )
+      })}
+    </Box>
+  )
+}
+
+// גוף העדכון (updateInfo.body) מגיע מ-CHANGELOG.md ומיועד גם לעמוד ה-Release ב-GitHub,
+// שם קיים סעיף "הורדה והתקנה" רלוונטי. בתוך האפליקציה זה מיותר (העדכון כבר מותקן דרך הדיאלוג הזה) - מסירים אותו
+export function stripInstallFooter(body: string) {
+  return body.split(/\n#{1,3}\s+הורדה והתקנה/)[0].trim()
+}
+
 export default function UpdateChecker() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<any>(null)
@@ -108,13 +171,11 @@ export default function UpdateChecker() {
         </Box>
 
         {updateInfo?.body && (
-          <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+          <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1, maxHeight: 320, overflowY: 'auto' }}>
             <Typography variant="subtitle2" gutterBottom>
               מה חדש:
             </Typography>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {updateInfo.body}
-            </Typography>
+            <ReleaseNotes text={stripInstallFooter(updateInfo.body)} />
           </Box>
         )}
 
