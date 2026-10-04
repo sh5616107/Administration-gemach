@@ -59,6 +59,42 @@ function findMatchingGuarantorRepayment(
 }
 
 /**
+ * When the original borrower repays a transferred loan, the guarantor is
+ * released from that portion and any amount they already paid becomes a
+ * refund claim. Keep the claim on the guarantor-loan record so the existing
+ * refund workflow can manage the actual payout.
+ */
+async function updateGuarantorRefundDue(
+  guarantorLoan: { id: string; notes?: string; total_refunded?: number },
+  repayments: GuarantorLoanRepayment[]
+): Promise<void> {
+  const paidByGuarantor = repayments
+    .filter(repayment => !repayment.source_repayment_id)
+    .reduce((sum, repayment) => sum + repayment.amount, 0)
+  const coveredByBorrower = repayments
+    .filter(repayment => Boolean(repayment.source_repayment_id))
+    .reduce((sum, repayment) => sum + repayment.amount, 0)
+  const alreadyRefunded = guarantorLoan.total_refunded || 0
+  const refundDue = Math.max(0, Math.min(paidByGuarantor, coveredByBorrower) - alreadyRefunded)
+
+  logger.info(`[REFUND] guarantorLoan=${guarantorLoan.id} paidByGuarantor=${paidByGuarantor} coveredByBorrower=${coveredByBorrower} alreadyRefunded=${alreadyRefunded} refundDue=${refundDue}`)
+
+  const cleanNotes = (guarantorLoan.notes || '')
+    .split('\n')
+    .filter(line => !line.includes('מגיע החזר לערב'))
+    .filter(Boolean)
+  if (refundDue > 0) {
+    const formattedAmount = Number(refundDue.toFixed(2)).toString()
+    cleanNotes.push(`מגיע החזר לערב: ${formattedAmount}₪`)
+    logger.info(`[REFUND] Writing refund note for guarantorLoan=${guarantorLoan.id}: ${formattedAmount}₪`)
+  } else {
+    logger.info(`[REFUND] No refund due for guarantorLoan=${guarantorLoan.id}`)
+  }
+
+  await guarantorLoansService.update(guarantorLoan.id, { notes: cleanNotes.join('\n') })
+}
+
+/**
  * הוספת פירעון אטומית
  * כולל עדכון guarantor loans אוטומטי
  * 
@@ -120,14 +156,16 @@ export async function addRepaymentAtomic(
     
     const guarantorLoans = await guarantorLoansService.getAll()
     const relatedGuarantorLoans = guarantorLoans.filter(gl => 
-      gl.original_loan_id === loanId && 
-      gl.status === 'active'
+      gl.original_loan_id === loanId
     )
+
+    logger.info(`[TX] Loan ${loanId} repayment=${repaymentData.amount}; related guarantor loans=${relatedGuarantorLoans.length}`)
     
     if (relatedGuarantorLoans.length > 0) {
       logger.info(`[TX] Updating ${relatedGuarantorLoans.length} guarantor loans`)
       
       for (const gl of relatedGuarantorLoans) {
+        logger.info(`[TX] Propagating borrower repayment to guarantorLoan=${gl.id}, guarantor=${gl.guarantor_id}, amount=${gl.amount}`)
         // חישוב פרופורציה
         const proportion = gl.amount / loan.amount
         const guarantorRepaymentAmount = repaymentData.amount * proportion
@@ -149,6 +187,10 @@ export async function addRepaymentAtomic(
         // בדיקה אם הלוואת הערב נפרעה במלואה
         const glRepayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(gl.id)
         const totalRepaid = glRepayments.reduce((sum, r) => sum + r.amount, 0)
+
+        // A borrower repayment releases the guarantor. If the guarantor had
+        // already paid, record the amount that must be refunded to them.
+        await updateGuarantorRefundDue(gl, glRepayments)
         
         if (totalRepaid >= gl.amount) {
           await guarantorLoansService.update(gl.id, { status: 'paid' })
@@ -299,8 +341,7 @@ export async function updateRepaymentAtomic(
       if (loan) {
         const guarantorLoans = await guarantorLoansService.getAll()
         const relatedGuarantorLoans = guarantorLoans.filter(gl => 
-          gl.original_loan_id === loan.id && 
-          gl.status === 'active'
+          gl.original_loan_id === loan.id
         )
         
         for (const gl of relatedGuarantorLoans) {
@@ -318,6 +359,13 @@ export async function updateRepaymentAtomic(
             await guarantorLoanRepaymentsService.update(matchingGlRepayment.id, {
               amount: newGlAmount
             })
+            const updatedGuarantorLoan = await guarantorLoansService.getById(gl.id)
+            if (updatedGuarantorLoan) {
+              await updateGuarantorRefundDue(
+                updatedGuarantorLoan,
+                await guarantorLoanRepaymentsService.getByGuarantorLoan(gl.id)
+              )
+            }
             logger.info(`[TX] Guarantor repayment ${matchingGlRepayment.id} updated`)
           }
         }

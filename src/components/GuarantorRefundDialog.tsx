@@ -26,7 +26,7 @@ import {
   Close as CloseIcon,
   Check as CheckIcon,
 } from '@mui/icons-material'
-import { guarantorRefundsService, guarantorLoansService, type GuarantorRefund, type GuarantorLoan } from '../services/database'
+import { guarantorRefundsService, guarantorLoansService, guarantorLoanRepaymentsService, type GuarantorRefund, type GuarantorLoan } from '../services/database'
 import PaymentMethodSelect, { type PaymentMethodData } from './PaymentMethodSelect'
 import { useTranslation } from 'react-i18next'
 
@@ -40,6 +40,7 @@ interface GuarantorRefundDialogProps {
 export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGuarantorLoan, onUpdate }: GuarantorRefundDialogProps) {
   const { t } = useTranslation()
   const [refunds, setRefunds] = useState<GuarantorRefund[]>([])
+  const [guarantorPaidTotal, setGuarantorPaidTotal] = useState(0)
   const [guarantorLoan, setGuarantorLoan] = useState(initialGuarantorLoan)
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -61,6 +62,10 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
 
   const loadGuarantorLoan = async () => {
     const updated = await guarantorLoansService.getById(initialGuarantorLoan.id)
+    const repayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(initialGuarantorLoan.id)
+    setGuarantorPaidTotal(repayments
+      .filter(repayment => !repayment.source_repayment_id)
+      .reduce((sum, repayment) => sum + repayment.amount, 0))
     if (updated) {
       setGuarantorLoan({
         ...updated,
@@ -87,12 +92,16 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
 
     // בדיקה שלא עובר את הסכום שהערב שילם
     const currentTotal = await guarantorRefundsService.getTotalRefunded(guarantorLoan.id)
+    const loanRepayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(guarantorLoan.id)
+    const totalPaidByGuarantor = loanRepayments
+      .filter(repayment => !repayment.source_repayment_id)
+      .reduce((sum, repayment) => sum + repayment.amount, 0)
     const newTotal = editingId 
       ? currentTotal - (refunds.find(r => r.id === editingId)?.amount || 0) + amount
       : currentTotal + amount
 
-    if (newTotal > guarantorLoan.total_repaid) {
-      alert(`לא ניתן להחזיר יותר מהסכום ששילם הערב (${guarantorLoan.total_repaid.toLocaleString()} ₪)`)
+    if (newTotal > totalPaidByGuarantor) {
+      alert(`לא ניתן להחזיר יותר מהסכום ששילם הערב (${totalPaidByGuarantor.toLocaleString()} ₪)`)
       return
     }
 
@@ -183,7 +192,7 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
   }
 
   const totalRefunded = refunds.reduce((sum, r) => sum + r.amount, 0)
-  const remainingToRefund = guarantorLoan.total_repaid - totalRefunded
+  const remainingToRefund = Math.max(0, guarantorPaidTotal - totalRefunded)
 
   const formatPaymentMethodLabel = (method: string) => {
     switch (method) {
@@ -232,7 +241,7 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={4}>
               <Typography variant="body2" color="text.secondary">סכום שהערב שילם</Typography>
-              <Typography variant="h6">{guarantorLoan.total_repaid.toLocaleString()} ₪</Typography>
+              <Typography variant="h6">{guarantorPaidTotal.toLocaleString()} ₪</Typography>
             </Grid>
             <Grid item xs={4}>
               <Typography variant="body2" color="text.secondary">הוחזר לערב</Typography>

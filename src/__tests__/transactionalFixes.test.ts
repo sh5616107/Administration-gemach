@@ -178,4 +178,20 @@ describe('תיקוני transactional.ts', () => {
     const remainingRepayments = await repaymentsService.getByLoan(loanId)
     expect(remainingRepayments.map(r => r.id)).toEqual([firstRepaymentId])
   })
+
+  it('marks a refund when the guarantor paid before the borrower repays', async () => {
+    await guarantorLoansService.addRepayment(guarantorLoanId, 10000, '2026-02-01', 'cash')
+
+    const borrowerRepayment = await addRepaymentAtomic(loanId, {
+      amount: 10000,
+      payment_date: '2026-03-01',
+      payment_method: 'cash',
+      payment_details: '',
+    })
+
+    expect(borrowerRepayment.success).toBe(true)
+    const updatedGuarantorLoan = await guarantorLoansService.getById(guarantorLoanId)
+    expect(updatedGuarantorLoan?.status).toBe('paid')
+    expect(updatedGuarantorLoan?.notes).toContain('מגיע החזר לערב: 10000₪')
+  })
 })

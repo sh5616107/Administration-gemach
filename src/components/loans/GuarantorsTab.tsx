@@ -19,11 +19,14 @@ import {
   Paper,
   Chip,
   IconButton,
+  Drawer,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Divider,
+  Stack,
+  Autocomplete,
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -39,6 +42,7 @@ import {
   Block as BlockIcon,
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material'
 import { guarantorsService, guarantorLoansService, guarantorLoanRepaymentsService, guarantorRefundsService, loansService, repaymentsService, borrowersService, type Guarantor, type GuarantorLoan } from '../../services/database'
 import { useSettings } from '../../hooks/useSettings'
@@ -50,6 +54,9 @@ import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkNewGuarantor, type CrossCheckResult } from '../../services/crossCheck'
 import { GuarantorRefundDialog } from '../GuarantorRefundDialog'
 import AttachmentsSection from '../attachments/AttachmentsSection'
+import logger from '../../utils/logger'
+import LoanCard from './LoanCard'
+import type { Loan } from '../../services/database'
 
 const emptyGuarantor: Omit<Guarantor, 'id' | 'created_at'> = {
   first_name: '',
@@ -73,6 +80,11 @@ export default function GuarantorsTab() {
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
   const [formData, setFormData] = useState<Omit<Guarantor, 'id' | 'created_at'>>(emptyGuarantor)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [guarantorPanelOpen, setGuarantorPanelOpen] = useState(false)
+  const [selectedGuarantor, setSelectedGuarantor] = useState<Guarantor | null>(null)
+  const [guaranteedLoans, setGuaranteedLoans] = useState<Loan[]>([])
+  const [loanDetailsOpen, setLoanDetailsOpen] = useState(false)
+  const [selectedLoanDetails, setSelectedLoanDetails] = useState<Loan | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   
@@ -96,10 +108,55 @@ export default function GuarantorsTab() {
     loadGuarantorLoans()
   }, [])
 
+  useEffect(() => {
+    loadGuaranteedLoans()
+  }, [selectedGuarantor?.id])
+
+  const loadGuaranteedLoans = async () => {
+    if (!selectedGuarantor?.id) {
+      setGuaranteedLoans([])
+      return
+    }
+    try {
+      const allLoans = await loansService.getAll()
+      setGuaranteedLoans(allLoans.filter(loan => loan.guarantor1_id === selectedGuarantor.id || loan.guarantor2_id === selectedGuarantor.id))
+    } catch (error) {
+      console.error('Error loading guaranteed loans:', error)
+    }
+  }
+
+  const handleOpenLoanDetails = (loan: Loan) => {
+    setSelectedLoanDetails(loan)
+    setLoanDetailsOpen(true)
+  }
+
+  const isDueDateReached = (dueDate?: string) => {
+    if (!dueDate) return false
+    return dueDate <= new Date().toISOString().split('T')[0]
+  }
+
   const loadGuarantorLoans = async () => {
     try {
+      logger.info('[REFUND-UI] Loading guarantor loans and running refund sync')
+      await guarantorLoansService.syncRefundNotes()
       const data = await guarantorLoansService.getAllWithDetails()
-      setGuarantorLoans(data)
+      const visibleData = []
+      for (const guarantorLoan of data) {
+        const repayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(guarantorLoan.id)
+        const paidByGuarantor = repayments
+          .filter(repayment => !repayment.source_repayment_id)
+          .reduce((sum, repayment) => sum + repayment.amount, 0)
+
+        if (paidByGuarantor <= 0) {
+          logger.info(`[REFUND-UI] Hiding guarantorLoan=${guarantorLoan.id}; no guarantor payment, only borrower-synced repayments`)
+          continue
+        }
+
+        visibleData.push(guarantorLoan)
+      }
+
+      logger.info(`[REFUND-UI] Loaded guarantor loans=${data.length}; visible on guarantor card=${visibleData.length}`)
+      setGuarantorLoans(visibleData)
     } catch (error) {
       console.error('Error loading guarantor loans:', error)
     }
@@ -116,6 +173,7 @@ export default function GuarantorsTab() {
         }))
       )
       setGuarantors(withTotals)
+      setSelectedGuarantor(current => current ? (withTotals.find(g => g.id === current.id) || null) : null)
     } catch (error) {
       console.error('Error loading guarantors:', error)
     }
@@ -141,13 +199,23 @@ export default function GuarantorsTab() {
   }
 
   const handleEdit = (guarantor: Guarantor) => {
+    setSelectedGuarantor(guarantor)
     setEditingId(guarantor.id || null)
     setFormData(guarantor)
+    setGuarantorPanelOpen(true)
   }
 
   const handleCancelEdit = () => {
     setEditingId(null)
     setFormData(emptyGuarantor)
+    setGuarantorPanelOpen(false)
+  }
+
+  const handleNewGuarantor = () => {
+    setSelectedGuarantor(null)
+    setEditingId(null)
+    setFormData(emptyGuarantor)
+    setGuarantorPanelOpen(true)
   }
 
   const handleSave = async () => {
@@ -436,7 +504,7 @@ export default function GuarantorsTab() {
         const originalLoan = await loansService.getById(gl.original_loan_id)
         const borrower = originalLoan ? await borrowersService.getById(originalLoan.borrower_id) : null
         const repayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(gl.id)
-        const refundMatch = gl.notes?.match(/מגיע החזר לערב: (\d+)₪/)
+        const refundMatch = gl.notes?.match(/מגיע החזר לערב: ([\d.]+)₪/)
         const refundDue = refundMatch ? parseInt(refundMatch[1], 10) : undefined
         
         return {
@@ -538,7 +606,7 @@ export default function GuarantorsTab() {
   return (
     <Box>
       {/* Stats */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid container spacing={2} sx={{ display: 'none' }}>
         <Grid item xs={6} md={3}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
@@ -573,8 +641,90 @@ export default function GuarantorsTab() {
         </Grid>
       </Grid>
 
-      {/* Add Form */}
-      <Card sx={{ mb: 3 }}>
+      {/* Unified guarantor screens: picker screen and selected-guarantor screen */}
+      <Box sx={{ mb: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={8}>
+            <Autocomplete
+              options={guarantors}
+              value={selectedGuarantor}
+              onChange={(_, value) => setSelectedGuarantor(value)}
+              getOptionLabel={(option) => `${option.first_name} ${option.last_name}`}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="חיפוש ערב לפי שם, טלפון, ת.ז... (או לחצו לרשימה המלאה)"
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: selectedGuarantor ? (
+                      <InputAdornment position="start"><IconButton size="small" onClick={() => setSelectedGuarantor(null)}>×</IconButton></InputAdornment>
+                    ) : params.InputProps.startAdornment,
+                  }}
+                />
+              )}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Stack direction="row" spacing={1} sx={{ height: '100%' }}>
+              {selectedGuarantor && (
+                <Button fullWidth variant="contained" startIcon={<EditIcon />} onClick={() => handleEdit(selectedGuarantor)}>
+                  ערוך פרטי ערב
+                </Button>
+              )}
+              <Button fullWidth variant={selectedGuarantor ? 'outlined' : 'contained'} startIcon={<AddIcon />} onClick={handleNewGuarantor}>
+                ערב חדש
+              </Button>
+            </Stack>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {!selectedGuarantor ? (
+        <Box sx={{ minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="h6" color="text.secondary">בחר ערב כדי להציג את הערבויות שלו</Typography>
+        </Box>
+      ) : (
+        <Grid container spacing={4} alignItems="flex-start">
+          <Grid item xs={12} md={8}>
+            <Typography variant="h4" sx={{ mb: 3 }}>הערבויות של {selectedGuarantor.first_name} {selectedGuarantor.last_name}</Typography>
+            {guaranteedLoans.length === 0 ? (
+              <Box sx={{ py: 8, textAlign: 'center' }}>
+                <Typography color="text.secondary">אין הלוואות שבהן הערב מוגדר כערב.</Typography>
+              </Box>
+            ) : (
+              <Grid container spacing={2}>
+                {guaranteedLoans.map((loan) => (
+                  <Grid item xs={12} sm={6} key={`selected-loan-${loan.id}`}>
+                    <LoanCard loan={loan} onClick={() => handleOpenLoanDetails(loan)} />
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ p: 2, position: { md: 'sticky' }, top: 16 }}>
+              <Typography variant="h5" sx={{ mb: 2 }}>{selectedGuarantor.first_name} {selectedGuarantor.last_name}</Typography>
+              <Stack spacing={1} sx={{ mb: 3 }}>
+                <Typography variant="body1">☎ {selectedGuarantor.phone}</Typography>
+                {selectedGuarantor.address && <Typography variant="body1">⌖ {selectedGuarantor.address}</Typography>}
+                {selectedGuarantor.email && <Typography variant="body1">{selectedGuarantor.email}</Typography>}
+              </Stack>
+              <Grid container spacing={1}>
+                <Grid item xs={6}><Card variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}><Typography variant="caption">סך הלוואות</Typography><Typography variant="h5">{formatCurrency(guaranteedLoans.reduce((sum, loan) => sum + loan.amount, 0))}</Typography></Card></Grid>
+                <Grid item xs={6}><Card variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}><Typography variant="caption">חוב נוכחי</Typography><Typography variant="h5" color="error.main">{formatCurrency(guaranteedLoans.reduce((sum, loan) => sum + (loan.remaining ?? loan.amount - (loan.total_repaid || 0)), 0))}</Typography></Card></Grid>
+              </Grid>
+              <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                <Chip label={`פעילות: ${guaranteedLoans.filter(loan => (loan.remaining ?? loan.amount - (loan.total_repaid || 0)) > 0).length}`} color="primary" />
+                <Chip label={`נפרעו: ${guaranteedLoans.filter(loan => (loan.remaining ?? loan.amount - (loan.total_repaid || 0)) <= 0).length}`} color="success" />
+              </Stack>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Legacy inline editor: the unified flow uses the side panel below. */}
+      <Card sx={{ mb: 3, display: 'none' }}>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2 }}>
             {editingId ? 'עריכת ערב' : 'הוספת ערב חדש'}
@@ -660,8 +810,13 @@ export default function GuarantorsTab() {
       </Card>
 
       {/* Search */}
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, display: 'none' }}>
         <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={handleNewGuarantor}>
+              ערב חדש
+            </Button>
+          </Box>
           <TextField
             fullWidth
             placeholder="חיפוש ערב לפי שם, טלפון, מ.ז..."
@@ -679,8 +834,40 @@ export default function GuarantorsTab() {
         </CardContent>
       </Card>
 
+      {selectedGuarantor && (
+        <Card sx={{ mb: 3, display: 'none' }}>
+          <CardContent>
+            <Button onClick={() => setSelectedGuarantor(null)} sx={{ mb: 2 }}>
+              ← חזרה לרשימת הערבים
+            </Button>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="overline" color="text.secondary">פרטי הערב שנבחר</Typography>
+                <Typography variant="h5" fontWeight="bold">
+                  {selectedGuarantor.first_name} {selectedGuarantor.last_name}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+                  <Typography variant="body2">טלפון: {selectedGuarantor.phone}</Typography>
+                  {selectedGuarantor.email && <Typography variant="body2">אימייל: {selectedGuarantor.email}</Typography>}
+                  {selectedGuarantor.id_number && <Typography variant="body2">מ.ז.: {selectedGuarantor.id_number}</Typography>}
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ textAlign: 'center', bgcolor: 'warning.50', px: 2, py: 1, borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary">סה״כ ערבויות</Typography>
+                  <Typography variant="h6" color="warning.dark">{formatCurrency((selectedGuarantor as any).total_guarantees || 0)}</Typography>
+                </Box>
+                <Button variant="outlined" startIcon={<EditIcon />} onClick={() => handleEdit(selectedGuarantor)}>עריכה</Button>
+              </Box>
+            </Box>
+            {selectedGuarantor.address && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>כתובת: {selectedGuarantor.address}</Typography>}
+            {selectedGuarantor.notes && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{selectedGuarantor.notes}</Typography>}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Table */}
-      <Card>
+      <Card sx={{ display: 'none' }}>
         <CardContent>
           <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
             <Typography variant="body2" color="text.secondary" component="span">הסבר סטטוסים:</Typography>
@@ -697,7 +884,44 @@ export default function GuarantorsTab() {
               <Typography variant="body2" color="text.secondary" component="span">חסום - ברשימה שחורה</Typography>
             </Box>
           </Box>
-          <TableContainer component={Paper} variant="outlined">
+          {guarantors.length > 0 && (
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              {guarantors.map((guarantor) => {
+                const status = getStatus(guarantor)
+                const isSelected = selectedGuarantor?.id === guarantor.id
+                return (
+                  <Grid item xs={12} sm={6} lg={4} key={`card-${guarantor.id}`}>
+                    <Card
+                      variant={isSelected ? 'elevation' : 'outlined'}
+                      onClick={() => setSelectedGuarantor(guarantor)}
+                      sx={{ height: '100%', cursor: 'pointer', border: isSelected ? 2 : undefined, borderColor: 'primary.main', '&:hover': { boxShadow: 3 } }}
+                    >
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                          <Box>
+                            <Typography variant="h6">{guarantor.first_name} {guarantor.last_name}</Typography>
+                            <Typography variant="body2" color="text.secondary">{guarantor.phone}</Typography>
+                          </Box>
+                          <Chip label={status.label} color={status.color} size="small" />
+                        </Box>
+                        <Divider sx={{ my: 1.5 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" color="text.secondary">ערבויות פעילות</Typography>
+                          <Typography fontWeight="bold">{formatCurrency((guarantor as any).total_guarantees || 0)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
+                          <IconButton size="small" color="info" onClick={(e) => { e.stopPropagation(); guarantor.id && handleGenerateGuarantorReport(guarantor.id) }} title="הפק דוח"><DescriptionIcon /></IconButton>
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(guarantor) }} title="ערוך"><EditIcon /></IconButton>
+                          <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); guarantor.id && handleDelete(guarantor.id) }} title="מחק"><DeleteIcon /></IconButton>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )
+              })}
+            </Grid>
+          )}
+          <TableContainer component={Paper} variant="outlined" sx={{ display: 'none' }}>
             <Table>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
@@ -719,7 +943,13 @@ export default function GuarantorsTab() {
                   guarantors.map((guarantor) => {
                     const status = getStatus(guarantor)
                     return (
-                      <TableRow key={guarantor.id} hover>
+                      <TableRow
+                        key={guarantor.id}
+                        hover
+                        selected={selectedGuarantor?.id === guarantor.id}
+                        onClick={() => setSelectedGuarantor(guarantor)}
+                        sx={{ cursor: 'pointer' }}
+                      >
                         <TableCell>
                           {guarantor.first_name} {guarantor.last_name}
                         </TableCell>
@@ -760,16 +990,43 @@ export default function GuarantorsTab() {
         </CardContent>
       </Card>
 
+      {selectedGuarantor && (
+        <Card sx={{ mt: 3, display: 'none' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h6">הלוואות שעליהן {selectedGuarantor.first_name} {selectedGuarantor.last_name} ערב</Typography>
+              <Chip label={guaranteedLoans.length} color="primary" size="small" />
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              בחר הלוואה כדי לפתוח את פרטיה, או השתמש בכפתור העריכה שעל הכרטיס.
+            </Typography>
+            {guaranteedLoans.length === 0 ? (
+              <Box sx={{ py: 4, textAlign: 'center' }}>
+                <Typography color="text.secondary">אין הלוואות שבהן ערב זה מוגדר כערב.</Typography>
+              </Box>
+            ) : (
+              <Grid container spacing={2}>
+                {guaranteedLoans.map((loan) => (
+                  <Grid item xs={12} sm={6} key={loan.id}>
+                    <LoanCard loan={loan} onClick={() => handleOpenLoanDetails(loan)} />
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Guarantor Loans Section */}
-      {guarantorLoans.length > 0 && (
+      {selectedGuarantor && guarantorLoans.some(gl => gl.guarantor_id === selectedGuarantor.id) && (
         <Card sx={{ mt: 3 }}>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               <PaymentIcon color="warning" />
-              הלוואות שהועברו לערבים ({guarantorLoans.filter(gl => gl.status === 'active').length})
+              הלוואות שהועברו לערבים ({guarantorLoans.filter(gl => gl.guarantor_id === selectedGuarantor.id).length})
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              הלוואות אלו נוצרו כאשר לווה לא פרע את חובו והחוב הועבר לערב. אם הלווה המקורי יפרע את החוב, ההלוואה תימחק אוטומטית.
+              הלוואות אלו נוצרו כאשר לווה לא פרע את חובו והחוב הועבר לערב. הרשומה נשארת כדי לעקוב אחר החוב של הלווה לערב, ותימחק אוטומטית רק כאשר הלווה המקורי יפרע את החוב.
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -786,7 +1043,7 @@ export default function GuarantorsTab() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {guarantorLoans.map((gl) => (
+              {guarantorLoans.filter(gl => gl.guarantor_id === selectedGuarantor.id).map((gl) => (
                     <TableRow key={gl.id} hover>
                       <TableCell>{gl.guarantor_name}</TableCell>
                       <TableCell>
@@ -887,6 +1144,80 @@ export default function GuarantorsTab() {
           </CardContent>
         </Card>
       )}
+
+      <Drawer
+        anchor="left"
+        open={guarantorPanelOpen}
+        onClose={handleCancelEdit}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 500 }, p: 3 } }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">{editingId ? 'עריכת ערב' : 'ערב חדש'}</Typography>
+          <IconButton onClick={handleCancelEdit} aria-label="סגור"><CloseIcon /></IconButton>
+        </Box>
+        <Divider sx={{ mb: 3 }} />
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6}><TextField fullWidth label="שם פרטי *" value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} /></Grid>
+          <Grid item xs={12} sm={6}><TextField fullWidth label="שם משפחה *" value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} /></Grid>
+          <Grid item xs={12} sm={6}><TextField fullWidth label="טלפון *" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /></Grid>
+          <Grid item xs={12} sm={6}><TextField fullWidth label="מספר זהות" value={formData.id_number} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })} /></Grid>
+          <Grid item xs={12}><TextField fullWidth label="כתובת" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></Grid>
+          <Grid item xs={12}><TextField fullWidth label="אימייל" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /></Grid>
+          <Grid item xs={12}><TextField fullWidth label="הערות" multiline rows={3} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></Grid>
+        </Grid>
+        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
+          <Button onClick={handleCancelEdit}>ביטול</Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleSave}>{editingId ? 'עדכן ערב' : 'הוסף ערב'}</Button>
+        </Box>
+        {editingId && <><Divider sx={{ my: 3 }} /><AttachmentsSection entityType="guarantor" entityId={editingId} /></>}
+      </Drawer>
+
+      <Dialog open={loanDetailsOpen} onClose={() => setLoanDetailsOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>פרטי ערבות</DialogTitle>
+        <DialogContent>
+          {selectedLoanDetails && (
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">הלווה</Typography>
+                <Typography variant="h6">{selectedLoanDetails.borrower_name || 'לא ידוע'}</Typography>
+              </Box>
+              <Divider />
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">מספר הלוואה</Typography>
+                  <Typography>#{selectedLoanDetails.loan_number}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">סכום ההלוואה</Typography>
+                  <Typography>{formatCurrency(selectedLoanDetails.amount)}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">תאריך פירעון</Typography>
+                  <Typography>
+                    {selectedLoanDetails.due_date
+                      ? formatDisplayDate(selectedLoanDetails.due_date, settings.date_format)
+                      : 'לא נקבע'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">סטטוס מועד הפירעון</Typography>
+                  {selectedLoanDetails.due_date ? (
+                    <Chip
+                      label={isDueDateReached(selectedLoanDetails.due_date) ? 'מועד הפירעון הגיע' : 'מועד הפירעון טרם הגיע'}
+                      color={isDueDateReached(selectedLoanDetails.due_date) ? 'error' : 'success'}
+                    />
+                  ) : (
+                    <Chip label="לא נקבע תאריך פירעון" color="default" />
+                  )}
+                </Grid>
+              </Grid>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLoanDetailsOpen(false)}>סגור</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Repayment Dialog */}
       <Dialog open={repaymentDialogOpen} onClose={() => setRepaymentDialogOpen(false)} maxWidth="xs" fullWidth>

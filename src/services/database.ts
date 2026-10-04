@@ -1414,6 +1414,75 @@ export const guarantorLoansService = {
         remaining: gl.amount - (gl.total_repaid || 0)
       }
     })
+  },
+  async syncRefundNotes(): Promise<void> {
+    const guarantorLoans = await this.getAll()
+    logger.info(`[REFUND-SYNC] Starting guarantor refund sync; loans=${guarantorLoans.length}`)
+    let changed = false
+
+    for (const guarantorLoan of guarantorLoans) {
+      let repayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(guarantorLoan.id)
+
+      // Repair legacy records where the borrower repayment was written to the
+      // original loan but the linked guarantor repayment was never created.
+      const originalLoan = await loansService.getById(guarantorLoan.original_loan_id)
+      if (originalLoan && originalLoan.amount > 0) {
+        const originalRepayments = await repaymentsService.getByLoan(guarantorLoan.original_loan_id)
+        const linkedSourceIds = new Set(repayments.map(repayment => repayment.source_repayment_id).filter(Boolean))
+        const transferTime = new Date(guarantorLoan.created_at).getTime()
+        const legacyBorrowerRepayments = originalRepayments.filter(repayment => {
+          if (linkedSourceIds.has(repayment.id)) return false
+          const repaymentTime = repayment.created_at ? new Date(repayment.created_at).getTime() : 0
+          return repaymentTime >= transferTime || repayment.payment_date >= guarantorLoan.created_at.slice(0, 10)
+        })
+
+        for (const repayment of legacyBorrowerRepayments) {
+          const linkedAmount = repayment.amount * (guarantorLoan.amount / originalLoan.amount)
+          logger.info(`[REFUND-SYNC] Repairing missing borrower link: guarantorLoan=${guarantorLoan.id} sourceRepayment=${repayment.id} amount=${linkedAmount}`)
+          await guarantorLoanRepaymentsService.create({
+            guarantor_loan_id: guarantorLoan.id,
+            amount: linkedAmount,
+            payment_date: repayment.payment_date,
+            payment_method: repayment.payment_method || '',
+            payment_details: repayment.payment_details || '',
+            source_repayment_id: repayment.id,
+            notes: 'סונכרן מתשלום הלווה'
+          })
+          changed = true
+        }
+
+        if (legacyBorrowerRepayments.length > 0) {
+          repayments = await guarantorLoanRepaymentsService.getByGuarantorLoan(guarantorLoan.id)
+        }
+      }
+
+      const paidByGuarantor = repayments
+        .filter(repayment => !repayment.source_repayment_id)
+        .reduce((sum, repayment) => sum + repayment.amount, 0)
+      const coveredByBorrower = repayments
+        .filter(repayment => Boolean(repayment.source_repayment_id))
+        .reduce((sum, repayment) => sum + repayment.amount, 0)
+      const refundDue = Math.max(0, Math.min(paidByGuarantor, coveredByBorrower) - (guarantorLoan.total_refunded || 0))
+
+      logger.info(`[REFUND-SYNC] guarantorLoan=${guarantorLoan.id} paidByGuarantor=${paidByGuarantor} coveredByBorrower=${coveredByBorrower} totalRefunded=${guarantorLoan.total_refunded || 0} refundDue=${refundDue}`)
+
+      const cleanNotes = (guarantorLoan.notes || '')
+        .split('\n')
+        .filter(line => !line.includes('מגיע החזר לערב'))
+        .filter(Boolean)
+      if (refundDue > 0) {
+        cleanNotes.push(`מגיע החזר לערב: ${Number(refundDue.toFixed(2))}₪`)
+      }
+      const notes = cleanNotes.join('\n')
+      if (notes !== (guarantorLoan.notes || '')) {
+        await this.update(guarantorLoan.id, { notes })
+        logger.info(`[REFUND-SYNC] Updated notes for guarantorLoan=${guarantorLoan.id}: ${notes}`)
+        changed = true
+      }
+    }
+
+    if (changed) await flushPendingSave()
+    logger.info(`[REFUND-SYNC] Completed; changed=${changed}`)
   }
 }
 

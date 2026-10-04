@@ -3,7 +3,7 @@ import type { Loan } from '../../services/database';
 
 interface LoanCardProps {
   loan: Loan;
-  onClick: () => void;
+  onClick?: () => void;
   recurringRepaymentInfo?: {
     number: number;
     count: number;
@@ -40,11 +40,11 @@ export default function LoanCard({ loan, onClick, recurringRepaymentInfo }: Loan
       variant="outlined"
       onClick={onClick}
       sx={{
-        cursor: 'pointer',
+        cursor: onClick ? 'pointer' : 'default',
         transition: 'box-shadow 0.15s, transform 0.15s',
         borderColor,
         borderWidth: borderColor ? 2 : 1,
-        '&:hover': { boxShadow: 4, transform: 'translateY(-2px)' },
+        ...(onClick ? { '&:hover': { boxShadow: 4, transform: 'translateY(-2px)' } } : {}),
       }}
     >
       <CardContent>
