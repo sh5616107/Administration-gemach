@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מדיניות פרטיות – מינהל הגמ"ח</title>
+<style>
+  :root {
+    color-scheme: light dark;
+  }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+    line-height: 1.7;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e6e6; background: #121212; }
+    a { color: #8ab4f8; }
+    hr { border-color: #333; }
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.15rem; margin-top: 2.2rem; }
+  .updated { color: #777; font-size: 0.9rem; margin-bottom: 2rem; }
+  .en-section { direction: ltr; text-align: left; border-top: 2px solid #ccc; margin-top: 3rem; padding-top: 2rem; }
+  ul { padding-inline-start: 1.5rem; }
+  code { background: rgba(127,127,127,0.15); padding: 0 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<h1>מדיניות פרטיות – מינהל הגמ"ח (Administration Gemach)</h1>
+<p class="updated">עודכן לאחרונה: <!-- עדכן תאריך --></p>
+
+<p>
+  "מינהל הגמ״ח" (Administration Gemach) היא אפליקציית שולחן עבודה בקוד פתוח לניהול גמ"ח כספים
+  (הלוואות גמ"ח ללא ריבית). האפליקציה פועלת באופן מקומי במחשב המשתמש, ואינה כוללת שרת מרכזי
+  שאוסף או מעבד את הנתונים שלך.
+</p>
+
+<h2>אילו נתונים האפליקציה ניגשת אליהם</h2>
+<p>
+  האפליקציה מציעה אפשרות להתחבר עם חשבון Google לצורך שליחת מיילים מתוך האפליקציה
+  (לדוגמה: שליחת אישור הלוואה לנמען). לשם כך האפליקציה מבקשת הרשאת Google אחת בלבד:
+</p>
+<ul>
+  <li><code>https://www.googleapis.com/auth/gmail.send</code> — הרשאה לשליחת הודעות דוא"ל
+    בשם המשתמש, בלבד. האפליקציה <strong>אינה</strong> קוראת, סורקת, מאחסנת או ניגשת בכל דרך
+    אחרת לתוכן תיבת הדואר, אנשי הקשר, או כל נתון אחר בחשבון ה-Google של המשתמש.</li>
+</ul>
+
+<h2>כיצד נשמרים הנתונים</h2>
+<ul>
+  <li>אסימון ההתחברות (access/refresh token) שמתקבל מ-Google נשמר באופן מקומי ומוצפן
+    באמצעות מנהל האישורים המובנה של מערכת ההפעלה (Windows Credential Manager).</li>
+  <li>האסימון אינו נשלח, מועלה, או משותף עם כל שרת חיצוני, כולל מפתחי האפליקציה עצמם.</li>
+  <li>תוכן ההודעות שהמשתמש בוחר לשלוח (לדוגמה טקסט מסמך הלוואה) מועבר ישירות מהמחשב של
+    המשתמש אל שרתי Google לצורך השליחה, ואינו נשמר או מועבר לשום גורם שלישי.</li>
+  <li>כלל הנתונים העסקיים של הגמ"ח (לווים, הלוואות, החזרים וכו') נשמרים אך ורק באופן
+    מקומי על גבי המחשב של המשתמש, ואינם מועלים לשום שרת.</li>
+</ul>
+
+<h2>שיתוף נתונים עם צדדים שלישיים</h2>
+<p>
+  האפליקציה אינה משתפת, מוכרת, או מעבירה נתוני משתמשים לשום צד שלישי. השימוש היחיד בהרשאת
+  Google הוא שליחת הודעת דוא"ל יזומה על ידי המשתמש עצמו, דרך שרתי Gmail של Google.
+</p>
+
+<h2>ביטול גישה</h2>
+<p>
+  ניתן לבטל את הגישה של האפליקציה לחשבון ה-Google בכל עת דרך
+  <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer">עמוד ההרשאות של חשבון Google</a>,
+  וכן למחוק את האסימון השמור מקומית דרך הגדרות האפליקציה.
+</p>
+
+<h2>יצירת קשר</h2>
+<p>
+  לשאלות בנוגע למדיניות זו ניתן לפנות דרך
+  <a href="https://github.com/sh5616107/Administration-gemach" target="_blank" rel="noreferrer">עמוד הפרויקט ב-GitHub</a>.
+</p>
+
+<hr>
+
+<div class="en-section">
+<h1>Privacy Policy – Administration Gemach</h1>
+<p class="updated">Last updated: <!-- fill in date --></p>
+
+<p>
+  "Administration Gemach" is an open-source desktop application for managing a Jewish
+  charitable free-loan fund (gemach). The application runs locally on the user's computer
+  and has no central server that collects or processes user data.
+</p>
+
+<h2>What data the application accesses</h2>
+<p>
+  The application offers an optional "Sign in with Google" feature used solely to send emails
+  from within the app (for example, sending a loan confirmation to a recipient). For this it
+  requests a single Google permission:
+</p>
+<ul>
+  <li><code>https://www.googleapis.com/auth/gmail.send</code> — permission to send email
+    messages on the user's behalf only. The application does <strong>not</strong> read, scan,
+    store, or otherwise access the user's inbox content, contacts, or any other data in the
+    user's Google account.</li>
+</ul>
+
+<h2>How data is stored</h2>
+<ul>
+  <li>The authentication token (access/refresh token) received from Google is stored locally,
+    encrypted via the operating system's built-in credential store (Windows Credential Manager).</li>
+  <li>The token is never transmitted to, uploaded to, or shared with any external server,
+    including the application's own developers.</li>
+  <li>Message content the user chooses to send (e.g. loan document text) is transmitted
+    directly from the user's computer to Google's servers for delivery, and is not stored or
+    passed to any third party.</li>
+  <li>All of the gemach's business data (borrowers, loans, repayments, etc.) is stored only
+    locally on the user's computer and is never uploaded to any server.</li>
+</ul>
+
+<h2>Third-party data sharing</h2>
+<p>
+  The application does not share, sell, or transfer user data to any third party. The only use
+  of the Google permission is sending an email explicitly initiated by the user, through
+  Google's own Gmail servers.
+</p>
+
+<h2>Revoking access</h2>
+<p>
+  Access can be revoked at any time via the
+  <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer">Google Account permissions page</a>,
+  and the locally stored token can be deleted through the application's settings.
+</p>
+
+<h2>Contact</h2>
+<p>
+  Questions about this policy can be directed via the
+  <a href="https://github.com/sh5616107/Administration-gemach" target="_blank" rel="noreferrer">project's GitHub page</a>.
+</p>
+</div>
+
+</body>
+</html>
