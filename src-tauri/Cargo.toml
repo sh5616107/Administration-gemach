@@ -37,7 +37,7 @@ futures = "0.3"
 # Direct email through Gmail SMTP. Credentials are kept in the OS credential
 # manager via `keyring`, never in the application's IndexedDB backup.
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
-keyring = "3"
+keyring = { version = "3", features = ["windows-native"] }
 
 [profile.release]
 panic = "abort"

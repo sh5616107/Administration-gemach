@@ -268,7 +268,12 @@ export default function Settings() {
       setSnackbar({ open: true, message: 'חשבון Gmail הוגדר בהצלחה. סיסמת האפליקציה נשמרה באחסון המאובטח של Windows.', severity: 'success' })
     } catch (error) {
       console.error('Error saving Gmail credentials:', error)
-      setSnackbar({ open: true, message: error instanceof Error ? error.message : 'לא ניתן לשמור את הגדרות Gmail', severity: 'error' })
+      const message = typeof error === 'string'
+        ? error
+        : error instanceof Error
+          ? error.message
+          : 'לא ניתן לשמור את הגדרות Gmail'
+      setSnackbar({ open: true, message, severity: 'error' })
     } finally {
       setSavingGmail(false)
     }

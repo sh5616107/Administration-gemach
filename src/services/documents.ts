@@ -1899,7 +1899,12 @@ export async function openEmailWithDocument(data: EmailData, provider: EmailProv
       }
     } catch (error) {
       console.error('Direct Gmail send failed:', error)
-      return { success: false, message: error instanceof Error ? error.message : 'שליחת המייל נכשלה' }
+      const message = typeof error === 'string'
+        ? error
+        : error instanceof Error
+          ? error.message
+          : 'שליחת המייל נכשלה'
+      return { success: false, message }
     }
   }
 
