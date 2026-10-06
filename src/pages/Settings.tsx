@@ -54,6 +54,7 @@ import { isProtectionEnabled, setProtectionEnabled, setUserPassword, getUserPass
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
 
 const defaultFieldLabels = {
   borrower_first_name: 'שם פרטי',
@@ -97,6 +98,7 @@ export default function Settings() {
     show_payment_method: settings.show_payment_method || 'no',
     show_waitlist_tab: settings.show_waitlist_tab || 'yes',
     email_provider: settings.email_provider || 'gmail',
+    gmail_sender_address: settings.gmail_sender_address || '',
     loan_document_text: isOldTemplate(settings.loan_document_text) ? '' : (settings.loan_document_text || ''),
     deposit_document_text: isOldTemplate(settings.deposit_document_text) ? '' : (settings.deposit_document_text || ''),
     report_repayments_order: settings.report_repayments_order || 'newest_first',
@@ -124,6 +126,7 @@ export default function Settings() {
       show_payment_method: settings.show_payment_method || 'no',
       show_waitlist_tab: settings.show_waitlist_tab || 'yes',
       email_provider: settings.email_provider || 'gmail',
+      gmail_sender_address: settings.gmail_sender_address || '',
       loan_document_text: isOldTemplate(settings.loan_document_text) ? '' : (settings.loan_document_text || ''),
       deposit_document_text: isOldTemplate(settings.deposit_document_text) ? '' : (settings.deposit_document_text || ''),
       report_repayments_order: settings.report_repayments_order || 'newest_first',
@@ -156,6 +159,8 @@ export default function Settings() {
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [appVersion, setAppVersion] = useState<string>('')
+  const [gmailAppPassword, setGmailAppPassword] = useState('')
+  const [savingGmail, setSavingGmail] = useState(false)
 
   useEffect(() => {
     loadProtectionSettings()
@@ -228,6 +233,7 @@ export default function Settings() {
       await updateSetting('date_format', localSettings.date_format)
       await updateSetting('show_payment_method', localSettings.show_payment_method)
       await updateSetting('email_provider', localSettings.email_provider)
+      await updateSetting('gmail_sender_address', localSettings.gmail_sender_address.trim())
       await updateSetting('language', i18n.language)
       await updateSetting('report_repayments_order', localSettings.report_repayments_order)
       if (localSettings.gemach_logo !== settings.gemach_logo) {
@@ -238,6 +244,33 @@ export default function Settings() {
     } catch (error) {
       console.error('Error saving settings:', error)
       setSnackbar({ open: true, message: t('settings.settingsSaveError'), severity: 'error' })
+    }
+  }
+
+  const handleSaveGmailCredentials = async () => {
+    const senderEmail = localSettings.gmail_sender_address.trim()
+    if (!senderEmail) {
+      setSnackbar({ open: true, message: 'יש להזין את כתובת ה־Gmail של הגמ״ח', severity: 'error' })
+      return
+    }
+    if (!gmailAppPassword.trim()) {
+      setSnackbar({ open: true, message: 'יש להזין סיסמת אפליקציה של Gmail', severity: 'error' })
+      return
+    }
+
+    setSavingGmail(true)
+    try {
+      await invoke('save_gmail_credentials', { senderEmail, appPassword: gmailAppPassword })
+      await updateSetting('gmail_sender_address', senderEmail)
+      await updateSetting('email_provider', 'gmail_direct')
+      setLocalSettings(current => ({ ...current, gmail_sender_address: senderEmail }))
+      setGmailAppPassword('')
+      setSnackbar({ open: true, message: 'חשבון Gmail הוגדר בהצלחה. סיסמת האפליקציה נשמרה באחסון המאובטח של Windows.', severity: 'success' })
+    } catch (error) {
+      console.error('Error saving Gmail credentials:', error)
+      setSnackbar({ open: true, message: error instanceof Error ? error.message : 'לא ניתן לשמור את הגדרות Gmail', severity: 'error' })
+    } finally {
+      setSavingGmail(false)
     }
   }
 
@@ -523,6 +556,11 @@ export default function Settings() {
                       <EmailIcon sx={{ fontSize: 18 }} /> {t('settings.emailGmail')}
                     </Box>
                   </MenuItem>
+                  <MenuItem value="gmail_direct">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <EmailIcon sx={{ fontSize: 18 }} /> שליחה ישירה דרך Gmail
+                    </Box>
+                  </MenuItem>
                   <MenuItem value="outlook">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <EmailIcon sx={{ fontSize: 18 }} /> {t('settings.emailOutlook')}
@@ -535,6 +573,61 @@ export default function Settings() {
                   </MenuItem>
                 </Select>
               </FormControl>
+
+              {localSettings.email_provider === 'gmail_direct' && (
+                <Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>הגדרת שליחה ישירה דרך Gmail</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    הפעילו אימות דו־שלבי בחשבון Gmail וצרו עבור התוכנה “סיסמת אפליקציה” בת 16 תווים. הסיסמה נשמרת ב־Windows Credential Manager ולא בגיבוי המערכת.
+                  </Typography>
+                  <Accordion disableGutters elevation={0} sx={{ mb: 2, border: '1px solid', borderColor: 'divider' }}>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                      <Typography variant="body2" fontWeight="bold">מדריך: יצירת סיסמת אפליקציה ב־Gmail</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Box component="ol" sx={{ mt: 0, mb: 1, pr: 3, '& li': { mb: 1 } }}>
+                        <li>היכנסו לחשבון ה־Gmail שממנו יישלחו ההודעות.</li>
+                        <li>הפעילו “אימות דו־שלבי” בהגדרות האבטחה של חשבון Google.</li>
+                        <li>פתחו את דף “סיסמאות אפליקציה” דרך הכפתור שלמטה.</li>
+                        <li>צרו סיסמה חדשה, תנו לה שם כמו “מנהל הגמ״ח”, והעתיקו את הקוד בן 16 התווים.</li>
+                        <li>חזרו לכאן, הדביקו את הקוד בשדה “סיסמת אפליקציה” ולחצו על שמירת החיבור.</li>
+                      </Box>
+                      <Button
+                        size="small"
+                        component="a"
+                        href="https://myaccount.google.com/apppasswords"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        פתיחת דף סיסמאות אפליקציה של Google
+                      </Button>
+                      <Typography variant="caption" component="div" color="text.secondary" sx={{ mt: 1 }}>
+                        אין להזין כאן את הסיסמה הרגילה לחשבון Gmail. אם האפשרות אינה מופיעה, ודאו שהאימות הדו־שלבי הופעל; ייתכן שהיא חסומה בחשבון ארגוני או ב־Advanced Protection.
+                      </Typography>
+                    </AccordionDetails>
+                  </Accordion>
+                  <TextField
+                    fullWidth
+                    type="email"
+                    label="כתובת Gmail של השולח"
+                    value={localSettings.gmail_sender_address}
+                    onChange={(e) => setLocalSettings({ ...localSettings, gmail_sender_address: e.target.value })}
+                    sx={{ mb: 2 }}
+                  />
+                  <TextField
+                    fullWidth
+                    type="password"
+                    label="סיסמת אפליקציה של Gmail"
+                    value={gmailAppPassword}
+                    onChange={(e) => setGmailAppPassword(e.target.value)}
+                    helperText="אין להזין כאן את הסיסמה הרגילה לחשבון Gmail."
+                    sx={{ mb: 2 }}
+                  />
+                  <Button variant="outlined" onClick={handleSaveGmailCredentials} disabled={savingGmail}>
+                    {savingGmail ? 'שומר…' : 'שמור חיבור מאובטח ל־Gmail'}
+                  </Button>
+                </Box>
+              )}
 
               <Divider sx={{ my: 3 }} />
               

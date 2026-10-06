@@ -24,6 +24,8 @@ interface Settings {
   date_format: string
   show_payment_method: string
   email_provider: string
+  // כתובת השולח בלבד. סיסמת אפליקציית Gmail נשמרת ב-Windows Credential Manager.
+  gmail_sender_address: string
   loan_document_text: string
   deposit_document_text: string
   language: string
@@ -55,6 +57,7 @@ const defaultSettings: Settings = {
   date_format: 'gregorian',
   show_payment_method: 'no',
   email_provider: 'gmail',
+  gmail_sender_address: '',
   loan_document_text: 'מאשר בזה כי לוויתי מהגמ״ח סכום כסף ואני מתחייב להחזירו במועד שנקבע.',
   deposit_document_text: 'ואני מתחייב להחזיר את הסכום בתנאים שנקבעו.',
   language: 'he',
