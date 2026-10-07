@@ -8,6 +8,7 @@ mod sidecar_manager;
 mod bank_commands;
 mod bank_sync_commands;
 mod bank_match_commands;
+mod gmail_oauth;
 
 use bank_commands::{AppState, PasswordLockState};
 use encryption::EncryptionService;
@@ -101,6 +102,9 @@ fn main() {
             open_url,
             save_gmail_credentials,
             send_gmail_email,
+            gmail_oauth::start_gmail_oauth_login,
+            gmail_oauth::send_gmail_oauth_email,
+            gmail_oauth::disconnect_gmail_oauth_account,
             // Master password commands
             bank_commands::set_master_password,
             bank_commands::verify_master_password,

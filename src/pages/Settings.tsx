@@ -99,6 +99,7 @@ export default function Settings() {
     show_waitlist_tab: settings.show_waitlist_tab || 'yes',
     email_provider: settings.email_provider || 'gmail',
     gmail_sender_address: settings.gmail_sender_address || '',
+    gmail_oauth_sender_address: settings.gmail_oauth_sender_address || '',
     loan_document_text: isOldTemplate(settings.loan_document_text) ? '' : (settings.loan_document_text || ''),
     deposit_document_text: isOldTemplate(settings.deposit_document_text) ? '' : (settings.deposit_document_text || ''),
     report_repayments_order: settings.report_repayments_order || 'newest_first',
@@ -127,6 +128,7 @@ export default function Settings() {
       show_waitlist_tab: settings.show_waitlist_tab || 'yes',
       email_provider: settings.email_provider || 'gmail',
       gmail_sender_address: settings.gmail_sender_address || '',
+    gmail_oauth_sender_address: settings.gmail_oauth_sender_address || '',
       loan_document_text: isOldTemplate(settings.loan_document_text) ? '' : (settings.loan_document_text || ''),
       deposit_document_text: isOldTemplate(settings.deposit_document_text) ? '' : (settings.deposit_document_text || ''),
       report_repayments_order: settings.report_repayments_order || 'newest_first',
@@ -161,6 +163,8 @@ export default function Settings() {
   const [appVersion, setAppVersion] = useState<string>('')
   const [gmailAppPassword, setGmailAppPassword] = useState('')
   const [savingGmail, setSavingGmail] = useState(false)
+  const [connectingGoogle, setConnectingGoogle] = useState(false)
+  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false)
 
   useEffect(() => {
     loadProtectionSettings()
@@ -276,6 +280,50 @@ export default function Settings() {
       setSnackbar({ open: true, message, severity: 'error' })
     } finally {
       setSavingGmail(false)
+    }
+  }
+
+  const handleConnectGoogleAccount = async () => {
+    setConnectingGoogle(true)
+    try {
+      const connectedEmail = await invoke<string>('start_gmail_oauth_login')
+      await updateSetting('gmail_oauth_sender_address', connectedEmail)
+      await updateSetting('email_provider', 'gmail_oauth')
+      setLocalSettings(current => ({ ...current, gmail_oauth_sender_address: connectedEmail }))
+      setSnackbar({ open: true, message: `חשבון Google (${connectedEmail}) חובר בהצלחה.`, severity: 'success' })
+    } catch (error) {
+      console.error('Error connecting Google account:', error)
+      const message = typeof error === 'string'
+        ? error
+        : error instanceof Error
+          ? error.message
+          : 'ההתחברות לחשבון Google נכשלה'
+      setSnackbar({ open: true, message, severity: 'error' })
+    } finally {
+      setConnectingGoogle(false)
+    }
+  }
+
+  const handleDisconnectGoogleAccount = async () => {
+    const senderEmail = localSettings.gmail_oauth_sender_address.trim()
+    if (!senderEmail) return
+
+    setDisconnectingGoogle(true)
+    try {
+      await invoke('disconnect_gmail_oauth_account', { senderEmail })
+      await updateSetting('gmail_oauth_sender_address', '')
+      setLocalSettings(current => ({ ...current, gmail_oauth_sender_address: '' }))
+      setSnackbar({ open: true, message: 'החיבור לחשבון Google הוסר.', severity: 'success' })
+    } catch (error) {
+      console.error('Error disconnecting Google account:', error)
+      const message = typeof error === 'string'
+        ? error
+        : error instanceof Error
+          ? error.message
+          : 'לא ניתן להסיר את החיבור'
+      setSnackbar({ open: true, message, severity: 'error' })
+    } finally {
+      setDisconnectingGoogle(false)
     }
   }
 
@@ -563,7 +611,12 @@ export default function Settings() {
                   </MenuItem>
                   <MenuItem value="gmail_direct">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <EmailIcon sx={{ fontSize: 18 }} /> שליחה ישירה דרך Gmail
+                      <EmailIcon sx={{ fontSize: 18 }} /> שליחה ישירה דרך Gmail (סיסמת אפליקציה)
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="gmail_oauth">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <EmailIcon sx={{ fontSize: 18 }} /> התחברות עם Google
                     </Box>
                   </MenuItem>
                   <MenuItem value="outlook">
@@ -631,6 +684,36 @@ export default function Settings() {
                   <Button variant="outlined" onClick={handleSaveGmailCredentials} disabled={savingGmail}>
                     {savingGmail ? 'שומר…' : 'שמור חיבור מאובטח ל־Gmail'}
                   </Button>
+                </Box>
+              )}
+
+              {localSettings.email_provider === 'gmail_oauth' && (
+                <Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>התחברות עם חשבון Google</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    שיטה זו אינה דורשת סיסמת אפליקציה — לוחצים "התחבר עם Google", מאשרים בדפדפן, וזהו.
+                    פרטי ההתחברות נשמרים באחסון המאובטח של Windows ואינם מועלים לשום שרת.
+                  </Typography>
+
+                  {localSettings.gmail_oauth_sender_address ? (
+                    <Box>
+                      <Typography variant="body2" sx={{ mb: 2 }}>
+                        מחובר כעת עם: <strong>{localSettings.gmail_oauth_sender_address}</strong>
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        onClick={handleDisconnectGoogleAccount}
+                        disabled={disconnectingGoogle}
+                      >
+                        {disconnectingGoogle ? 'מסיר חיבור…' : 'הסר חיבור לחשבון Google'}
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Button variant="outlined" onClick={handleConnectGoogleAccount} disabled={connectingGoogle}>
+                      {connectingGoogle ? 'ממתין לאישור בדפדפן…' : 'התחבר עם Google'}
+                    </Button>
+                  )}
                 </Box>
               )}
 

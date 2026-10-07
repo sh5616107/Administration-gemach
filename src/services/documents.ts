@@ -1852,7 +1852,7 @@ ${DEPOSITOR_REPORT_STYLES}
 
 
 // Email functionality
-export type EmailProvider = 'gmail' | 'gmail_direct' | 'outlook' | 'default'
+export type EmailProvider = 'gmail' | 'gmail_direct' | 'gmail_oauth' | 'outlook' | 'default'
 
 export interface EmailData {
   to: string
@@ -1908,6 +1908,37 @@ export async function openEmailWithDocument(data: EmailData, provider: EmailProv
     }
   }
 
+  if (provider === 'gmail_oauth') {
+    if (!isTauri()) {
+      return { success: false, message: 'שליחה ישירה זמינה רק ביישום המותקן במחשב' }
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const senderEmail = await getOAuthGmailSenderAddress()
+      if (!senderEmail) {
+        return { success: false, message: 'יש להתחבר לחשבון Google בהגדרות המייל' }
+      }
+      await invoke('send_gmail_oauth_email', {
+        request: { to: data.to, subject: data.subject, body: data.body, senderEmail }
+      })
+      return {
+        success: true,
+        message: data.htmlContent
+          ? 'המייל נשלח דרך חשבון ה-Google המחובר. המסמך אינו מצורף עדיין למייל.'
+          : 'המייל נשלח דרך חשבון ה-Google המחובר.'
+      }
+    } catch (error) {
+      console.error('Gmail OAuth send failed:', error)
+      const message = typeof error === 'string'
+        ? error
+        : error instanceof Error
+          ? error.message
+          : 'שליחת המייל נכשלה'
+      return { success: false, message }
+    }
+  }
+
   // Download PDF first if HTML content provided
   if (data.htmlContent && data.filename) {
     await downloadPdf(data.htmlContent, data.filename, data.frameImageBase64, data.frameMargins)
@@ -1935,6 +1966,12 @@ async function getDirectGmailSenderAddress(): Promise<string> {
   const localforage = (await import('localforage')).default
   const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
   return (await settingsStore.getItem<string>('gmail_sender_address'))?.trim() || ''
+}
+
+async function getOAuthGmailSenderAddress(): Promise<string> {
+  const localforage = (await import('localforage')).default
+  const settingsStore = localforage.createInstance({ name: 'gemach', storeName: 'settings' })
+  return (await settingsStore.getItem<string>('gmail_oauth_sender_address'))?.trim() || ''
 }
 
 export async function createLoanEmailData(params: {
