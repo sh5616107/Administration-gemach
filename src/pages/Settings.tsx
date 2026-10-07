@@ -268,6 +268,7 @@ export default function Settings() {
       await updateSetting('gmail_sender_address', senderEmail)
       await updateSetting('email_provider', 'gmail_direct')
       setLocalSettings(current => ({ ...current, gmail_sender_address: senderEmail }))
+      await refreshSettings()
       setGmailAppPassword('')
       setSnackbar({ open: true, message: 'חשבון Gmail הוגדר בהצלחה. סיסמת האפליקציה נשמרה באחסון המאובטח של Windows.', severity: 'success' })
     } catch (error) {
@@ -290,6 +291,8 @@ export default function Settings() {
       await updateSetting('gmail_oauth_sender_address', connectedEmail)
       await updateSetting('email_provider', 'gmail_oauth')
       setLocalSettings(current => ({ ...current, gmail_oauth_sender_address: connectedEmail }))
+      // מעדכן את שאר העמודים שכבר פתוחים עם הגדרות ישנות בזיכרון
+      await refreshSettings()
       setSnackbar({ open: true, message: `חשבון Google (${connectedEmail}) חובר בהצלחה.`, severity: 'success' })
     } catch (error) {
       console.error('Error connecting Google account:', error)
@@ -313,6 +316,7 @@ export default function Settings() {
       await invoke('disconnect_gmail_oauth_account', { senderEmail })
       await updateSetting('gmail_oauth_sender_address', '')
       setLocalSettings(current => ({ ...current, gmail_oauth_sender_address: '' }))
+      await refreshSettings()
       setSnackbar({ open: true, message: 'החיבור לחשבון Google הוסר.', severity: 'success' })
     } catch (error) {
       console.error('Error disconnecting Google account:', error)

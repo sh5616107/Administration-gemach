@@ -45,9 +45,10 @@ fn client_secret() -> &'static str {
 
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
-const USERINFO_ENDPOINT: &str = "https://www.googleapis.com/oauth2/v2/userinfo";
 const GMAIL_SEND_ENDPOINT: &str = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
-const GMAIL_SEND_SCOPE: &str = "https://www.googleapis.com/auth/gmail.send";
+// `openid email` makes Google return an id_token containing the account's
+// email, so we don't need a separate (network) call to the userinfo endpoint.
+const OAUTH_SCOPES: &str = "openid email https://www.googleapis.com/auth/gmail.send";
 const OAUTH_KEYRING_SERVICE: &str = "gemach-manager.gmail-oauth";
 
 fn oauth_credential(email: &str) -> Result<Entry, String> {
@@ -72,11 +73,42 @@ fn pkce_pair() -> (String, String) {
 struct TokenResponse {
     access_token: String,
     refresh_token: Option<String>,
+    id_token: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct UserInfo {
+struct IdTokenClaims {
     email: String,
+}
+
+/// Reads the email claim out of the id_token returned directly by Google's
+/// token endpoint over TLS. Per OpenID Connect Core 3.1.3.7, signature
+/// verification is not required when the token is received straight from the
+/// token endpoint, and we only use it to label the connected account.
+fn email_from_id_token(id_token: &str) -> Result<String, String> {
+    let payload = id_token
+        .split('.')
+        .nth(1)
+        .ok_or_else(|| "תגובת Google אינה כוללת פרטי חשבון תקינים".to_string())?;
+    let bytes = URL_SAFE_NO_PAD
+        .decode(payload.trim_end_matches('='))
+        .map_err(|e| format!("לא ניתן לפענח את פרטי החשבון מ-Google: {e}"))?;
+    let claims: IdTokenClaims = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("פרטי החשבון מ-Google חסרים כתובת מייל: {e}"))?;
+    Ok(claims.email.to_lowercase())
+}
+
+/// Formats a reqwest error together with its full cause chain (DNS failure,
+/// TLS certificate error, connection refused...). `{e}` alone only prints the
+/// generic "error sending request for url (...)" wrapper.
+fn describe_error(e: &dyn std::error::Error) -> String {
+    let mut msg = e.to_string();
+    let mut source = e.source();
+    while let Some(cause) = source {
+        msg.push_str(&format!(" -> {cause}"));
+        source = cause.source();
+    }
+    msg
 }
 
 /// Opens the browser for Google sign-in, waits for the single redirect back
@@ -103,7 +135,7 @@ pub async fn start_gmail_oauth_login() -> Result<String, String> {
         .append_pair("client_id", CLIENT_ID)
         .append_pair("redirect_uri", &redirect_uri)
         .append_pair("response_type", "code")
-        .append_pair("scope", GMAIL_SEND_SCOPE)
+        .append_pair("scope", OAUTH_SCOPES)
         .append_pair("access_type", "offline")
         .append_pair("prompt", "consent")
         .append_pair("code_challenge", &code_challenge)
@@ -194,7 +226,7 @@ async fn exchange_code_and_store(
         ])
         .send()
         .await
-        .map_err(|e| format!("שגיאה בתקשורת מול Google: {e}"))?;
+        .map_err(|e| format!("שגיאה בתקשורת מול Google: {}", describe_error(&e)))?;
 
     if !token_res.status().is_success() {
         let body = token_res.text().await.unwrap_or_default();
@@ -210,27 +242,17 @@ async fn exchange_code_and_store(
             .to_string()
     })?;
 
-    let email = fetch_email(&client, &tokens.access_token).await?;
+    let id_token = tokens.id_token.ok_or_else(|| {
+        "Google לא החזיר פרטי חשבון (id_token). ודא/י שאושרה ההרשאה לצפייה בכתובת המייל ונסה/י שוב."
+            .to_string()
+    })?;
+    let email = email_from_id_token(&id_token)?;
 
     oauth_credential(&email)?
         .set_password(&refresh_token)
         .map_err(|e| format!("לא ניתן לשמור את פרטי ההתחברות: {e}"))?;
 
     Ok(email)
-}
-
-async fn fetch_email(client: &reqwest::Client, access_token: &str) -> Result<String, String> {
-    let res = client
-        .get(USERINFO_ENDPOINT)
-        .bearer_auth(access_token)
-        .send()
-        .await
-        .map_err(|e| format!("שגיאה בקבלת פרטי החשבון: {e}"))?;
-    let info: UserInfo = res
-        .json()
-        .await
-        .map_err(|e| format!("תגובה לא צפויה מ-Google: {e}"))?;
-    Ok(info.email.to_lowercase())
 }
 
 async fn get_access_token(email: &str) -> Result<String, String> {
@@ -249,7 +271,7 @@ async fn get_access_token(email: &str) -> Result<String, String> {
         ])
         .send()
         .await
-        .map_err(|e| format!("שגיאה בתקשורת מול Google: {e}"))?;
+        .map_err(|e| format!("שגיאה בתקשורת מול Google: {}", describe_error(&e)))?;
 
     if !res.status().is_success() {
         let body = res.text().await.unwrap_or_default();
@@ -300,7 +322,7 @@ pub async fn send_gmail_oauth_email(request: GmailOAuthEmailRequest) -> Result<(
         .json(&serde_json::json!({ "raw": encoded_message }))
         .send()
         .await
-        .map_err(|e| format!("שגיאה בשליחת המייל: {e}"))?;
+        .map_err(|e| format!("שגיאה בשליחת המייל: {}", describe_error(&e)))?;
 
     if !res.status().is_success() {
         let body = res.text().await.unwrap_or_default();

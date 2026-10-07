@@ -39,7 +39,7 @@ futures = "0.3"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 keyring = { version = "3", features = ["windows-native"] }
 # Google OAuth sign-in + Gmail API sending (alternative to the SMTP app-password flow above).
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "json"] }
 base64 = "0.22"
 url = "2"
 
