@@ -29,10 +29,19 @@ use tokio::net::TcpListener;
 
 // Client ID for the "Administration Gemach" Desktop app OAuth client, from
 // Google Cloud Console → Google Auth Platform → Clients. Not confidential
-// for installed/desktop app clients (Google's own guidance).
+// for installed/desktop app clients (Google's own guidance) — safe to keep
+// in source control.
 const CLIENT_ID: &str = "573518016232-2mt08gpcha4nkfgdb561993leg7j5vki.apps.googleusercontent.com";
-// TODO: paste the Client Secret shown next to the Client ID in Cloud Console.
-const CLIENT_SECRET: &str = "REPLACE_WITH_CLIENT_SECRET";
+
+// The Client Secret is read from a local file that is NOT committed to git
+// (see .gitignore), so it never ends up in the public repository's history.
+// Create `src-tauri/client_secret.txt` locally with just the secret value
+// (no quotes, no extra whitespace needed — it's trimmed below), copied from
+// Cloud Console → Clients → your Desktop client. See
+// `src-tauri/client_secret.txt.example` for the expected format.
+fn client_secret() -> &'static str {
+    include_str!("../client_secret.txt").trim()
+}
 
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
@@ -178,7 +187,7 @@ async fn exchange_code_and_store(
         .form(&[
             ("code", code),
             ("client_id", CLIENT_ID),
-            ("client_secret", CLIENT_SECRET),
+            ("client_secret", client_secret()),
             ("redirect_uri", redirect_uri),
             ("grant_type", "authorization_code"),
             ("code_verifier", code_verifier),
@@ -234,7 +243,7 @@ async fn get_access_token(email: &str) -> Result<String, String> {
         .post(TOKEN_ENDPOINT)
         .form(&[
             ("client_id", CLIENT_ID),
-            ("client_secret", CLIENT_SECRET),
+            ("client_secret", client_secret()),
             ("refresh_token", refresh_token.as_str()),
             ("grant_type", "refresh_token"),
         ])
