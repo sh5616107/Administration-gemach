@@ -26,6 +26,7 @@ interface DataStore {
   attachments: Record<string, any>
   auditLog: Record<string, any>
   feePayments: Record<string, any>
+  funds: Record<string, any>
 }
 
 const STORAGE_KEY = 'gemach_data_v1'
@@ -51,6 +52,7 @@ const defaultData: DataStore = {
   attachments: {},
   auditLog: {},
   feePayments: {},
+  funds: {},
 }
 
 let data: DataStore = JSON.parse(JSON.stringify(defaultData))
@@ -119,10 +121,10 @@ export async function commitData(): Promise<void> {
  * P1 FIX: Migrations run once at startup, not during read operations
  * This prevents race conditions and unexpected side effects from reads
  */
-function runStartupMigrations(): void {
+async function runStartupMigrations(): Promise<void> {
   logger.info('🔧 Running startup migrations...');
   
-  // Migration: Add loan_number to existing loans that don't have it
+  // Migration 1: Add loan_number to existing loans that don't have it
   let migrationCount = 0;
   const loans = getAllItems<any>('loans');
   for (const loan of loans) {
@@ -135,6 +137,15 @@ function runStartupMigrations(): void {
   
   if (migrationCount > 0) {
     logger.info(`✅ Migrated ${migrationCount} loans to add loan_number`);
+  }
+
+  // Migration 2: Funds system (קופות מרובות)
+  try {
+    const { migrateFundsSystem } = await import('./migrations/fundsMigration')
+    await migrateFundsSystem()
+  } catch (error) {
+    logger.error('❌ Funds migration failed:', error)
+    // המיגרציה זורקת שגיאה אם נכשלה, כולל rollback
   }
 }
 
@@ -152,7 +163,7 @@ function loadData(): Promise<void> {
   
   logger.info('🔄 Starting database initialization...');
   initializationPromise = loadAppData()
-    .then((stored) => {
+    .then(async (stored) => {
       if (stored) {
         data = { ...JSON.parse(JSON.stringify(defaultData)), ...stored }
         logger.info('✅ Data loaded, borrowers:', Object.keys((data).borrowers).length)
@@ -162,7 +173,7 @@ function loadData(): Promise<void> {
       isInitialized = true
       
       // P1 FIX: Run migrations once at startup, not in read operations
-      runStartupMigrations()
+      await runStartupMigrations()
     })
     .catch(e => {
       logger.error('❌ Error loading:', e)
@@ -2403,6 +2414,239 @@ export function resolveAttachmentEntityLabel(entityType: AttachmentEntityType, e
   const personName = [record.first_name, record.last_name].filter(Boolean).join(' ')
   const name = personName || (record.loan_number ? `הלוואה #${record.loan_number}` : '') || record.name
   return name ? `${kind}: ${name}` : `${kind} #${entityId.slice(0, 8)}`
+}
+
+// ============================================================================
+// Funds Service - קופות/קרנות
+// ============================================================================
+
+export interface Fund {
+  id: string              // UUID
+  name: string            // שם הקופה (ייחודי בין קופות פעילות)
+  description?: string    // תיאור אופציונלי
+  is_default: boolean     // האם זו קופת ברירת המחדל (חייבת להיות בדיוק אחת)
+  is_active: boolean      // האם הקופה פעילה
+  created_at: string      // תאריך יצירה
+  is_deleted?: boolean    // soft delete
+  deleted_at?: string     // מתי נמחק
+}
+
+export const fundsService = {
+  /**
+   * קבלת כל הקופות (כולל לא פעילות ומחוקות)
+   */
+  async getAll(): Promise<Fund[]> {
+    return getAllItems<Fund>('funds')
+      .filter(f => !f.is_deleted)
+      .sort((a, b) => {
+        // ברירת מחדל תמיד ראשונה
+        if (a.is_default) return -1
+        if (b.is_default) return 1
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      })
+  },
+
+  /**
+   * קבלת קופות פעילות בלבד
+   */
+  async getActive(): Promise<Fund[]> {
+    const all = await this.getAll()
+    return all.filter(f => f.is_active)
+  },
+
+  /**
+   * קבלת קופה לפי ID
+   */
+  async getById(id: string): Promise<Fund | null> {
+    const fund = getItem<Fund>('funds', id)
+    return (fund && !fund.is_deleted) ? fund : null
+  },
+
+  /**
+   * קבלת קופת ברירת המחדל
+   * @throws אם אין קופת ברירת מחדל (מצב לא אמור לקרות)
+   */
+  async getDefault(): Promise<Fund> {
+    const all = await this.getAll()
+    const defaultFund = all.find(f => f.is_default)
+    
+    if (!defaultFund) {
+      throw new Error('לא נמצאה קופת ברירת מחדל במערכת')
+    }
+    
+    return defaultFund
+  },
+
+  /**
+   * יצירת קופה חדשה
+   */
+  async create(fund: Omit<Fund, 'id' | 'created_at'>): Promise<{ id: string }> {
+    // בדיקה שהשם ייחודי (בין קופות פעילות)
+    const existing = await this.getAll()
+    const nameTaken = existing.some(
+      f => f.name.trim().toLowerCase() === fund.name.trim().toLowerCase()
+    )
+    
+    if (nameTaken) {
+      throw new Error(`קופה בשם "${fund.name}" כבר קיימת`)
+    }
+
+    // אם זו קופת ברירת מחדל - הסר is_default מכל השאר
+    if (fund.is_default) {
+      const allFunds = getAllItems<Fund>('funds')
+      for (const [id, existingFund] of Object.entries(allFunds)) {
+        if (existingFund.is_default && !existingFund.is_deleted) {
+          setItem('funds', id, { ...existingFund, is_default: false })
+        }
+      }
+    }
+
+    const id = generateId('funds')
+    const newFund: Fund = {
+      ...fund,
+      id,
+      created_at: new Date().toISOString(),
+      is_deleted: false,
+    }
+
+    setItem('funds', id, newFund)
+    await commitData()
+    
+    logger.info('✅ Created new fund:', newFund.name, newFund.id)
+    return { id }
+  },
+
+  /**
+   * עדכון קופה
+   */
+  async update(id: string, data: Partial<Omit<Fund, 'id' | 'created_at'>>): Promise<void> {
+    const existing = await this.getById(id)
+    if (!existing) {
+      throw new Error('קופה לא נמצאה')
+    }
+
+    // בדיקת שם ייחודי
+    if (data.name) {
+      const all = await this.getAll()
+      const nameTaken = all.some(
+        f => f.id !== id && f.name.trim().toLowerCase() === data.name!.trim().toLowerCase()
+      )
+      
+      if (nameTaken) {
+        throw new Error(`קופה בשם "${data.name}" כבר קיימת`)
+      }
+    }
+
+    // אם משנים ל-is_default=true - הסר מהאחרים
+    if (data.is_default === true && !existing.is_default) {
+      await this.setDefault(id)
+      return // setDefault כבר עושה את העדכון
+    }
+
+    setItem('funds', id, { ...existing, ...data })
+    await commitData()
+    
+    logger.info('✅ Updated fund:', existing.name)
+  },
+
+  /**
+   * השבתת קופה (לא מחיקה)
+   * קופה מושבתת ממשיכה לקבל פירעונות אבל לא מאפשרת הלוואות חדשות
+   */
+  async deactivate(id: string): Promise<void> {
+    const fund = await this.getById(id)
+    if (!fund) {
+      throw new Error('קופה לא נמצאה')
+    }
+
+    if (fund.is_default) {
+      throw new Error('לא ניתן להשבית את קופת ברירת המחדל')
+    }
+
+    await this.update(id, { is_active: false })
+    logger.info('✅ Deactivated fund:', fund.name)
+  },
+
+  /**
+   * מחיקת קופה (soft delete)
+   * אפשרית רק אם אין רשומות משויכות (כולל soft-deleted)
+   */
+  async delete(id: string): Promise<void> {
+    const fund = await this.getById(id)
+    if (!fund) {
+      throw new Error('קופה לא נמצאה')
+    }
+
+    if (fund.is_default) {
+      throw new Error('לא ניתן למחוק את קופת ברירת המחדל')
+    }
+
+    // בדיקה שאין רשומות משויכות
+    const hasRecords = await this.hasRecords(id)
+    if (hasRecords) {
+      throw new Error(
+        'לא ניתן למחוק קופה עם הלוואות, תרומות או הפקדות משויכות. ' +
+        'ניתן להשבית את הקופה במקום זאת.'
+      )
+    }
+
+    setItem('funds', id, {
+      ...fund,
+      is_deleted: true,
+      deleted_at: new Date().toISOString(),
+    })
+    await commitData()
+    
+    logger.info('✅ Deleted fund:', fund.name)
+  },
+
+  /**
+   * הגדרת קופה כברירת מחדל (פעולה אטומית)
+   * מוודא שתמיד יש בדיוק קופת ברירת מחדל אחת
+   */
+  async setDefault(id: string): Promise<void> {
+    const fund = await this.getById(id)
+    if (!fund) {
+      throw new Error('קופה לא נמצאה')
+    }
+
+    if (fund.is_default) {
+      return // כבר ברירת מחדל
+    }
+
+    // פעולה אטומית: הסר is_default מכולם והוסף לקופה הנבחרת
+    const allFunds = getAllItems<Fund>('funds')
+    for (const existingFund of allFunds) {
+      if (existingFund.is_deleted) continue
+      
+      if (existingFund.id === id) {
+        setItem('funds', existingFund.id, { ...existingFund, is_default: true, is_active: true })
+      } else if (existingFund.is_default) {
+        setItem('funds', existingFund.id, { ...existingFund, is_default: false })
+      }
+    }
+
+    await commitData()
+    logger.info('✅ Set default fund:', fund.name)
+  },
+
+  /**
+   * בדיקה אם קופה בשימוש (יש לה רשומות משויכות)
+   * כולל soft-deleted records
+   */
+  async hasRecords(id: string): Promise<boolean> {
+    const allLoans = getAllItems<any>('loans')
+    const allDonations = getAllItems<any>('donations')
+    const allDeposits = getAllItems<any>('deposits')
+    const allExpenses = getAllItems<any>('expenses')
+
+    return (
+      allLoans.some(l => l.fund_id === id) ||
+      allDonations.some(d => d.fund_id === id) ||
+      allDeposits.some(d => d.fund_id === id) ||
+      allExpenses.some(e => e.fund_id === id)
+    )
+  },
 }
 
 // Export/Import
