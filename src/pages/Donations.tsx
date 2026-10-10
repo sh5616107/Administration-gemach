@@ -529,19 +529,14 @@ export default function Donations() {
     }).format(amount);
   };
 
-  const handleOpenEmail = (email: string) => {
-    const provider = (settings.email_provider || 'gmail') as 'gmail' | 'outlook' | 'default';
-    
-    let mailtoUrl = `mailto:${email}`;
-    
-    // Open based on provider preference
-    if (provider === 'gmail') {
-      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${email}`, '_blank');
-    } else if (provider === 'outlook') {
-      window.open(`https://outlook.office.com/mail/deeplink/compose?to=${email}`, '_blank');
-    } else {
-      // Default - use system default mail client
-      window.location.href = mailtoUrl;
+  const handleOpenEmail = async (email: string) => {
+    const provider = (settings.email_provider || 'gmail') as EmailProvider;
+    const result = await openEmailWithDocument(
+      { to: email, subject: '', body: '', documentType: 'donation' },
+      provider
+    );
+    if (!result.success && !result.cancelled) {
+      setSnackbar({ open: true, message: result.message, severity: 'error' });
     }
   };
 

@@ -473,6 +473,18 @@ export default function GuarantorsTab() {
     })
   }
 
+  // לחיצה על כתובת מייל של ערב: פותחת חלון עריכה (או חלון המייל של הספק) — לא שולחת בלי אישור
+  const handleOpenGuarantorEmail = async (email: string) => {
+    const provider = (settings.email_provider || 'gmail') as EmailProvider
+    const result = await openEmailWithDocument(
+      { to: email, subject: '', body: '', documentType: 'guarantor_debt' },
+      provider
+    )
+    if (!result.success && !result.cancelled) {
+      setSnackbar({ open: true, message: result.message, severity: 'error' })
+    }
+  }
+
   const handleGenerateGuarantorReport = async (guarantorId: string) => {
     try {
       // Get guarantor details
@@ -708,7 +720,7 @@ export default function GuarantorsTab() {
               <Stack spacing={1} sx={{ mb: 3 }}>
                 <Typography variant="body1">☎ {selectedGuarantor.phone}</Typography>
                 {selectedGuarantor.address && <Typography variant="body1">⌖ {selectedGuarantor.address}</Typography>}
-                {selectedGuarantor.email && <Typography variant="body1">{selectedGuarantor.email}</Typography>}
+                {selectedGuarantor.email && <Typography variant="body1" onClick={() => handleOpenGuarantorEmail(selectedGuarantor.email!)} sx={{ color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>{selectedGuarantor.email}</Typography>}
               </Stack>
               <Grid container spacing={1}>
                 <Grid item xs={6}><Card variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}><Typography variant="caption">סך הלוואות</Typography><Typography variant="h5">{formatCurrency(guaranteedLoans.reduce((sum, loan) => sum + loan.amount, 0))}</Typography></Card></Grid>
@@ -848,7 +860,7 @@ export default function GuarantorsTab() {
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
                   <Typography variant="body2">טלפון: {selectedGuarantor.phone}</Typography>
-                  {selectedGuarantor.email && <Typography variant="body2">אימייל: {selectedGuarantor.email}</Typography>}
+                  {selectedGuarantor.email && <Typography variant="body2">אימייל: <Box component="span" onClick={() => handleOpenGuarantorEmail(selectedGuarantor.email!)} sx={{ color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>{selectedGuarantor.email}</Box></Typography>}
                   {selectedGuarantor.id_number && <Typography variant="body2">מ.ז.: {selectedGuarantor.id_number}</Typography>}
                 </Box>
               </Box>

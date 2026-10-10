@@ -10,6 +10,7 @@ const routerFutureConfig = {
 import { Box, CircularProgress } from '@mui/material'
 import Layout from './components/Layout'
 import LockScreen from './components/LockScreen'
+import EmailComposeHost from './components/EmailComposeDialog'
 
 // Lazy load pages for better performance
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -161,6 +162,7 @@ function App() {
   return (
     <BrowserRouter future={routerFutureConfig}>
       <UpdateChecker />
+      <EmailComposeHost />
       <Box sx={{ display: 'flex', minHeight: '100vh' }}>
         <Layout>
           <Suspense fallback={<PageLoader />}>

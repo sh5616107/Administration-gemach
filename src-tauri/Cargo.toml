@@ -34,11 +34,10 @@ chrono = "0.4"
 regex = "1"
 # Futures for async utilities
 futures = "0.3"
-# Direct email through Gmail SMTP. Credentials are kept in the OS credential
+# Refresh tokens for the Google OAuth sign-in are kept in the OS credential
 # manager via `keyring`, never in the application's IndexedDB backup.
-lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 keyring = { version = "3", features = ["windows-native"] }
-# Google OAuth sign-in + Gmail API sending (alternative to the SMTP app-password flow above).
+# Google OAuth sign-in + Gmail API sending.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "json"] }
 base64 = "0.22"
 url = "2"
