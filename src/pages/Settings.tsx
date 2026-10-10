@@ -164,6 +164,7 @@ export default function Settings() {
   const [gmailAppPassword, setGmailAppPassword] = useState('')
   const [savingGmail, setSavingGmail] = useState(false)
   const [connectingGoogle, setConnectingGoogle] = useState(false)
+  const [googleError, setGoogleError] = useState('')
   const [disconnectingGoogle, setDisconnectingGoogle] = useState(false)
 
   useEffect(() => {
@@ -286,6 +287,7 @@ export default function Settings() {
 
   const handleConnectGoogleAccount = async () => {
     setConnectingGoogle(true)
+    setGoogleError('')
     try {
       const connectedEmail = await invoke<string>('start_gmail_oauth_login')
       await updateSetting('gmail_oauth_sender_address', connectedEmail)
@@ -301,6 +303,8 @@ export default function Settings() {
         : error instanceof Error
           ? error.message
           : 'ההתחברות לחשבון Google נכשלה'
+      // הודעת ה-Snackbar נעלמת אחרי 3 שניות, לכן השגיאה מוצגת גם קבוע בתוך כרטיס החיבור
+      setGoogleError(message)
       setSnackbar({ open: true, message, severity: 'error' })
     } finally {
       setConnectingGoogle(false)
@@ -699,6 +703,12 @@ export default function Settings() {
                     פרטי ההתחברות נשמרים באחסון המאובטח של Windows ואינם מועלים לשום שרת.
                   </Typography>
 
+                  {googleError && (
+                    <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGoogleError('')}>
+                      {googleError}
+                    </Alert>
+                  )}
+
                   {localSettings.gmail_oauth_sender_address ? (
                     <Box>
                       <Typography variant="body2" sx={{ mb: 2 }}>
@@ -714,9 +724,14 @@ export default function Settings() {
                       </Button>
                     </Box>
                   ) : (
-                    <Button variant="outlined" onClick={handleConnectGoogleAccount} disabled={connectingGoogle}>
-                      {connectingGoogle ? 'ממתין לאישור בדפדפן…' : 'התחבר עם Google'}
-                    </Button>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                        במסך של Google יש להשאיר מסומנת את האפשרות "Send email on your behalf" (שליחת מייל בשמך), אחרת התוכנה לא תוכל לשלוח מיילים.
+                      </Typography>
+                      <Button variant="outlined" onClick={handleConnectGoogleAccount} disabled={connectingGoogle}>
+                        {connectingGoogle ? 'ממתין לאישור בדפדפן…' : 'התחבר עם Google'}
+                      </Button>
+                    </Box>
                   )}
                 </Box>
               )}

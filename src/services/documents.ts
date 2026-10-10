@@ -59,12 +59,12 @@ const detectImageFormat = (dataUrl: string): string => {
   return ext === 'JPG' ? 'JPEG' : (ext || 'PNG')
 }
 
-export const downloadPdf = async (
-  htmlContent: string, 
-  filename: string, 
+// בונה את אובייקט ה-PDF בזיכרון (בלי לשמור לדיסק). משמש גם להורדה וגם לצירוף למייל.
+const buildPdf = async (
+  htmlContent: string,
   frameImageBase64?: string,
   margins?: { top: number; bottom: number; right: number; left: number }
-): Promise<string | null> => {
+): Promise<jsPDF | null> => {
   return new Promise((resolve) => {
     const hasFrame = !!frameImageBase64
 
@@ -168,10 +168,8 @@ export const downloadPdf = async (
           heightLeft -= usablePageHeight
         }
         
-        pdf.save(`${filename}.pdf`)
-        
         document.body.removeChild(container)
-        resolve(`${filename}.pdf`)
+        resolve(pdf)
       } catch (error) {
         console.error('Error generating PDF:', error)
         document.body.removeChild(container)
@@ -179,6 +177,30 @@ export const downloadPdf = async (
       }
     }, 500)
   })
+}
+
+export const downloadPdf = async (
+  htmlContent: string,
+  filename: string,
+  frameImageBase64?: string,
+  margins?: { top: number; bottom: number; right: number; left: number }
+): Promise<string | null> => {
+  const pdf = await buildPdf(htmlContent, frameImageBase64, margins)
+  if (!pdf) return null
+  pdf.save(`${filename}.pdf`)
+  return `${filename}.pdf`
+}
+
+// יוצר PDF ומחזיר אותו כ-base64 (בלי הורדה), לצירוף למייל שנשלח ישירות מהתוכנה.
+export const generatePdfBase64 = async (
+  htmlContent: string,
+  frameImageBase64?: string,
+  margins?: { top: number; bottom: number; right: number; left: number }
+): Promise<string | null> => {
+  const pdf = await buildPdf(htmlContent, frameImageBase64, margins)
+  if (!pdf) return null
+  const dataUri = pdf.output('datauristring')
+  return dataUri.slice(dataUri.indexOf(',') + 1)
 }
 
 // Print HTML content - works in both browser and Tauri
@@ -1919,14 +1941,32 @@ export async function openEmailWithDocument(data: EmailData, provider: EmailProv
       if (!senderEmail) {
         return { success: false, message: 'יש להתחבר לחשבון Google בהגדרות המייל' }
       }
+      let attachmentName: string | undefined
+      let attachmentBase64: string | undefined
+      if (data.htmlContent && data.filename) {
+        const pdfBase64 = await generatePdfBase64(data.htmlContent, data.frameImageBase64, data.frameMargins)
+        if (!pdfBase64) {
+          // לא שולחים מייל בלי המסמך שהמשתמש ציפה לו
+          return { success: false, message: 'יצירת קובץ ה-PDF נכשלה, המייל לא נשלח.' }
+        }
+        attachmentName = `${data.filename}.pdf`
+        attachmentBase64 = pdfBase64
+      }
       await invoke('send_gmail_oauth_email', {
-        request: { to: data.to, subject: data.subject, body: data.body, senderEmail }
+        request: {
+          to: data.to,
+          subject: data.subject,
+          body: data.body,
+          senderEmail,
+          attachmentName,
+          attachmentBase64,
+        }
       })
       return {
         success: true,
-        message: data.htmlContent
-          ? 'המייל נשלח דרך חשבון ה-Google המחובר. המסמך אינו מצורף עדיין למייל.'
-          : 'המייל נשלח דרך חשבון ה-Google המחובר.'
+        message: attachmentBase64
+          ? `המייל נשלח ל-${data.to} והמסמך מצורף אליו.`
+          : `המייל נשלח ל-${data.to}.`
       }
     } catch (error) {
       console.error('Gmail OAuth send failed:', error)

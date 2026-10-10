@@ -32,6 +32,14 @@ jobs:
         id: notes
         run: node scripts/extract-release-notes.mjs
 
+      - name: Write Google OAuth client secret
+        shell: bash
+        env:
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          test -n "$GOOGLE_CLIENT_SECRET" || { echo "GOOGLE_CLIENT_SECRET is not set"; exit 1; }
+          printf '%s' "$GOOGLE_CLIENT_SECRET" > src-tauri/client_secret.txt
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:

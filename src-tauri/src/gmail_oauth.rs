@@ -74,6 +74,9 @@ struct TokenResponse {
     access_token: String,
     refresh_token: Option<String>,
     id_token: Option<String>,
+    /// Space-separated list of scopes the user actually granted. The consent
+    /// screen lets users untick individual permissions, so this must be checked.
+    scope: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -236,6 +239,16 @@ async fn exchange_code_and_store(
         .json()
         .await
         .map_err(|e| format!("תגובה לא צפויה מ-Google: {e}"))?;
+    let granted = tokens.scope.as_deref().unwrap_or("");
+    if !granted
+        .split_whitespace()
+        .any(|sc| sc == "https://www.googleapis.com/auth/gmail.send")
+    {
+        return Err(
+            "לא אושרה ההרשאה לשליחת מייל. יש לסמן את \"Send email on your behalf\" במסך ההסכמה של Google ולהתחבר שוב."
+                .to_string(),
+        );
+    }
     let refresh_token = tokens.refresh_token.ok_or_else(|| {
         "Google לא החזיר אסימון רענון (refresh token). בטל/י את הגישה הקיימת דרך \
          myaccount.google.com/permissions ונסה/י להתחבר שוב."
@@ -293,6 +306,11 @@ pub struct GmailOAuthEmailRequest {
     pub subject: String,
     pub body: String,
     pub sender_email: String,
+    /// Optional single attachment: the file name and its standard-base64 content.
+    #[serde(default)]
+    pub attachment_name: Option<String>,
+    #[serde(default)]
+    pub attachment_base64: Option<String>,
 }
 
 /// RFC 2047 encoded-word, needed so a Hebrew subject line survives transit.
@@ -300,19 +318,97 @@ fn encode_subject(subject: &str) -> String {
     format!("=?UTF-8?B?{}?=", STANDARD.encode(subject.as_bytes()))
 }
 
+/// Percent-encodes a UTF-8 string for an RFC 2231 parameter value
+/// (`filename*=UTF-8''...`), so Hebrew file names survive transit.
+fn rfc2231_encode(value: &str) -> String {
+    let mut out = String::new();
+    for b in value.bytes() {
+        if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// Wraps base64 text at 76 characters per line, as MIME requires.
+fn wrap_base64(data: &str) -> String {
+    data.as_bytes()
+        .chunks(76)
+        .map(|chunk| String::from_utf8_lossy(chunk).into_owned())
+        .collect::<Vec<_>>()
+        .join("\r\n")
+}
+
+/// Builds the raw RFC 5322 message: plain text, or multipart/mixed with one
+/// attachment when `attachment_base64` is provided.
+fn build_raw_message(sender_email: &str, request: &GmailOAuthEmailRequest) -> Result<String, String> {
+    let to = request.to.trim();
+    if to.contains(|c| c == '\r' || c == '\n') || request.subject.contains(|c| c == '\r' || c == '\n') {
+        return Err("כתובת הנמען או הנושא מכילים תווים לא תקינים".to_string());
+    }
+    let headers = format!(
+        "From: {from}\r\nTo: {to}\r\nSubject: {subject}\r\nMIME-Version: 1.0\r\n",
+        from = sender_email,
+        to = to,
+        subject = encode_subject(&request.subject),
+    );
+
+    let attachment = match (&request.attachment_name, &request.attachment_base64) {
+        (Some(name), Some(data)) if !data.trim().is_empty() => Some((name, data)),
+        _ => None,
+    };
+
+    let Some((name, data)) = attachment else {
+        return Ok(format!(
+            "{headers}Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n{body}",
+            body = request.body,
+        ));
+    };
+
+    let clean_data: String = data.chars().filter(|c| !c.is_whitespace()).collect();
+    STANDARD
+        .decode(&clean_data)
+        .map_err(|_| "קובץ המסמך המצורף אינו תקין".to_string())?;
+
+    // Plain ASCII names use `filename="..."`; anything else (e.g. Hebrew) uses
+    // RFC 2231 `filename*=UTF-8''...` only, so clients never pick a wrong fallback.
+    let ascii_ok = !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.');
+    let (type_param, disposition_param) = if ascii_ok {
+        (format!("name=\"{name}\""), format!("filename=\"{name}\""))
+    } else {
+        let encoded = rfc2231_encode(name);
+        (format!("name*=UTF-8''{encoded}"), format!("filename*=UTF-8''{encoded}"))
+    };
+    let boundary = format!("gemach_{}", random_url_safe_string(12));
+
+    Ok(format!(
+        "{headers}Content-Type: multipart/mixed; boundary=\"{boundary}\"\r\n\r\n\
+         --{boundary}\r\n\
+         Content-Type: text/plain; charset=UTF-8\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\n\
+         {body}\r\n\
+         --{boundary}\r\n\
+         Content-Type: application/pdf; {type_param}\r\n\
+         Content-Transfer-Encoding: base64\r\n\
+         Content-Disposition: attachment; {disposition_param}\r\n\r\n\
+         {file}\r\n\
+         --{boundary}--\r\n",
+        body = wrap_base64(&STANDARD.encode(request.body.as_bytes())),
+        file = wrap_base64(&clean_data),
+    ))
+}
+
 #[tauri::command]
 pub async fn send_gmail_oauth_email(request: GmailOAuthEmailRequest) -> Result<(), String> {
     let sender_email = request.sender_email.trim().to_lowercase();
     let access_token = get_access_token(&sender_email).await?;
 
-    let raw_message = format!(
-        "From: {from}\r\nTo: {to}\r\nSubject: {subject}\r\n\
-         Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n{body}",
-        from = sender_email,
-        to = request.to.trim(),
-        subject = encode_subject(&request.subject),
-        body = request.body,
-    );
+    let raw_message = build_raw_message(&sender_email, &request)?;
     let encoded_message = URL_SAFE_NO_PAD.encode(raw_message.as_bytes());
 
     let client = reqwest::Client::new();
