@@ -1,0 +1,7 @@
+{
+  "task_id": "task-funds-system",
+  "task_description": "השלמת מערכת קופות מרובות - Phase 2-5: Backend services, UI components, dashboard",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

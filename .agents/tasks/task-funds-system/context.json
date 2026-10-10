@@ -1,0 +1,25 @@
+{
+  "project_type": "Tauri/Electron app: React + TypeScript frontend, JSON-based persistence (localStorage + file backup)",
+  "language": "TypeScript, Hebrew UI text, Hebrew documentation",
+  "build_system": "npm workspaces, Vite for frontend, Tauri for desktop wrapper",
+  "test_framework": "vitest - run with `npm run test`",
+  "build_command": "npm run build",
+  "test_command": "npm run test",
+  "verification_instructions": "1. Run `npm run test` after every backend change. 2. Run `npm run tauri dev` to test UI changes manually. 3. Check console for errors. 4. Verify data persistence after app restart.",
+  "snapshot_or_generated_files": "None checked into git. Build output in dist/.",
+  "environment_constraints": "Do not restart dev server on :9001 if already running (user may have it open). Never run destructive commands without confirmation.",
+  "contribution_requirements": "Hebrew comments and error messages. No inline namespaces (imports at top). Minimal inline CSS (max 2 properties). Match existing patterns in similar files.",
+  "key_patterns": "Services in src/services/database.ts export objects with async methods. UI components use Material-UI. State management with React hooks. Soft delete pattern: is_deleted flag + deleted_at timestamp.",
+  "relevant_files": [
+    "src/services/database.ts",
+    "src/services/expectedFundsCalculator.ts",
+    "src/pages/Dashboard.tsx",
+    "src/pages/Settings.tsx",
+    "src/components/loans/LoansTab.tsx",
+    "src/pages/Donations.tsx",
+    "src/pages/Deposits.tsx",
+    "src/pages/UnifiedLoansPage.tsx",
+    "docs/10-multi-funds-spec.md"
+  ],
+  "directory_structure": "src/services/ for business logic, src/pages/ for full-page components, src/components/ for reusable UI pieces, src/__tests__/ for vitest tests, docs/ for specifications"
+}

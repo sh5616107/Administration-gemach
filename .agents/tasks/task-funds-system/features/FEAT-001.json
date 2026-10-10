@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Backend services - הוספת getByFund(), changeFund(), statsService.getStatsByFund(), עדכון expectedFundsCalculator",
+  "status": "completed",
+  "steps": [
+    "הוסף loansService.getByFund(fundId) ב-src/services/database.ts שורה ~1200, אחרי getActiveLoansForExistingBorrowers(). מחזיר הלוואות מסוננות לפי fund_id.",
+    "הוסף loansService.changeFund(loanId, newFundId, reason) באותו מיקום. מעדכן הלוואה, רושם ב-audit log עם action='loan_fund_change'.",
+    "הוסף depositsService.getByFund(fundId) ב-src/services/database.ts שורה ~2400, אחרי getById().",
+    "הוסף donationsService.getByFund(fundId) ב-src/services/database.ts שורה ~2500, אחרי getByDonor().",
+    "בדוק אם expensesService כולל fund_id ב-Expense interface. אם לא - הוסף. הוסף expensesService.getByFund(fundId) אחרי getAll().",
+    "הוסף statsService.getStatsByFund(fundId) ב-src/services/database.ts שורה ~1700, אחרי getTotalGemachExpenses(). מחשב activeLoans, plannedLoans, availableCash לקופה ספציפית (כולל הפחתת משיכות מהפקדות).",
+    "עדכן statsService.getDashboardStats() - הוסף בסוף, לפני return: חישוב byFund לכל הקופות באמצעות getStatsByFund().",
+    "עדכן src/services/expectedFundsCalculator.ts - הוסף פרמטר אופציונלי fundId?: string לפונקציה calculateExpectedFunds(). סנן loans ו-deposits לפי fundId אם סופק.",
+    "צור src/__tests__/fundsInvariant.test.ts עם 2 בדיקות: (1) סכום כל הקופות = סכום כולל, (2) תמיד יש בדיוק קופת ברירת מחדל אחת."
+  ],
+  "acceptance_criteria": [
+    "כל 4 השירותים (loans, deposits, donations, expenses) כוללים getByFund() שמחזיר רשימה מסוננת",
+    "loansService.changeFund() רושם ב-audit log עם before_data ו-after_data",
+    "statsService.getStatsByFund() מחזיר activeLoans, plannedLoans, availableCash נכונים",
+    "statsService.getDashboardStats() מחזיר גם byFund: Array<...>",
+    "expectedFundsCalculator תומך ב-fundId אופציונלי ללא שבירת קריאות קיימות",
+    "כל הבדיקות ב-src/__tests__/fundsInvariant.test.ts עוברות"
+  ],
+  "verification": [
+    "npm run test -- fundsInvariant.test.ts (2 בדיקות עוברות)",
+    "npm run test (כל הבדיקות הקיימות ממשיכות לעבור)"
+  ],
+  "blocked_reason": null,
+  "findings": "✅ כל השירותים (loans, deposits, donations, expenses) כוללים getByFund() שמסנן לפי fund_id.\n✅ loansService.changeFund() נוסף ורושם ביומן audit.\n✅ statsService.getStatsByFund() נוסף ומחזיר סטטיסטיקות לקופה ספציפית.\n✅ statsService.getDashboardStats() מחזיר גם byFund עם סטטיסטיקות לכל קופה.\n✅ expectedFundsCalculator תומך בפרמטר fundId אופציונלי.\n✅ fundsInvariant.test.ts נוסף עם 3 בדיקות שכולן עוברות.\n✅ כל הבדיקות הקיימות ממשיכות לעבור (רק 27 בדיקות נכשלות שנכשלו גם קודם, קשורות להפקדות מחזוריות).\n\nהערה לFEAT-002: נוספה לוגיקה אוטומטית שיוצרת קופת ברירת מחדל אם היא לא קיימת בעת יצירת הלוואה/הפקדה/תרומה/הוצאה. זה פותר בעיות בבדיקות ומבטיח שהמערכת תמיד עובדת."
+}

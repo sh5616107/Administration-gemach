@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "UI - ניהול קופות ב-Settings, FundSelector משותף, שילוב בטפסים",
+  "status": "pending",
+  "steps": [
+    "צור src/components/funds/FundsManagement.tsx - קומפוננטה מלאה עם Table, Dialog ליצירה/עריכה, כפתורי Delete/SetDefault. מוסתר אם יש רק קופה אחת.",
+    "עדכן src/pages/Settings.tsx - הוסף Accordion/Tab חדש 'ניהול קופות' שמציג <FundsManagement />. מיקום: אחרי טאבים קיימים.",
+    "צור src/components/funds/FundSelector.tsx - select component משותף. מקבל value, onChange, label. מחזיר null אם יש רק קופה אחת. מציג רשימת קופות פעילות מ-fundsService.getActive().",
+    "עדכן src/components/loans/LoansTab.tsx - הוסף <FundSelector /> בטופס יצירת הלוואה, אחרי שדה הסכום. שמור selectedFundId ב-state, העבר ל-loansService.create().",
+    "עדכן src/pages/Donations.tsx - הוסף <FundSelector /> בטופס יצירת תרומה (שורה ~150). הוסף fund_id ל-donationForm state.",
+    "עדכן src/pages/Deposits.tsx - זהה ל-Donations.tsx. הוסף <FundSelector /> בטופס יצירת הפקדה."
+  ],
+  "acceptance_criteria": [
+    "FundsManagement מציג טבלה עם כל הקופות, כפתורי הוספה/עריכה/מחיקה/setDefault עובדים",
+    "טאב 'ניהול קופות' מופיע ב-Settings ועובד",
+    "FundSelector מוסתר אוטומטית כשיש רק קופה אחת",
+    "טפסי הלוואות/תרומות/הפקדות כוללים FundSelector (מוסתר אם יש קופה אחת)",
+    "יצירת הלוואה/תרומה/הפקדה חדשה שומרת את fund_id הנבחר",
+    "אם לא נבחרה קופה - נשמרת קופת ברירת המחדל (לוגיקה קיימת מ-Phase 1)"
+  ],
+  "verification": [
+    "npm run tauri dev - בדיקה ידנית",
+    "Settings → ניהול קופות - יצירה/עריכה/מחיקה של קופה עובדים",
+    "יצירת הלוואה/תרומה/הפקדה חדשה עם בחירת קופה - נשמר fund_id נכון",
+    "בדיקה עם קופה אחת - FundSelector לא מופיע בכלל"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

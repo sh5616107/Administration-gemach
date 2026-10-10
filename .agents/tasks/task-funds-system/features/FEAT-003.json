@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "UI - Dashboard breakdown לפי קופה, סינונים לפי קופה בכל העמודים",
+  "status": "pending",
+  "steps": [
+    "עדכן interface DashboardStats ב-src/pages/Dashboard.tsx - הוסף byFund?: Array<{ fundId, fundName, activeLoans, plannedLoans, availableCash }>",
+    "הוסף טבלת breakdown לפי קופה ב-src/pages/Dashboard.tsx, אחרי הכרטיסים הראשיים (שורה ~200). מוצג רק אם stats.byFund && stats.byFund.length > 1. כולל שורת סיכום.",
+    "עדכן src/pages/UnifiedLoansPage.tsx - הוסף <FundSelector /> בסרגל סינון עם value='all' כברירת מחדל. הוסף <MenuItem value='all'>כל הקופות</MenuItem>. סנן הלוואות לפי selectedFundFilter.",
+    "עדכן src/pages/Donations.tsx - זהה. הוסף FundSelector בסרגל סינון, סנן תרומות לפי קופה.",
+    "עדכן src/pages/Deposits.tsx - זהה. הוסף FundSelector בסרגל סינון, סנן הפקדות לפי קופה."
+  ],
+  "acceptance_criteria": [
+    "Dashboard מציג טבלת breakdown עם שורה לכל קופה + שורת סיכום",
+    "הטבלה מוצגת רק כשיש יותר מקופה אחת",
+    "availableCash מוצג באדום אם שלילי, בירוק אם חיובי",
+    "סינון לפי קופה עובד בכל 3 העמודים: הלוואות, תרומות, הפקדות",
+    "ברירת מחדל בסינון: 'כל הקופות'",
+    "סינון משולב עם סינונים אחרים (תאריכים, סכומים וכו')"
+  ],
+  "verification": [
+    "npm run tauri dev - בדיקה ידנית",
+    "Dashboard - טבלת breakdown מופיעה רק עם 2+ קופות, מציגה נתונים נכונים",
+    "UnifiedLoansPage - סינון לפי קופה עובד, 'כל הקופות' מציג הכל",
+    "Donations ו-Deposits - סינון לפי קופה עובד"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

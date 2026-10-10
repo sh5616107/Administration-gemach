@@ -19,6 +19,7 @@ export interface Loan {
   recurring_day?: number
   recurring_loan_number?: number
   recurring_loan_count?: number
+  fund_id?: string  // UUID foreign key - קופה משוייכת
 }
 
 export interface Deposit {
@@ -31,6 +32,7 @@ export interface Deposit {
   recurring_months?: number
   recurring_day?: number
   recurring_series_id?: string  // UUID - מזהה קנוני למשפחת הפקדות מחזוריות
+  fund_id?: string  // UUID foreign key - קופה משוייכת
 }
 
 export interface ExpectedFunds {
@@ -41,11 +43,13 @@ export interface ExpectedFunds {
 
 /**
  * חישוב כסף עתיד להשתחרר מהלוואות ומהפקדות
+ * @param fundId אופציונלי - סינון לפי קופה ספציפית
  */
 export function calculateExpectedFunds(
   loans: Loan[],
   deposits: Deposit[],
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  fundId?: string
 ): ExpectedFunds {
   const today = new Date(referenceDate)
   today.setHours(0, 0, 0, 0)
@@ -53,7 +57,15 @@ export function calculateExpectedFunds(
   const oneMonth = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
   const threeMonths = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
 
-  const activeLoans = loans.filter(l => l.status === 'active')
+  // סינון לפי קופה אם צוין
+  let filteredLoans = loans
+  let filteredDeposits = deposits
+  if (fundId) {
+    filteredLoans = loans.filter(l => l.fund_id === fundId)
+    filteredDeposits = deposits.filter(d => d.fund_id === fundId)
+  }
+
+  const activeLoans = filteredLoans.filter(l => l.status === 'active')
 
   let weekFunds = 0
   let monthFunds = 0
@@ -102,7 +114,7 @@ export function calculateExpectedFunds(
   }
 
   // חישוב כסף מהפקדות מחזוריות (כולל מתוכננות)
-  const recurringDeposits = deposits.filter(d => d.is_recurring === 1 && (d.status === 'active' || d.status === 'planned'))
+  const recurringDeposits = filteredDeposits.filter(d => d.is_recurring === 1 && (d.status === 'active' || d.status === 'planned'))
 
   for (const deposit of recurringDeposits) {
     const amount = deposit.amount || 0

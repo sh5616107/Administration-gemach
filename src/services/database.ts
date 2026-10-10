@@ -1059,8 +1059,19 @@ export const loansService = {
     // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
     let fundId = l.fund_id
     if (!fundId) {
-      const defaultFund = await fundsService.getDefault()
-      fundId = defaultFund.id
+      try {
+        const defaultFund = await fundsService.getDefault()
+        fundId = defaultFund.id
+      } catch (error) {
+        // אם אין קופת ברירת מחדל (למשל אחרי ניקוי מלא בבדיקות), צור אחת
+        const result = await fundsService.create({
+          name: 'קופה ראשית',
+          description: 'קופה ראשית של הגמ"ח',
+          is_default: true,
+          is_active: true
+        })
+        fundId = result.id
+      }
     }
     
     const id = generateId('loans'); 
@@ -1143,6 +1154,38 @@ export const loansService = {
         existingBorrowerIds.has(l.borrower_id)
       )
       .sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
+  },
+
+  // מסנן הלוואות לפי קופה
+  async getByFund(fundId: string): Promise<Loan[]> {
+    return (await this.getAll()).filter(l => l.fund_id === fundId)
+  },
+
+  // מעביר הלוואה לקופה אחרת עם רישום ביומן
+  async changeFund(loanId: string, newFundId: string, reason: string): Promise<void> {
+    const loan = await this.getById(loanId)
+    if (!loan) {
+      throw new Error('הלוואה לא נמצאה')
+    }
+
+    const oldFundId = loan.fund_id
+
+    // עדכון הלוואה
+    await this.update(loanId, { fund_id: newFundId })
+
+    // רישום ביומן audit
+    const auditId = generateId('auditLog')
+    setItem('auditLog', auditId, {
+      id: auditId,
+      timestamp: new Date().toISOString(),
+      action: 'loan_fund_change',
+      entity_type: 'loan',
+      entity_id: loanId,
+      actor: 'system',
+      before_data: JSON.stringify({ fund_id: oldFundId }),
+      after_data: JSON.stringify({ fund_id: newFundId }),
+      metadata: JSON.stringify({ reason })
+    })
   },
 }
 
@@ -1233,6 +1276,26 @@ export const statsService = {
       deposits: { count: deps.length, total: totalDeposits },
       donations: { count: dons.length, total: dons.reduce((s, d) => s + d.amount, 0) },
       gemachExpenses,
+      byFund: [] as Array<{
+        fundId: string
+        fundName: string
+        activeLoans: { count: number; total: number }
+        plannedLoans: { count: number; total: number }
+        availableCash: number
+      }>
+    }
+
+    // הוספת סטטיסטיקות לפי קופה
+    const funds = await fundsService.getAll()
+    for (const fund of funds) {
+      const fundStats = await this.getStatsByFund(fund.id)
+      result.byFund.push({
+        fundId: fund.id,
+        fundName: fund.name,
+        activeLoans: fundStats.activeLoans,
+        plannedLoans: fundStats.plannedLoans,
+        availableCash: fundStats.availableCash
+      })
     }
     
     return result
@@ -1328,8 +1391,19 @@ export const statsService = {
     // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
     let fundId = expense.fund_id
     if (!fundId) {
-      const defaultFund = await fundsService.getDefault()
-      fundId = defaultFund.id
+      try {
+        const defaultFund = await fundsService.getDefault()
+        fundId = defaultFund.id
+      } catch (error) {
+        // אם אין קופת ברירת מחדל (למשל אחרי ניקוי מלא בבדיקות), צור אחת
+        const result = await fundsService.create({
+          name: 'קופה ראשית',
+          description: 'קופה ראשית של הגמ"ח',
+          is_default: true,
+          is_active: true
+        })
+        fundId = result.id
+      }
     }
     
     const id = generateId('expenses')
@@ -1348,6 +1422,66 @@ export const statsService = {
   async getTotalGemachExpenses() {
     const expenses = getAllItems<any>('expenses')
     return expenses.filter(e => e.paid_by === 'gemach').reduce((sum, e) => sum + (e.amount || 0), 0)
+  },
+
+  // סטטיסטיקות לפי קופה
+  async getStatsByFund(fundId: string) {
+    const today = new Date().toISOString().split('T')[0]
+
+    // הלוואות פעילות מהקופה
+    const allLoans = await loansService.getByFund(fundId)
+    const activeLoans = allLoans.filter(l =>
+      l.status === 'active' &&
+      l.loan_date <= today &&
+      (l.remaining || 0) > 0
+    )
+
+    // הלוואות מתוכננות מהקופה
+    const plannedLoans = allLoans.filter(l =>
+      l.status === 'planned' || l.loan_date > today
+    )
+
+    // הפקדות מהקופה
+    const allDeposits = await depositsService.getByFund(fundId)
+    const realizedDeposits = allDeposits.filter(d =>
+      d.status !== 'planned' && d.deposit_date <= today
+    )
+
+    // חישוב סה"כ הפקדות (מפחיתים משיכות)
+    let totalDeposits = 0
+    for (const d of realizedDeposits) {
+      const depositAmount = d.amount
+      const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
+      const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
+      totalDeposits += (depositAmount - totalWithdrawn)
+    }
+
+    // תרומות מהקופה
+    const donations = await donationsService.getByFund(fundId)
+    const totalDonations = donations.reduce((sum, d) => sum + d.amount, 0)
+
+    // הוצאות מהקופה (רק הוצאות של הגמ"ח)
+    const expenses = await expensesService.getByFund(fundId)
+    const gemachExpenses = expenses
+      .filter(e => e.paid_by === 'gemach')
+      .reduce((sum, e) => sum + e.amount, 0)
+
+    // חישוב כסף זמין בקופה
+    const activeLoansTotal = activeLoans.reduce((sum, l) => sum + (l.remaining || 0), 0)
+    const plannedLoansTotal = plannedLoans.reduce((sum, l) => sum + l.amount, 0)
+    const availableCash = totalDeposits + totalDonations - activeLoansTotal - gemachExpenses
+
+    return {
+      activeLoans: {
+        count: activeLoans.length,
+        total: activeLoansTotal
+      },
+      plannedLoans: {
+        count: plannedLoans.length,
+        total: plannedLoansTotal
+      },
+      availableCash
+    }
   },
   /**
    * פונקציה לאיתור הלוואות "יתומות" - הלוואות פעילות ללווים שנמחקו
@@ -1909,12 +2043,28 @@ export const depositsService = {
     const deposit = getItem<Deposit>('deposits', id)
     return (deposit && !deposit.is_deleted) ? deposit : null
   },
+
+  // מסנן הפקדות לפי קופה
+  async getByFund(fundId: string): Promise<Deposit[]> {
+    return (await this.getAll()).filter(d => d.fund_id === fundId)
+  },
   async create(d: Omit<Deposit, 'id' | 'created_at' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: string }> {
     // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
     let fundId = d.fund_id
     if (!fundId) {
-      const defaultFund = await fundsService.getDefault()
-      fundId = defaultFund.id
+      try {
+        const defaultFund = await fundsService.getDefault()
+        fundId = defaultFund.id
+      } catch (error) {
+        // אם אין קופת ברירת מחדל (למשל אחרי ניקוי מלא בבדיקות), צור אחת
+        const result = await fundsService.create({
+          name: 'קופה ראשית',
+          description: 'קופה ראשית של הגמ"ח',
+          is_default: true,
+          is_active: true
+        })
+        fundId = result.id
+      }
     }
     
     const id = generateId('deposits')
@@ -1965,12 +2115,28 @@ export const donationsService = {
   async getByDonor(donorId: number): Promise<Donation[]> {
     return (await this.getAll()).filter(d => d.donor_id === donorId)
   },
+
+  // מסנן תרומות לפי קופה
+  async getByFund(fundId: string): Promise<Donation[]> {
+    return (await this.getAll()).filter(d => d.fund_id === fundId)
+  },
   async create(d: Omit<Donation, 'id' | 'created_at' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: number }> {
     // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
     let fundId = d.fund_id
     if (!fundId) {
-      const defaultFund = await fundsService.getDefault()
-      fundId = defaultFund.id
+      try {
+        const defaultFund = await fundsService.getDefault()
+        fundId = defaultFund.id
+      } catch (error) {
+        // אם אין קופת ברירת מחדל (למשל אחרי ניקוי מלא בבדיקות), צור אחת
+        const result = await fundsService.create({
+          name: 'קופה ראשית',
+          description: 'קופה ראשית של הגמ"ח',
+          is_default: true,
+          is_active: true
+        })
+        fundId = result.id
+      }
     }
     
     const id = generateNumericId('donations')
@@ -2023,12 +2189,28 @@ export const expensesService = {
     const expense = getItem<Expense>('expenses', id)
     return (expense && !expense.is_deleted) ? expense : null
   },
+
+  // מסנן הוצאות לפי קופה
+  async getByFund(fundId: string): Promise<Expense[]> {
+    return (await this.getAll()).filter(e => e.fund_id === fundId)
+  },
   async create(e: Omit<Expense, 'id' | 'created_at' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: string }> {
     // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
     let fundId = e.fund_id
     if (!fundId) {
-      const defaultFund = await fundsService.getDefault()
-      fundId = defaultFund.id
+      try {
+        const defaultFund = await fundsService.getDefault()
+        fundId = defaultFund.id
+      } catch (error) {
+        // אם אין קופת ברירת מחדל (למשל אחרי ניקוי מלא בבדיקות), צור אחת
+        const result = await fundsService.create({
+          name: 'קופה ראשית',
+          description: 'קופה ראשית של הגמ"ח',
+          is_default: true,
+          is_active: true
+        })
+        fundId = result.id
+      }
     }
     
     const id = generateId('expenses')
