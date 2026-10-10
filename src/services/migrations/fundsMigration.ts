@@ -109,7 +109,7 @@ async function getOrCreateDefaultFund(): Promise<{ id: string; name: string }> {
   }
 }
 
-async function updateTableFundId(tableName: string, fundId: string): Promise<number> {
+async function updateTableFundId(tableName: 'loans' | 'donations' | 'deposits' | 'expenses', fundId: string): Promise<number> {
   const items = getAllItems<any>(tableName)
   let count = 0
 

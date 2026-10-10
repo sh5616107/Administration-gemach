@@ -3,6 +3,7 @@ import { getAllItems } from '../database'
 export interface Deposit {
   id: string
   depositor_id: string
+  fund_id: string  // UUID foreign key - קופה משוייכת
   amount: number
   deposit_date: string
   period_type?: string

@@ -617,9 +617,21 @@ export const db = {
       
       console.log(`[DONATIONS] Creating donation with receipt #${receiptNumber} (max existing: ${maxReceiptNum})`);
       
+      // תמיכה בפורמט ישן (6 params) וחדש (7 params עם fund_id)
+      let fundId: string
+      if (params.length === 7) {
+        // פורמט חדש עם fund_id
+        fundId = params[6] as string
+      } else {
+        // פורמט ישן - השתמש בברירת מחדל
+        const defaultFund = await fundsService.getDefault()
+        fundId = defaultFund.id
+      }
+      
       setItem('donations', String(id), { 
         id, 
-        donor_id: params[0], 
+        donor_id: params[0],
+        fund_id: fundId,
         amount: params[1], 
         donation_date: params[2], 
         notes: params[3], 
@@ -678,12 +690,38 @@ export const db = {
     }
     if (normalizedSql.includes('INSERT INTO deposits') && params) { 
       const id = generateId('deposits');
-      // תמיכה ב-2 פורמטים: 14 פרמטרים (ישן, ללא recurring_series_id) ו-15 (חדש)
-      if (params.length === 15) {
-        // פורמט חדש עם recurring_series_id
+      // תמיכה ב-3 פורמטים: 14 (ישן ישן), 15 (עם recurring_series_id), 16 (עם fund_id)
+      if (params.length === 16) {
+        // פורמט חדש עם fund_id
         setItem('deposits', String(id), { 
           id, 
-          depositor_id: params[0], 
+          depositor_id: params[0],
+          fund_id: params[1],
+          amount: params[2], 
+          deposit_date: params[3], 
+          period_type: params[4], 
+          due_date: params[5], 
+          is_recurring: params[6], 
+          recurring_day: params[7], 
+          recurring_months: params[8],
+          recurring_deposit_number: params[9],
+          recurring_deposit_count: params[10],
+          recurring_series_id: params[11],
+          notes: params[12], 
+          status: params[13], 
+          payment_method: params[14] || '', 
+          payment_details: params[15] || '', 
+          is_deleted: false,
+          created_at: new Date().toISOString() 
+        });
+      } else if (params.length === 15) {
+        // פורמט ישן עם recurring_series_id אבל ללא fund_id - צריך ברירת מחדל
+        // זה לא אמור לקרות אחרי המיגרציה, אבל לשמור תאימות
+        const defaultFund = await fundsService.getDefault()
+        setItem('deposits', String(id), { 
+          id,
+          depositor_id: params[0],
+          fund_id: defaultFund.id, 
           amount: params[1], 
           deposit_date: params[2], 
           period_type: params[3], 
@@ -702,10 +740,12 @@ export const db = {
           created_at: new Date().toISOString() 
         });
       } else {
-        // פורמט ישן ללא recurring_series_id (14 פרמטרים)
+        // פורמט ישן ישן ללא recurring_series_id (14 פרמטרים) - גם צריך ברירת מחדל
+        const defaultFund = await fundsService.getDefault()
         setItem('deposits', String(id), { 
-          id, 
-          depositor_id: params[0], 
+          id,
+          depositor_id: params[0],
+          fund_id: defaultFund.id, 
           amount: params[1], 
           deposit_date: params[2], 
           period_type: params[3], 
@@ -956,6 +996,7 @@ export interface Loan {
   id: string;  // UUID (technical primary key)
   loan_number: number;  // Sequential user-facing loan number (e.g., 1, 2, 3...)
   borrower_id: string;  // UUID foreign key
+  fund_id: string;  // UUID foreign key - קופה משוייכת
   amount: number; 
   loan_date: string; 
   loan_date_hebrew?: string; 
@@ -1014,11 +1055,18 @@ export const loansService = {
     } 
     return l 
   },
-  async create(l: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status'>): Promise<{ lastInsertRowid: string }> { 
+  async create(l: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: string }> { 
+    // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
+    let fundId = l.fund_id
+    if (!fundId) {
+      const defaultFund = await fundsService.getDefault()
+      fundId = defaultFund.id
+    }
+    
     const id = generateId('loans'); 
     const loan_number = generateNumericId('loans'); 
     const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; 
-    const record: Loan = { ...l, id, loan_number, status, is_deleted: false, created_at: new Date().toISOString() };
+    const record: Loan = { ...l, fund_id: fundId, id, loan_number, status, is_deleted: false, created_at: new Date().toISOString() };
     // Validation מרוכזת (P1) - נבדק בלי repayments, כי הלוואה חדשה עוד לא יכולה
     // להיות עם פירעונות. ראו VALIDATOR_INTEGRATION_GAP.md להיסטוריה.
     const validation = validateLoan(record);
@@ -1276,9 +1324,16 @@ export const statsService = {
     return expenses.filter(e => e.paid_by === 'borrower' && e.borrower_id === borrowerId)
       .sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime())
   },
-  async addExpense(expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: string; payment_method?: string; payment_details?: string; notes?: string }) {
+  async addExpense(expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: string; fund_id?: string; payment_method?: string; payment_details?: string; notes?: string }) {
+    // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
+    let fundId = expense.fund_id
+    if (!fundId) {
+      const defaultFund = await fundsService.getDefault()
+      fundId = defaultFund.id
+    }
+    
     const id = generateId('expenses')
-    setItem('expenses', id, { ...expense, id, created_at: new Date().toISOString() })
+    setItem('expenses', id, { ...expense, fund_id: fundId, id, created_at: new Date().toISOString() })
     return { id }
   },
   async updateExpense(id: string, expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: string; payment_method?: string; payment_details?: string; notes?: string }) {
@@ -1824,6 +1879,7 @@ export const depositorsService = {
 export interface Deposit {
   id: string
   depositor_id: string
+  fund_id: string  // UUID foreign key - קופה משוייכת
   amount: number
   deposit_date: string
   period_type: string
@@ -1853,6 +1909,20 @@ export const depositsService = {
     const deposit = getItem<Deposit>('deposits', id)
     return (deposit && !deposit.is_deleted) ? deposit : null
   },
+  async create(d: Omit<Deposit, 'id' | 'created_at' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: string }> {
+    // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
+    let fundId = d.fund_id
+    if (!fundId) {
+      const defaultFund = await fundsService.getDefault()
+      fundId = defaultFund.id
+    }
+    
+    const id = generateId('deposits')
+    const record: Deposit = { ...d, fund_id: fundId, id, created_at: new Date().toISOString() }
+    setItem('deposits', id, record)
+    await flushPendingSave()
+    return { lastInsertRowid: id }
+  },
   async delete(id: string): Promise<void> {
     // Soft delete - גם של כל המשיכות שלו
     const withdrawals = await depositWithdrawalsService.getByDeposit(id)
@@ -1872,6 +1942,7 @@ export const depositsService = {
 export interface Donation {
   id: number
   donor_id: number
+  fund_id: string  // UUID foreign key - קופה משוייכת
   amount: number
   donation_date: string
   notes: string
@@ -1894,6 +1965,20 @@ export const donationsService = {
   async getByDonor(donorId: number): Promise<Donation[]> {
     return (await this.getAll()).filter(d => d.donor_id === donorId)
   },
+  async create(d: Omit<Donation, 'id' | 'created_at' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: number }> {
+    // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
+    let fundId = d.fund_id
+    if (!fundId) {
+      const defaultFund = await fundsService.getDefault()
+      fundId = defaultFund.id
+    }
+    
+    const id = generateNumericId('donations')
+    const record: Donation = { ...d, fund_id: fundId, id, created_at: new Date().toISOString() }
+    setItem('donations', String(id), record)
+    await flushPendingSave()
+    return { lastInsertRowid: id }
+  },
   async delete(id: number | string): Promise<void> {
     const donation = await this.getById(id)
     if (donation) {
@@ -1910,6 +1995,55 @@ export interface BlacklistItem {
   entity_id: string;  // UUID foreign key
   reason: string; 
   added_at: string 
+}
+
+// Expenses Service
+export interface Expense {
+  id: string  // UUID
+  fund_id: string  // UUID foreign key - קופה משוייכת
+  description: string
+  amount: number
+  expense_date: string
+  category: string
+  paid_by: 'gemach' | 'borrower'
+  borrower_id?: string  // UUID foreign key - רק אם paid_by = 'borrower'
+  payment_method?: string
+  payment_details?: string
+  notes?: string
+  created_at: string
+  is_deleted?: boolean
+  deleted_at?: string
+}
+
+export const expensesService = {
+  async getAll(): Promise<Expense[]> {
+    return getAllItems<Expense>('expenses').filter(e => !e.is_deleted)
+  },
+  async getById(id: string): Promise<Expense | null> {
+    const expense = getItem<Expense>('expenses', id)
+    return (expense && !expense.is_deleted) ? expense : null
+  },
+  async create(e: Omit<Expense, 'id' | 'created_at' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: string }> {
+    // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
+    let fundId = e.fund_id
+    if (!fundId) {
+      const defaultFund = await fundsService.getDefault()
+      fundId = defaultFund.id
+    }
+    
+    const id = generateId('expenses')
+    const record: Expense = { ...e, fund_id: fundId, id, created_at: new Date().toISOString() }
+    setItem('expenses', id, record)
+    await flushPendingSave()
+    return { lastInsertRowid: id }
+  },
+  async delete(id: string): Promise<void> {
+    const expense = await this.getById(id)
+    if (expense) {
+      setItem('expenses', id, { ...expense, is_deleted: true, deleted_at: new Date().toISOString() })
+      await attachmentsService.softDeleteByEntity('expense', id)
+    }
+  }
 }
 
 export const blacklistService = {
@@ -2392,6 +2526,7 @@ const ATTACHMENT_ENTITY_STORE: Record<AttachmentEntityType, keyof DataStore> = {
   depositor: 'depositors',
   deposit: 'deposits',
   fee_payment: 'feePayments',
+  expense: 'expenses',
 }
 
 const ATTACHMENT_ENTITY_LABEL: Record<AttachmentEntityType, string> = {
@@ -2404,6 +2539,7 @@ const ATTACHMENT_ENTITY_LABEL: Record<AttachmentEntityType, string> = {
   depositor: 'מפקיד',
   deposit: 'הפקדה',
   fee_payment: 'תשלום עמלה',
+  expense: 'הוצאה',
 }
 
 export function resolveAttachmentEntityLabel(entityType: AttachmentEntityType, entityId: string): string {
@@ -2512,7 +2648,7 @@ export const fundsService = {
     setItem('funds', id, newFund)
     await commitData()
     
-    logger.info('✅ Created new fund:', newFund.name, newFund.id)
+    logger.info('✅ Created new fund:', newFund.name)
     return { id }
   },
 

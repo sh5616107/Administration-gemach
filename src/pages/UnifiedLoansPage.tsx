@@ -499,8 +499,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
         guarantor2Name: guarantor2 ? `${guarantor2.first_name} ${guarantor2.last_name}` : undefined,
       }, loanDocumentLayout);
       
-      await openEmailWithDocument(emailData, settings.email_provider as EmailProvider || 'gmail');
-      setSnackbar({ open: true, message: 'המייל נפתח', severity: 'success' });
+      const result = await openEmailWithDocument(emailData, settings.email_provider as EmailProvider || 'gmail');
+      setSnackbar({ open: true, message: result.message, severity: result.success ? 'success' : 'error' });
     } catch (error) {
       console.error('Error sending email:', error);
       setSnackbar({ open: true, message: 'שגיאה בשליחת מייל', severity: 'error' });

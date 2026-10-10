@@ -59,7 +59,7 @@ import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkGuarantorForLoan, checkBorrowerForLoan, type CrossCheckResult } from '../../services/crossCheck'
 import { EditRecurringDialog } from '../recurring/EditRecurringDialog'
 
-const emptyLoan: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status'> = {
+const emptyLoan: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'> = {
   borrower_id: '',
   amount: 0,
   loan_date: new Date().toISOString().split('T')[0],
@@ -86,7 +86,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
   const [borrowerLoans, setBorrowerLoans] = useState<Loan[]>([])
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
-  const [formData, setFormData] = useState<Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status'>>(emptyLoan)
+  const [formData, setFormData] = useState<Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'>>(emptyLoan)
   const [repayments, setRepayments] = useState<Repayment[]>([])
   const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false)
   const [repaymentAmount, setRepaymentAmount] = useState(0)

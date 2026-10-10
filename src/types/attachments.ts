@@ -21,6 +21,7 @@ export type AttachmentEntityType =
   | 'depositor'
   | 'deposit'
   | 'fee_payment'
+  | 'expense'
 
 export type AttachmentCategory =
   | 'שטר הלוואה'

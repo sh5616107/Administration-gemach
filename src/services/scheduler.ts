@@ -349,6 +349,7 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
     
     await loansService.create({
       borrower_id: loan.borrower_id,
+      fund_id: loan.fund_id,  // ✅ ירושת fund_id מההלוואה המקורית
       amount: loan.amount,
       loan_date: today,
       loan_type: loan.loan_type,
@@ -1064,9 +1065,10 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     }
     
     await db.run(
-      'INSERT INTO deposits (depositor_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, recurring_series_id, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO deposits (depositor_id, fund_id, amount, deposit_date, period_type, due_date, is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count, recurring_series_id, notes, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
-        latestDeposit.depositor_id, 
+        latestDeposit.depositor_id,
+        latestDeposit.fund_id,  // ✅ ירושת fund_id מההפקדה המקורית
         latestDeposit.amount, 
         today, 
         latestDeposit.period_type, 
