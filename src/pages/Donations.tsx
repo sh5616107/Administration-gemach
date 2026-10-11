@@ -72,6 +72,7 @@ interface Donor {
 interface Donation {
   id: number;
   donor_id: number;
+  fund_id?: string;
   amount: number;
   donation_date: string;
   notes: string;

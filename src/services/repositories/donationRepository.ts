@@ -3,6 +3,7 @@ import { getAllItems } from '../database'
 export interface Donation {
   id: string
   donor_id: string
+  fund_id?: string
   amount: number
   donation_date: string
   notes?: string

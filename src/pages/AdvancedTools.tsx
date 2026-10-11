@@ -385,6 +385,10 @@ export default function AdvancedTools() {
 
         await importAllData(importData)
         
+        // הרצת ensureFundsIntegrity אחרי ייבוא
+        const { ensureFundsIntegrity } = await import('../services/fundsIntegrity')
+        await ensureFundsIntegrity()
+        
         if (hasNumericIds) {
           console.log('🔄 Detected old backup with numeric IDs - running UUID migration...')
           setSnackbar({ 

@@ -143,6 +143,10 @@ async function runStartupMigrations(): Promise<void> {
   try {
     const { migrateFundsSystem } = await import('./migrations/fundsMigration')
     await migrateFundsSystem()
+    
+    // הרצת ensureFundsIntegrity אחרי המיגרציה
+    const { ensureFundsIntegrity } = await import('./fundsIntegrity')
+    await ensureFundsIntegrity()
   } catch (error) {
     logger.error('❌ Funds migration failed:', error)
     // המיגרציה זורקת שגיאה אם נכשלה, כולל rollback
@@ -1092,6 +1096,11 @@ export const loansService = {
     const e = await this.getById(id) // e.total_repaid / e.remaining מחושבים דינמית ב-getById
     if (!e) return
 
+    // חסימה: fund_id undefined לא יכול לדרוס ערך קיים
+    if ('fund_id' in d && d.fund_id === undefined) {
+      delete d.fund_id
+    }
+
     // חסימה: אין לשנות את סכום הלוואה שכבר נסגרה (נפרעה במלואה).
     // status='closed' הוא סופי (ראו validateLoanStatusTransition) — עריכת amount
     // בדיעבד הייתה משאירה את ההלוואה תקועה כ-closed למרות יתרה חדשה וחיובית,
@@ -1163,9 +1172,28 @@ export const loansService = {
 
   // מעביר הלוואה לקופה אחרת עם רישום ביומן
   async changeFund(loanId: string, newFundId: string, reason: string): Promise<void> {
+    // וולידציה: סיבה חובה
+    if (!reason || reason.trim() === '') {
+      throw new Error('סיבה חובה לשינוי קופה')
+    }
+
     const loan = await this.getById(loanId)
     if (!loan) {
       throw new Error('הלוואה לא נמצאה')
+    }
+
+    // וולידציה: קופה לא זהה לנוכחית
+    if (loan.fund_id === newFundId) {
+      throw new Error('הקופה זהה לקופה הנוכחית')
+    }
+
+    // וולידציה: קופת היעד קיימת ופעילה
+    const targetFund = await fundsService.getById(newFundId)
+    if (!targetFund) {
+      throw new Error('קופת היעד לא קיימת')
+    }
+    if (!targetFund.is_active) {
+      throw new Error('קופה לא פעילה - לא ניתן להעביר הלוואות אליה')
     }
 
     const oldFundId = loan.fund_id
@@ -1184,8 +1212,10 @@ export const loansService = {
       actor: 'system',
       before_data: JSON.stringify({ fund_id: oldFundId }),
       after_data: JSON.stringify({ fund_id: newFundId }),
-      metadata: JSON.stringify({ reason })
+      metadata: JSON.stringify({ reason: reason.trim() })
     })
+    
+    await commitData()
   },
 }
 
@@ -1277,7 +1307,7 @@ export const statsService = {
       donations: { count: dons.length, total: dons.reduce((s, d) => s + d.amount, 0) },
       gemachExpenses,
       byFund: [] as Array<{
-        fundId: string
+        fund_id: string
         fundName: string
         activeLoans: { count: number; total: number }
         plannedLoans: { count: number; total: number }

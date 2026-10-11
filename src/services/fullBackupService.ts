@@ -172,6 +172,7 @@ export function parseBackupJson(rawJson: string): ParsedBackupData {
     attachments: {},
     auditLog: {},
     feePayments: {},
+    funds: {},
   }
 
   if (Array.isArray(data.settings)) {
@@ -207,6 +208,7 @@ export function parseBackupJson(rawJson: string): ParsedBackupData {
   if (data.attachments) importData.attachments = convertToObject(data.attachments)
   if (data.auditLog) importData.auditLog = convertToObject(data.auditLog)
   if (data.feePayments) importData.feePayments = convertToObject(data.feePayments)
+  if (data.funds) importData.funds = convertToObject(data.funds)
 
   const hasNumericIds = Object.values(importData.borrowers || {}).some(
     (b: any) => typeof b.id === 'number' || (typeof b.id === 'string' && b.id.length < 20)
@@ -264,6 +266,10 @@ export async function importFullBackupZip(file: File): Promise<ZipImportResult> 
   // If not running under Tauri, there's nowhere to restore archive files
   // to — the data import still succeeds, just without documents, same
   // as exportFullBackupZip's behavior when not running under Tauri.
+
+  // הרצת ensureFundsIntegrity אחרי ייבוא הנתונים
+  const { ensureFundsIntegrity } = await import('./fundsIntegrity')
+  await ensureFundsIntegrity()
 
   return { ...parsed, restoredFileCount }
 }
