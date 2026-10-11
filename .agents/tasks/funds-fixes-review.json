@@ -1,0 +1,54 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "title": "העבר לקופה אחרת — חסר UI",
+      "description": "סעיף 7 מהאפיון מבקש פעולת 'העבר לקופה אחרת' בעמוד ההלוואות. changeFund מיושם ב-backend אבל אין כפתור או דיאלוג ב-LoansTab או UnifiedLoansPage. יש להוסיף Dialog עם FundSelector + שדה סיבה.",
+      "location": "src/components/loans/LoansTab.tsx, src/pages/UnifiedLoansPage.tsx"
+    },
+    {
+      "severity": "HIGH",
+      "title": "אזהרת חריגה מיתרה זמינה — לא יושמה",
+      "description": "סעיף 7 מבקש אזהרה (לא חסימה) כשסכום הלוואה גדול מהכסף הזמין בקופה. לא מופיע בממשק. יש להוסיף בדיקה ב-LoansTab לפני save.",
+      "location": "src/components/loans/LoansTab.tsx"
+    },
+    {
+      "severity": "HIGH",
+      "title": "בורר קופה חסר בטופס הוצאה",
+      "description": "סעיף 7 מבקש FundSelector בטופס הוצאה. Expenses.tsx כרגע לא מכיל אותו. יש להוסיף.",
+      "location": "src/pages/Expenses.tsx"
+    },
+    {
+      "severity": "HIGH",
+      "title": "31 בדיקות vitest נכשלות",
+      "description": "בדיקות ישנות לא עודכנו לטפל בקופות. כולן נכשלות עם 'לא נמצאה קופת ברירת מחדל' כי resetDatabase לא יוצר קופה. יש להוסיף await fundsService.create({name:'קופה',is_default:true,is_active:true}) ב-beforeEach של כל בדיקה מושפעת.",
+      "location": "src/__tests__/*.test.ts (31 קבצים)"
+    },
+    {
+      "severity": "MEDIUM",
+      "title": "לולאה ב-fundsService.create לא תואמת דרישה מדויקת",
+      "description": "הדרישה בסעיף 6: 'תקן את הלולאה ל-for (const f of allFunds) עם f.id'. המימוש: for (const [id, existingFund] of Object.entries(allFunds)). עובד אבל לא תואם את הסינטקס המבוקש. יש לשנות ל-for (const f of Object.values(allFunds)) עם f.id.",
+      "location": "src/services/database.ts:2862"
+    },
+    {
+      "severity": "MEDIUM",
+      "title": "FundSelector.includeInactive לא מופעל בעריכת רשומה קיימת",
+      "description": "סעיף 7 מבקש הצגת קופה מושבתת בבורר בעריכת רשומה קיימת. FundSelector תומך ב-includeInactive אבל לא מועבר כ-true בטפסי עריכה. יש להעביר includeInactive={!!selectedLoan/deposit/donation/expense}.",
+      "location": "src/components/loans/LoansTab.tsx, src/pages/Deposits.tsx, src/pages/Donations.tsx, src/pages/Expenses.tsx"
+    },
+    {
+      "severity": "MEDIUM",
+      "title": "אינווריאנט בדשבורד לא מורחב",
+      "description": "סעיף 4 מבקש 'הרחב את בדיקת האינווריאנט כך שתכלול הלוואות והפקדות, לא רק תרומות'. אינווריאנט נוכחי (אם קיים) לא מצוין בקוד שנסקר. יש לבדוק ולהרחיב.",
+      "location": "src/pages/Dashboard.tsx או src/services/database.ts"
+    },
+    {
+      "severity": "LOW",
+      "title": "npm run build timeout",
+      "description": "הרצת build נתקעה אחרי 3 דקות. tsc --noEmit עובר בלי שגיאות, אז הבעיה כנראה ב-Vite. יש לנסות npm run build שוב, או להריץ עם --debug.",
+      "location": "vite.config.ts או תצורת build"
+    }
+  ],
+  "reviewDoc": "c:\\proyecys\\gemach system\\.agents\\tasks\\funds-fixes-review.md"
+}

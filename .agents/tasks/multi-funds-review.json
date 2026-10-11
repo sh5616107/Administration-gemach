@@ -1,0 +1,9 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    "UnifiedLoansPage לא מציג FundSelector — הדף הראשי לניהול הלוואות חסר את בחירת הקופה. צריך להוסיף state של selectedFundId, לאתחל אותו מ-fundsService.getDefault() בהלוואה חדשה ומההלוואה הקיימת בעריכה, ולהעביר אותו כ-prop ל-LoanSidePanel → LoansTab.",
+    "LoansTab לא מעדכן selectedFundId בעריכה — כשנפתחת הלוואה קיימת, setFormData(selectedLoan) מעתיק את fund_id ל-formData אבל לא קורא ל-setSelectedFundId(selectedLoan.fund_id), כך ש-FundSelector נשאר ריק.",
+    "Loan, Deposit, Donation interfaces חסרים fund_id (likely) — הקוד משתמש ב-(loan as any).fund_id ו-(deposit as any).fund_id בכל מקום. צריך להוסיף fund_id?: string לממשקים ב-services/database.ts ולהריץ npx tsc --noEmit לוודא שאין שגיאות קומפילציה."
+  ],
+  "reviewDoc": "c:\\proyecys\\gemach system\\.agents\\tasks\\2025-01-11-135300-review.md"
+}

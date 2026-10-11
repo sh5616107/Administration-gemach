@@ -204,6 +204,18 @@ export function resetDatabase(): void {
   isInitialized = false
   initializationPromise = null
   localStorage.clear()
+  
+  // יצירת קופת ברירת מחדל - מצב תקין של המערכת אחרי מיגרציה
+  const defaultFundId = generateId('funds')
+  setItem('funds', defaultFundId, {
+    id: defaultFundId,
+    name: 'קופה ראשית',
+    description: 'קופת ברירת המחדל של הגמ"ח',
+    is_default: true,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    is_deleted: false
+  })
 }
 
 // Helper functions
