@@ -22,6 +22,7 @@ import { db } from '../../services/database';
 import AmountInput from '../AmountInput';
 import PaymentMethodSelect, { PaymentMethodData } from '../PaymentMethodSelect';
 import AttachmentsSection from '../attachments/AttachmentsSection';
+import FundSelector from '../funds/FundSelector';
 
 interface Deposit {
   id: string;
@@ -53,12 +54,14 @@ interface DepositSidePanelProps {
   depositor: Depositor | null;
   onClose: () => void;
   onSaved: () => void;
+  selectedFundId: string;
+  onFundChange: (fundId: string) => void;
 }
 
 /**
  * Side drawer for creating/editing a deposit with a direct form (no dialog)
  */
-export default function DepositSidePanel({ open, deposit, depositor, onClose, onSaved }: DepositSidePanelProps) {
+export default function DepositSidePanel({ open, deposit, depositor, onClose, onSaved, selectedFundId, onFundChange }: DepositSidePanelProps) {
   const [formData, setFormData] = useState({
     amount: 0,
     deposit_date: new Date().toISOString().split('T')[0],
@@ -74,28 +77,42 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
   
   // Load deposit data when editing
   useEffect(() => {
-    if (deposit && open) {
-      setFormData({
-        amount: deposit.amount,
-        deposit_date: deposit.deposit_date,
-        period_type: deposit.period_type,
-        due_date: deposit.due_date || '',
-        notes: deposit.notes || '',
-        is_recurring: deposit.is_recurring === 1,
-        recurring_total: deposit.recurring_deposit_count || 2,
-      });
-    } else if (!deposit && open) {
-      // Reset for new deposit
-      setFormData({
-        amount: 0,
-        deposit_date: new Date().toISOString().split('T')[0],
-        period_type: 'flexible',
-        due_date: '',
-        notes: '',
-        is_recurring: false,
-        recurring_total: 2,
-      });
-    }
+    const initForm = async () => {
+      if (deposit && open) {
+        setFormData({
+          amount: deposit.amount,
+          deposit_date: deposit.deposit_date,
+          period_type: deposit.period_type,
+          due_date: deposit.due_date || '',
+          notes: deposit.notes || '',
+          is_recurring: deposit.is_recurring === 1,
+          recurring_total: deposit.recurring_deposit_count || 2,
+        });
+        // טעינת fund_id מההפקדה הקיימת
+        onFundChange((deposit as any).fund_id || '');
+      } else if (!deposit && open) {
+        // Reset for new deposit
+        setFormData({
+          amount: 0,
+          deposit_date: new Date().toISOString().split('T')[0],
+          period_type: 'flexible',
+          due_date: '',
+          notes: '',
+          is_recurring: false,
+          recurring_total: 2,
+        });
+        // אתחול קופת ברירת מחדל להפקדה חדשה
+        try {
+          const { fundsService } = await import('../../services/database');
+          const defaultFund = await fundsService.getDefault();
+          onFundChange(defaultFund.id);
+        } catch (error) {
+          console.error('Error loading default fund:', error);
+          onFundChange('');
+        }
+      }
+    };
+    initForm();
   }, [deposit, open]);
   
   const handleSave = async () => {
@@ -127,24 +144,34 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
               ? 'planned'
               : 'active';
 
+        const updateFields = [
+          'amount = ?',
+          'deposit_date = ?',
+          'period_type = ?',
+          'due_date = ?',
+          'notes = ?',
+          'status = ?'
+        ];
+        const updateValues: any[] = [
+          formData.amount,
+          formData.deposit_date,
+          formData.period_type,
+          formData.due_date || null,
+          formData.notes,
+          recalculatedStatus
+        ];
+
+        // הוספת fund_id אם נבחר
+        if (selectedFundId) {
+          updateFields.push('fund_id = ?');
+          updateValues.push(selectedFundId);
+        }
+
+        updateValues.push(deposit.id);
+
         await db.run(
-          `UPDATE deposits SET 
-            amount = ?, 
-            deposit_date = ?, 
-            period_type = ?, 
-            due_date = ?,
-            notes = ?,
-            status = ?
-          WHERE id = ?`,
-          [
-            formData.amount,
-            formData.deposit_date,
-            formData.period_type,
-            formData.due_date || null,
-            formData.notes,
-            recalculatedStatus,
-            deposit.id
-          ]
+          `UPDATE deposits SET ${updateFields.join(', ')} WHERE id = ?`,
+          updateValues
         );
         
         setSnackbar({ open: true, message: 'ההפקדה עודכנה בהצלחה', severity: 'success' });
@@ -163,26 +190,37 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         const today = new Date().toISOString().split('T')[0];
         const depositStatus = formData.deposit_date > today ? 'planned' : 'active';
 
+        const insertFields = [
+          'depositor_id', 'amount', 'deposit_date', 'period_type', 'due_date',
+          'is_recurring', 'recurring_day', 'recurring_months', 'recurring_deposit_number', 'recurring_deposit_count',
+          'notes', 'status'
+        ];
+        const insertPlaceholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?'];
+        const insertValues: any[] = [
+          depositor.id,
+          formData.amount,
+          formData.deposit_date,
+          formData.period_type,
+          formData.due_date || null,
+          isRecurring ? 1 : 0,
+          recurringDay,
+          recurringMonths,
+          recurringDepositNumber,
+          recurringDepositCount,
+          formData.notes,
+          depositStatus
+        ];
+
+        // הוספת fund_id אם נבחר
+        if (selectedFundId) {
+          insertFields.push('fund_id');
+          insertPlaceholders.push('?');
+          insertValues.push(selectedFundId);
+        }
+
         await db.run(
-          `INSERT INTO deposits (
-            depositor_id, amount, deposit_date, period_type, due_date, 
-            is_recurring, recurring_day, recurring_months, recurring_deposit_number, recurring_deposit_count,
-            notes, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            depositor.id,
-            formData.amount,
-            formData.deposit_date,
-            formData.period_type,
-            formData.due_date || null,
-            isRecurring ? 1 : 0,
-            recurringDay,
-            recurringMonths,
-            recurringDepositNumber,
-            recurringDepositCount,
-            formData.notes,
-            depositStatus
-          ]
+          `INSERT INTO deposits (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`,
+          insertValues
         );
         setSnackbar({ open: true, message: isRecurring ? 'ההפקדה המחזורית נוספה בהצלחה' : 'ההפקדה נוספה בהצלחה', severity: 'success' });
       }
@@ -233,6 +271,13 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
             label="סכום ההפקדה *"
             value={formData.amount}
             onChange={(value) => setFormData({ ...formData, amount: value })}
+          />
+          
+          {/* בחירת קופה */}
+          <FundSelector 
+            value={selectedFundId} 
+            onChange={onFundChange}
+            required={false}
           />
           
           <TextField

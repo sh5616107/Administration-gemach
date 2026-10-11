@@ -336,9 +336,19 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     return `${nextYear}-${String(adjustedMonth + 1).padStart(2, '0')}-${String(effectiveDay).padStart(2, '0')}`
   }
 
-  const handleNewLoan = () => {
+  const handleNewLoan = async () => {
     setSelectedLoan(null)
-    setSelectedFundId('')
+    
+    // אתחול קופת ברירת מחדל
+    try {
+      const { fundsService } = await import('../../services/database')
+      const defaultFund = await fundsService.getDefault()
+      setSelectedFundId(defaultFund.id)
+    } catch (error) {
+      console.error('Error loading default fund:', error)
+      setSelectedFundId('')
+    }
+    
     // Calculate default due date based on settings
     const defaultMonths = parseInt(settings.default_loan_months) || 12
     const defaultLoanType = settings.default_loan_type || 'flexible'
