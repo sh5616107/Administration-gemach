@@ -389,8 +389,8 @@ export default function Donations() {
           JSON.stringify(paymentMethod)
         ];
         
-        // הוספת fund_id אם נבחר
-        if (selectedFundId) {
+        // הוספת fund_id אם נבחר (בדיקה מפורשת לא-ריק)
+        if (selectedFundId && selectedFundId.trim() !== '') {
           insertFields.push('fund_id');
           insertPlaceholders.push('?');
           insertValues.push(selectedFundId);
