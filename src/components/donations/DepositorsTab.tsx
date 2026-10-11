@@ -315,6 +315,8 @@ export default function DepositorsTab({ onSelectDepositor, selectedDepositorId }
       
       const provider = (settings.email_provider || 'gmail') as EmailProvider
       const result = await openEmailWithDocument(emailData, provider)
+      // ביטול בחלון העריכה הוא החלטת משתמש, לא שגיאה — לא מציגים הודעה
+      if (result.cancelled) return
       setSnackbar({ 
         open: true, 
         message: result.message, 

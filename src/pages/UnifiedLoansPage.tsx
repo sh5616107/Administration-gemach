@@ -517,6 +517,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       }, loanDocumentLayout);
       
       const result = await openEmailWithDocument(emailData, settings.email_provider as EmailProvider || 'gmail');
+      // ביטול בחלון העריכה הוא החלטת משתמש, לא שגיאה — לא מציגים הודעה
+      if (result.cancelled) return;
       setSnackbar({ open: true, message: result.message, severity: result.success ? 'success' : 'error' });
     } catch (error) {
       console.error('Error sending email:', error);
