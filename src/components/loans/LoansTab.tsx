@@ -250,6 +250,16 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       setBorrowers(borrowersData as Borrower[])
       setGuarantors(guarantorsData as Guarantor[])
       setBlacklistedBorrowerIds(blacklistedIds)
+      
+      // אתחול קופת ברירת מחדל
+      try {
+        const { fundsService } = await import('../../services/database')
+        const defaultFund = await fundsService.getDefault()
+        setSelectedFundId(defaultFund.id)
+      } catch (error) {
+        console.error('Error loading default fund:', error)
+        setSelectedFundId('')
+      }
     } catch (error) {
       console.error('Error loading data:', error)
     }
@@ -351,7 +361,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const handleSelectLoan = (loan: Loan) => {
     setSelectedLoan(loan)
     setFormData(loan)
-    setSelectedFundId(loan.fund_id || '')
+    setSelectedFundId((loan as any).fund_id || '')
   }
 
   const handleSave = async () => {
@@ -445,6 +455,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         
         await loansService.update(selectedLoan.id, {
           ...formData,
+          fund_id: selectedFundId || undefined,
           recurring_loan_number: recurringLoanNumber,
           recurring_loan_count: recurringLoanCount,
           payment_method: loanPaymentMethod.payment_method,
@@ -1574,6 +1585,15 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                     <MenuItem value="fixed">קבועה (עם תאריך פירעון)</MenuItem>
                   </Select>
                 </FormControl>
+              </Grid>
+
+              {/* בחירת קופה */}
+              <Grid item xs={12} md={4}>
+                <FundSelector 
+                  value={selectedFundId} 
+                  onChange={setSelectedFundId}
+                  label="קופה"
+                />
               </Grid>
 
               {formData.loan_type === 'fixed' && (

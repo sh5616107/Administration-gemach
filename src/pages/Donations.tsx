@@ -17,6 +17,10 @@ import {
   Collapse,
   Divider,
   Drawer,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -118,6 +122,8 @@ export default function Donations() {
     amountFrom: '',
     amountTo: '',
   });
+  const [selectedFundFilter, setSelectedFundFilter] = useState<string>('all'); // פילטר קופה
+  const [activeFunds, setActiveFunds] = useState<any[]>([]); // רשימת קופות פעילות
 
   // Form state for donation dialog
   const [donationForm, setDonationForm] = useState({
@@ -141,7 +147,18 @@ export default function Donations() {
 
   useEffect(() => {
     loadDonors();
+    loadActiveFunds();
   }, []);
+
+  const loadActiveFunds = async () => {
+    try {
+      const { fundsService } = await import('../services/database');
+      const funds = await fundsService.getActive();
+      setActiveFunds(funds);
+    } catch (error) {
+      console.error('Error loading funds:', error);
+    }
+  };
 
   // Handle URL params for donor/donation selection
   useEffect(() => {
@@ -251,11 +268,15 @@ export default function Donations() {
       if (filters.dateTo && donation.donation_date > filters.dateTo) return false;
       if (filters.amountFrom && donation.amount < parseFloat(filters.amountFrom)) return false;
       if (filters.amountTo && donation.amount > parseFloat(filters.amountTo)) return false;
+      
+      // סינון לפי קופה
+      if (selectedFundFilter !== 'all' && (donation as any).fund_id !== selectedFundFilter) return false;
+      
       return true;
     });
-  }, [donations, filters]);
+  }, [donations, filters, selectedFundFilter]);
 
-  const hasActiveFilters = filters.dateFrom || filters.dateTo || filters.amountFrom || filters.amountTo;
+  const hasActiveFilters = filters.dateFrom || filters.dateTo || filters.amountFrom || filters.amountTo || (selectedFundFilter !== 'all' && activeFunds.length > 1);
 
   const clearFilters = () => {
     setFilters({
@@ -264,16 +285,27 @@ export default function Donations() {
       amountFrom: '',
       amountTo: '',
     });
+    setSelectedFundFilter('all');
   };
 
-  const handleOpenNewDonation = () => {
+  const handleOpenNewDonation = async () => {
     setActiveDonation(null);
     setDonationForm({
       amount: 0,
       donation_date: new Date().toISOString().split('T')[0],
       notes: '',
     });
-    setSelectedFundId('');
+    
+    // אתחול קופת ברירת מחדל
+    try {
+      const { fundsService } = await import('../services/database');
+      const defaultFund = await fundsService.getDefault();
+      setSelectedFundId(defaultFund.id);
+    } catch (error) {
+      console.error('Error loading default fund:', error);
+      setSelectedFundId('');
+    }
+    
     setPaymentMethod({ payment_method: '' });
     setDonationDialogOpen(true);
   };
@@ -285,6 +317,9 @@ export default function Donations() {
       donation_date: donation.donation_date,
       notes: donation.notes || '',
     });
+    
+    // טעינת קופה מהתרומה הקיימת
+    setSelectedFundId((donation as any).fund_id || '');
     
     if (donation.payment_details) {
       try {
@@ -700,6 +735,28 @@ export default function Donations() {
                         size="small"
                       />
                     </Grid>
+                    
+                    {/* פילטר קופה - מוצג רק אם יש יותר מקופה אחת */}
+                    {activeFunds.length > 1 && (
+                      <Grid item xs={12} sm={6} md={3}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>קופה</InputLabel>
+                          <Select
+                            value={selectedFundFilter}
+                            label="קופה"
+                            onChange={(e) => setSelectedFundFilter(e.target.value)}
+                          >
+                            <MenuItem value="all">כל הקופות</MenuItem>
+                            {activeFunds.map((fund) => (
+                              <MenuItem key={fund.id} value={fund.id}>
+                                {fund.name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    )}
+                    
                     <Grid item xs={12} sm={6} md={3}>
                       <Button
                         fullWidth

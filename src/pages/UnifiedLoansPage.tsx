@@ -160,10 +160,23 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
     loanType: 'all' as 'all' | 'flexible' | 'fixed',
     isRecurring: 'all' as 'all' | 'yes' | 'no',
   });
+  const [selectedFundFilter, setSelectedFundFilter] = useState<string>('all'); // פילטר קופה
+  const [activeFunds, setActiveFunds] = useState<any[]>([]); // רשימת קופות פעילות
 
   useEffect(() => {
     loadBorrowers();
+    loadActiveFunds();
   }, []);
+
+  const loadActiveFunds = async () => {
+    try {
+      const { fundsService } = await import('../services/database');
+      const funds = await fundsService.getActive();
+      setActiveFunds(funds);
+    } catch (error) {
+      console.error('Error loading funds:', error);
+    }
+  };
 
   // Handle initial borrower selection from props
   useEffect(() => {
@@ -336,12 +349,15 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       if (filters.isRecurring === 'yes' && loan.is_recurring !== 1) return false;
       if (filters.isRecurring === 'no' && loan.is_recurring === 1) return false;
 
+      // סינון לפי קופה
+      if (selectedFundFilter !== 'all' && (loan as any).fund_id !== selectedFundFilter) return false;
+
       return true;
     });
-  }, [loans, filters]);
+  }, [loans, filters, selectedFundFilter]);
 
   const hasActiveFilters = filters.dateFrom || filters.dateTo || filters.amountFrom || filters.amountTo || 
-    filters.status !== 'all' || filters.loanType !== 'all' || filters.isRecurring !== 'all';
+    filters.status !== 'all' || filters.loanType !== 'all' || filters.isRecurring !== 'all' || (selectedFundFilter !== 'all' && activeFunds.length > 1);
 
   // Group loans into families for display
   const loanFamilies = useMemo(() => {
@@ -387,6 +403,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       loanType: 'all',
       isRecurring: 'all',
     });
+    setSelectedFundFilter('all');
   };
 
   const handleOpenNewLoan = () => {
@@ -806,6 +823,28 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                         </Select>
                       </FormControl>
                     </Grid>
+                    
+                    {/* פילטר קופה - מוצג רק אם יש יותר מקופה אחת */}
+                    {activeFunds.length > 1 && (
+                      <Grid item xs={12} sm={6} md={3}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>קופה</InputLabel>
+                          <Select
+                            value={selectedFundFilter}
+                            label="קופה"
+                            onChange={(e) => setSelectedFundFilter(e.target.value)}
+                          >
+                            <MenuItem value="all">כל הקופות</MenuItem>
+                            {activeFunds.map((fund) => (
+                              <MenuItem key={fund.id} value={fund.id}>
+                                {fund.name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    )}
+                    
                     <Grid item xs={12} sm={6} md={3}>
                       <Button
                         fullWidth

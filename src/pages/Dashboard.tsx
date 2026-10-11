@@ -24,6 +24,8 @@ import {
   IconButton,
   Snackbar,
   Alert,
+  Divider,
+  Stack,
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -80,6 +82,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [waitlistStats, setWaitlistStats] = useState<WaitlistStats | null>(null)
   const [activeBorrowers, setActiveBorrowers] = useState<ActiveBorrower[]>([])
+  const [activeFunds, setActiveFunds] = useState<any[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<ActiveBorrower[]>([])
@@ -121,6 +124,15 @@ export default function Dashboard() {
       setStats(dashboardStats)
       setWaitlistStats(waitlistData)
       setActiveBorrowers(borrowers as ActiveBorrower[])
+      
+      // טעינת נתוני קופות
+      try {
+        const { fundsService } = await import('../services/database')
+        const funds = await fundsService.getActive()
+        setActiveFunds(funds)
+      } catch (error) {
+        console.error('Error loading funds:', error)
+      }
     } catch (error) {
       console.error('Error loading dashboard data:', error)
     }
@@ -713,6 +725,64 @@ export default function Dashboard() {
           {t('dashboard.clearAll')}
         </Button>
       </Box>
+
+      {/* פירוט לפי קופה - מוצג רק אם יש יותר מקופה אחת */}
+      {activeFunds.length > 1 && stats && (stats as any).byFund && (
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+            פירוט לפי קופה
+          </Typography>
+          <Grid container spacing={3}>
+            {((stats as any).byFund || []).map((fundStats: any) => {
+              const fund = activeFunds.find(f => f.id === fundStats.fund_id)
+              if (!fund) return null
+              
+              return (
+                <Grid item xs={12} sm={6} md={4} key={fundStats.fund_id}>
+                  <Card sx={{ height: '100%', borderRight: '4px solid', borderColor: 'primary.main' }}>
+                    <CardContent>
+                      <Typography variant="h6" fontWeight={600} color="primary" sx={{ mb: 2 }}>
+                        {fund.name}
+                      </Typography>
+                      
+                      <Stack spacing={1.5}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="body2" color="text.secondary">
+                            הלוואות פעילות:
+                          </Typography>
+                          <Box sx={{ textAlign: 'left' }}>
+                            <Typography variant="body1" fontWeight={500}>
+                              {fundStats.activeLoans || 0}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatCurrency(fundStats.activeLoansTotal || 0)}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Divider />
+
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="body2" color="text.secondary">
+                            כסף זמין:
+                          </Typography>
+                          <Typography 
+                            variant="h6" 
+                            fontWeight={700}
+                            color={fundStats.availableCash >= 0 ? 'success.main' : 'error.main'}
+                          >
+                            {formatCurrency(fundStats.availableCash || 0)}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )
+            })}
+          </Grid>
+        </Box>
+      )}
 
       {/* Active Borrowers Table */}
       <Card>
