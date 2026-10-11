@@ -595,10 +595,9 @@ export async function updateSeriesItems(
     // 3. Get all items in series (BEFORE updating, to use original parameters)
     const seriesItems = await getSeriesItems(itemId, itemType)
     
-    // 4. ✅ תיקון באג 1: עדכון פריטים עתידיים + הפריט האחרון בסדרה
+    // 4. עדכון פריטים עתידיים + הפריט האחרון בסדרה
     // הפריט האחרון (לפי מספר) מייצג את ההגדרות שהמתזמן יקרא בפעם הבאה
     const today = new Date().toISOString().split('T')[0]
-    // פריטים עתידיים = היום ואילך (>= לא רק >), כי פריט שנוצר היום עדיין לא "עבר"
     const futureItems = seriesItems.filter(item => item.date >= today)
     
     // מציאת הפריט האחרון בסדרה (לפי item_number הגבוה ביותר)

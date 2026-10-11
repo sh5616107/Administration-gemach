@@ -65,7 +65,17 @@ async function createBackupBeforeMigration(): Promise<void> {
 async function runMigration(): Promise<void> {
   logger.info('⚙️ Running migration...')
 
-  // הנתונים כבר בזיכרון (data store) - לא צריך importAllData
+  // טעינת נתונים מ-localStorage אם קיימים (לבדיקות)
+  try {
+    const savedData = await loadAppData()
+    if (savedData) {
+      // טעינה ל-data store
+      const { importAllData } = await import('../database')
+      await importAllData(savedData)
+    }
+  } catch (error) {
+    logger.info('  ℹ No saved data to migrate')
+  }
   
   // קבלת/יצירת קופת ברירת מחדל
   const defaultFund = await getOrCreateDefaultFund()

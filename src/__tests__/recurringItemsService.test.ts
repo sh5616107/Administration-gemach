@@ -281,8 +281,10 @@ describe('Recurring Items Service', () => {
   // ============================================================================
 
   describe('Property 1: Update recurring_day in all items', () => {
-    it('should update recurring_day in all loans in series', async () => {
-      // Create series of 3 loans (all in future: Oct, Nov, Dec 2026)
+    it('should update recurring_day in future items + latest', async () => {
+      // Create series of 3 loans with same recurring_series_id
+      const seriesId = crypto.randomUUID()
+      
       const loan1 = await loansService.create({
         borrower_id: 1,
         amount: 1000,
@@ -293,6 +295,7 @@ describe('Recurring Items Service', () => {
         recurring_months: 3,
         recurring_loan_number: 1,
         recurring_loan_count: 3,
+        recurring_series_id: seriesId,
         auto_repayment: 0,
         notes: ''
       })
@@ -307,6 +310,7 @@ describe('Recurring Items Service', () => {
         recurring_months: 2,
         recurring_loan_number: 2,
         recurring_loan_count: 3,
+        recurring_series_id: seriesId,
         auto_repayment: 0,
         notes: ''
       })
@@ -321,6 +325,7 @@ describe('Recurring Items Service', () => {
         recurring_months: 1,
         recurring_loan_number: 3,
         recurring_loan_count: 3,
+        recurring_series_id: seriesId,
         auto_repayment: 0,
         notes: ''
       })
@@ -331,13 +336,18 @@ describe('Recurring Items Service', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(result.updatedCount).toBe(3)
+      // Only future (Nov, Dec) + latest (Dec) = 2 unique items updated
+      expect(result.updatedCount).toBe(2)
 
-      // Verify all loans updated
+      // Verify: only future loans updated (Nov, Dec)
       const series = await getSeriesItems(loan1.lastInsertRowid, 'loan')
-      series.forEach(loan => {
-        expect(loan.recurring_day).toBe(10)
-      })
+      expect(series.length).toBe(3)
+      
+      // Sort by date to ensure correct order
+      const sortedSeries = [...series].sort((a, b) => a.date.localeCompare(b.date))
+      expect(sortedSeries[0].recurring_day).toBe(5)  // Oct - past, not updated
+      expect(sortedSeries[1].recurring_day).toBe(10) // Nov - future, updated
+      expect(sortedSeries[2].recurring_day).toBe(10) // Dec - future + latest, updated
     })
   })
 
@@ -347,8 +357,10 @@ describe('Recurring Items Service', () => {
   // ============================================================================
 
   describe('Property 2: Update amount in all items', () => {
-    it('should update amount in all loans in series', async () => {
-      // Create series of 3 loans (all in future: Oct, Nov, Dec 2026)
+    it('should update amount in future items + latest', async () => {
+      // Create series of 3 loans with same recurring_series_id
+      const seriesId = crypto.randomUUID()
+      
       const loan1 = await loansService.create({
         borrower_id: 1,
         amount: 1000,
@@ -359,6 +371,7 @@ describe('Recurring Items Service', () => {
         recurring_months: 3,
         recurring_loan_number: 1,
         recurring_loan_count: 3,
+        recurring_series_id: seriesId,
         auto_repayment: 0,
         notes: ''
       })
@@ -373,6 +386,7 @@ describe('Recurring Items Service', () => {
         recurring_months: 2,
         recurring_loan_number: 2,
         recurring_loan_count: 3,
+        recurring_series_id: seriesId,
         auto_repayment: 0,
         notes: ''
       })
@@ -387,6 +401,7 @@ describe('Recurring Items Service', () => {
         recurring_months: 1,
         recurring_loan_number: 3,
         recurring_loan_count: 3,
+        recurring_series_id: seriesId,
         auto_repayment: 0,
         notes: ''
       })
@@ -397,13 +412,18 @@ describe('Recurring Items Service', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(result.updatedCount).toBe(3)
+      // Only future (Nov, Dec) + latest (Dec) = 2 unique items updated
+      expect(result.updatedCount).toBe(2)
 
-      // Verify all loans updated
+      // Verify: only future loans updated (Nov, Dec)
       const series = await getSeriesItems(loan1.lastInsertRowid, 'loan')
-      series.forEach(loan => {
-        expect(loan.amount).toBe(1500)
-      })
+      expect(series.length).toBe(3)
+      
+      // Sort by date to ensure correct order
+      const sortedSeries = [...series].sort((a, b) => a.date.localeCompare(b.date))
+      expect(sortedSeries[0].amount).toBe(1000) // Oct - past, not updated
+      expect(sortedSeries[1].amount).toBe(1500) // Nov - future, updated
+      expect(sortedSeries[2].amount).toBe(1500) // Dec - future + latest, updated
     })
   })
 

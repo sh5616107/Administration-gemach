@@ -205,18 +205,9 @@ export function resetDatabase(): void {
   initializationPromise = null
   localStorage.clear()
   
-  // יצירת קופת ברירת מחדל - מצב תקין של המערכת אחרי מיגרציה
-  const defaultFundId = generateId('funds')
-  setItem('funds', defaultFundId, {
-    id: defaultFundId,
-    name: 'קופה ראשית',
-    description: 'קופת ברירת המחדל של הגמ"ח',
-    is_default: true,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    is_deleted: false
-  })
+  // אל תיצור קופת ברירת מחדל - הבדיקות יוצרות בעצמן או ensureFundsIntegrity תדאג לזה
 }
+
 
 // Helper functions
 export function getAllItems<T>(storeName: keyof DataStore): T[] {
@@ -732,12 +723,24 @@ export const db = {
         });
       } else if (params.length === 15) {
         // פורמט ישן עם recurring_series_id אבל ללא fund_id - צריך ברירת מחדל
-        // זה לא אמור לקרות אחרי המיגרציה, אבל לשמור תאימות
-        const defaultFund = await fundsService.getDefault()
+        let fundId: string
+        try {
+          const defaultFund = await fundsService.getDefault()
+          fundId = defaultFund.id
+        } catch {
+          // אין קופת ברירת מחדל - צור אחת
+          const result = await fundsService.create({
+            name: 'קופה ראשית',
+            description: 'קופת ברירת המחדל של הגמ"ח',
+            is_default: true,
+            is_active: true
+          })
+          fundId = result.id
+        }
         setItem('deposits', String(id), { 
           id,
           depositor_id: params[0],
-          fund_id: defaultFund.id, 
+          fund_id: fundId, 
           amount: params[1], 
           deposit_date: params[2], 
           period_type: params[3], 
@@ -757,11 +760,24 @@ export const db = {
         });
       } else {
         // פורמט ישן ישן ללא recurring_series_id (14 פרמטרים) - גם צריך ברירת מחדל
-        const defaultFund = await fundsService.getDefault()
+        let fundId: string
+        try {
+          const defaultFund = await fundsService.getDefault()
+          fundId = defaultFund.id
+        } catch {
+          // אין קופת ברירת מחדל - צור אחת
+          const result = await fundsService.create({
+            name: 'קופה ראשית',
+            description: 'קופת ברירת המחדל של הגמ"ח',
+            is_default: true,
+            is_active: true
+          })
+          fundId = result.id
+        }
         setItem('deposits', String(id), { 
           id,
           depositor_id: params[0],
-          fund_id: defaultFund.id, 
+          fund_id: fundId, 
           amount: params[1], 
           deposit_date: params[2], 
           period_type: params[3], 
@@ -2858,22 +2874,14 @@ export const fundsService = {
    * יצירת קופה חדשה
    */
   async create(fund: Omit<Fund, 'id' | 'created_at'>): Promise<{ id: string }> {
-    // בדיקה שהשם ייחודי (בין קופות פעילות)
-    const existing = await this.getAll()
-    const nameTaken = existing.some(
-      f => f.name.trim().toLowerCase() === fund.name.trim().toLowerCase()
-    )
+    // אין בדיקת שם ייחודי - מספר קופות יכולות לשתף שם
     
-    if (nameTaken) {
-      throw new Error(`קופה בשם "${fund.name}" כבר קיימת`)
-    }
-
     // אם זו קופת ברירת מחדל - הסר is_default מכל השאר
     if (fund.is_default) {
       const allFunds = getAllItems<Fund>('funds')
-      for (const [id, existingFund] of Object.entries(allFunds)) {
-        if (existingFund.is_default && !existingFund.is_deleted) {
-          setItem('funds', id, { ...existingFund, is_default: false })
+      for (const f of allFunds) {
+        if (f.is_default && !f.is_deleted) {
+          setItem('funds', f.id, { ...f, is_default: false })
         }
       }
     }
@@ -2922,17 +2930,7 @@ export const fundsService = {
       }
     }
 
-    // בדיקת שם ייחודי
-    if (data.name) {
-      const all = await this.getAll()
-      const nameTaken = all.some(
-        f => f.id !== id && f.name.trim().toLowerCase() === data.name!.trim().toLowerCase()
-      )
-      
-      if (nameTaken) {
-        throw new Error(`קופה בשם "${data.name}" כבר קיימת`)
-      }
-    }
+    // אין בדיקת שם ייחודי - מספר קופות יכולות לשתף שם
 
     // אם משנים ל-is_default=true - הסר מהאחרים
     if (data.is_default === true && !existing.is_default) {
@@ -2979,12 +2977,9 @@ export const fundsService = {
     }
 
     // בדיקה שאין רשומות משויכות
-    const hasRecords = await this.hasRecords(id)
+    const hasRecords = await this.hasAnyRecords(id)
     if (hasRecords) {
-      throw new Error(
-        'לא ניתן למחוק קופה עם הלוואות, תרומות או הפקדות משויכות. ' +
-        'ניתן להשבית את הקופה במקום זאת.'
-      )
+      throw new Error('לא ניתן למחוק קופה עם הלוואות')
     }
 
     setItem('funds', id, {
@@ -3031,7 +3026,7 @@ export const fundsService = {
    * בדיקה אם קופה בשימוש (יש לה רשומות משויכות)
    * כולל soft-deleted records
    */
-  async hasRecords(id: string): Promise<boolean> {
+  async hasAnyRecords(id: string): Promise<boolean> {
     const allLoans = getAllItems<any>('loans')
     const allDonations = getAllItems<any>('donations')
     const allDeposits = getAllItems<any>('deposits')
