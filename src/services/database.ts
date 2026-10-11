@@ -697,10 +697,34 @@ export const db = {
     }
     if (normalizedSql.includes('INSERT INTO deposits') && params) { 
       const id = generateId('deposits');
+      console.log('[DATABASE] INSERT INTO deposits - params.length:', params.length, 'params:', params);
+      
       // תמיכה ב-3 פורמטים: 14 (ישן ישן), 15 (עם recurring_series_id), 16 (עם fund_id)
-      if (params.length === 16) {
+      if (params.length === 13) {
+        // פורמט חדש עם fund_id אבל בלי recurring_series_id ו-payment
+        const depositData = { 
+          id, 
+          depositor_id: params[0],
+          fund_id: params[1],
+          amount: params[2], 
+          deposit_date: params[3], 
+          period_type: params[4], 
+          due_date: params[5], 
+          is_recurring: params[6], 
+          recurring_day: params[7], 
+          recurring_months: params[8],
+          recurring_deposit_number: params[9],
+          recurring_deposit_count: params[10],
+          notes: params[11], 
+          status: params[12], 
+          is_deleted: false,
+          created_at: new Date().toISOString() 
+        };
+        console.log('[DATABASE] Saving deposit with fund_id:', depositData.fund_id, 'full data:', depositData);
+        setItem('deposits', String(id), depositData);
+      } else if (params.length === 16) {
         // פורמט חדש עם fund_id
-        setItem('deposits', String(id), { 
+        const depositData = { 
           id, 
           depositor_id: params[0],
           fund_id: params[1],
@@ -720,7 +744,9 @@ export const db = {
           payment_details: params[15] || '', 
           is_deleted: false,
           created_at: new Date().toISOString() 
-        });
+        };
+        console.log('[DATABASE] Saving deposit with fund_id:', depositData.fund_id, 'full data:', depositData);
+        setItem('deposits', String(id), depositData);
       } else if (params.length === 15) {
         // פורמט ישן עם recurring_series_id אבל ללא fund_id - צריך ברירת מחדל
         let fundId: string
