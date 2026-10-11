@@ -25,7 +25,6 @@ export default function FundSelector({
   disabled = false,
   required = false,
   includeInactive = false,
-  excludeFundId,
 }: FundSelectorProps) {
   const [funds, setFunds] = useState<Fund[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,15 +76,13 @@ export default function FundSelector({
         disabled={disabled || loading}
         required={required}
       >
-        {funds
-          .filter(fund => !excludeFundId || fund.id !== excludeFundId)
-          .map((fund) => (
-            <MenuItem key={fund.id} value={fund.id}>
-              {fund.name}
-              {fund.is_default && ' (ברירת מחדל)'}
-              {!fund.is_active && ' (מושבת)'}
-            </MenuItem>
-          ))}
+        {funds.map((fund) => (
+          <MenuItem key={fund.id} value={fund.id}>
+            {fund.name}
+            {fund.is_default && ' (ברירת מחדל)'}
+            {!fund.is_active && ' (מושבת)'}
+          </MenuItem>
+        ))}
       </Select>
     </FormControl>
   )
