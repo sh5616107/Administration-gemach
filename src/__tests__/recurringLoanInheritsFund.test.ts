@@ -68,11 +68,18 @@ describe('הלוואה מחזורית יורשת fund_id', () => {
     expect(originalLoan?.fund_id).toBe(fund2Id)
     
     // יצירת ההלוואה המחזורית הבאה
-    const nextLoanId = await createRecurringLoan(originalLoanId)
+    const created = await createRecurringLoan(originalLoanId)
+    expect(created).toBe(true)
     
-    expect(nextLoanId).toBeDefined()
-    const nextLoan = await loansService.getById(nextLoanId!)
+    // מצא את ההלוואה החדשה
+    const allLoans = await loansService.getAll()
+    const nextLoan = allLoans.find(l => 
+      l.borrower_id === borrowerId &&
+      l.recurring_loan_number === 2 &&
+      l.id !== originalLoanId
+    )
     
+    expect(nextLoan).toBeDefined()
     // בדיקה שההלוואה החדשה יורשת את אותו fund_id
     expect(nextLoan?.fund_id).toBe(fund2Id)
   })
@@ -94,11 +101,11 @@ describe('הלוואה מחזורית יורשת fund_id', () => {
     } as any)).lastInsertRowid
     
     // יצירת ההלוואה השנייה
-    const nextLoanId = await createRecurringLoan(originalLoanId)
-    expect(nextLoanId).toBeDefined()
+    const nextLoanResult = await createRecurringLoan(originalLoanId)
+    expect(nextLoanResult).toBe(true)
     
     // ניסיון שני - לא צריך ליצור כפילות
     const duplicateAttempt = await createRecurringLoan(originalLoanId)
-    expect(duplicateAttempt).toBeNull()
+    expect(duplicateAttempt).toBe(false)
   })
 })
