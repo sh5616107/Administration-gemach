@@ -385,28 +385,19 @@ export default function Donations() {
         setSnackbar({ open: true, message: 'התרומה עודכנה בהצלחה', severity: 'success' });
       } else {
         // תרומה חדשה
-        const insertFields = ['donor_id', 'amount', 'donation_date', 'notes', 'payment_method', 'payment_details'];
-        const insertPlaceholders = ['?', '?', '?', '?', '?', '?'];
+        const insertFields = ['donor_id', 'amount', 'donation_date', 'notes', 'payment_method', 'payment_details', 'fund_id'];
+        const insertPlaceholders = ['?', '?', '?', '?', '?', '?', '?'];
         const insertValues: any[] = [
           selectedDonor.id,
           donationForm.amount,
           donationForm.donation_date,
           donationForm.notes,
           paymentMethod.payment_method,
-          JSON.stringify(paymentMethod)
+          JSON.stringify(paymentMethod),
+          selectedFundId || '' // fund_id תמיד בסוף - אם ריק ישתמש בברירת מחדל
         ];
         
-        // הוספת fund_id אם נבחר (בדיקה מפורשת לא-ריק)
-        console.log('[DONATION DEBUG] selectedFundId before check:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
-        if (selectedFundId && selectedFundId.trim() !== '') {
-          console.log('[DONATION DEBUG] Adding fund_id to INSERT:', selectedFundId);
-          insertFields.push('fund_id');
-          insertPlaceholders.push('?');
-          insertValues.push(selectedFundId);
-        } else {
-          console.log('[DONATION DEBUG] NOT adding fund_id - selectedFundId is empty or falsy');
-        }
-        
+        console.log('[DONATION DEBUG] selectedFundId:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
         console.log('[DONATION DEBUG] INSERT SQL:', `INSERT INTO donations (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`);
         console.log('[DONATION DEBUG] INSERT VALUES:', insertValues);
         
