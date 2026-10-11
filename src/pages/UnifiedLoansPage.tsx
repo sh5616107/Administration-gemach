@@ -350,7 +350,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       if (filters.isRecurring === 'no' && loan.is_recurring === 1) return false;
 
       // סינון לפי קופה
-      if (selectedFundFilter !== 'all' && (loan as any).fund_id !== selectedFundFilter) return false;
+      if (selectedFundFilter !== 'all' && loan.fund_id !== selectedFundFilter) return false;
 
       return true;
     });

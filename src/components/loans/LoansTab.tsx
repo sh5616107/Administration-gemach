@@ -371,7 +371,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const handleSelectLoan = (loan: Loan) => {
     setSelectedLoan(loan)
     setFormData(loan)
-    setSelectedFundId((loan as any).fund_id || '')
+    setSelectedFundId(loan.fund_id || '')
   }
 
   const handleSave = async () => {
@@ -476,16 +476,12 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       } else {
         const loanData: any = {
           ...formData,
+          fund_id: selectedFundId || undefined,
           recurring_loan_number: recurringLoanNumber,
           recurring_loan_count: recurringLoanCount,
           recurring_series_id: formData.is_recurring === 1 ? crypto.randomUUID() : undefined,
           payment_method: loanPaymentMethod.payment_method,
           payment_details: JSON.stringify(loanPaymentMethod),
-        }
-        
-        // הוספת fund_id אם נבחר
-        if (selectedFundId) {
-          loanData.fund_id = selectedFundId
         }
         
         const result = await loansService.create(loanData)
@@ -1534,13 +1530,6 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   onChange={(value) => setFormData({ ...formData, amount: value })}
                   disabled={selectedLoan?.status === 'closed'}
                   helperText={selectedLoan?.status === 'closed' ? 'לא ניתן לשנות סכום של הלוואה שנסגרה (נפרעה במלואה)' : undefined}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <FundSelector
-                  value={selectedFundId}
-                  onChange={setSelectedFundId}
-                  label="קופה"
                 />
               </Grid>
               <Grid item xs={12} md={4}>

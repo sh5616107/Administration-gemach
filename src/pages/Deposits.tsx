@@ -377,7 +377,7 @@ export default function Deposits() {
       if (filters.isRecurring === 'no' && deposit.is_recurring === 1) return false;
 
       // סינון לפי קופה
-      if (selectedFundFilter !== 'all' && (deposit as any).fund_id !== selectedFundFilter) return false;
+      if (selectedFundFilter !== 'all' && deposit.fund_id !== selectedFundFilter) return false;
 
       return true;
     });

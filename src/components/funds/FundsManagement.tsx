@@ -205,11 +205,6 @@ export default function FundsManagement() {
     }
   }
 
-  // מוסתר אם יש רק קופה אחת
-  if (funds.length <= 1) {
-    return null
-  }
-
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -222,6 +217,12 @@ export default function FundsManagement() {
           הוסף קופה
         </Button>
       </Box>
+      
+      {funds.length === 1 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          יש לך כרגע קופה אחת. הוסף קופה נוספת כדי לנהל מספר קרנות בנפרד.
+        </Alert>
+      )}
 
       <TableContainer component={Paper}>
         <Table>

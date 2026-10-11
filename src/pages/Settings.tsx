@@ -603,7 +603,7 @@ export default function Settings() {
                 <Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>התחברות עם חשבון Google</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    שיטה זו אינה דורשת סיסמת אפליקציה — לוחצים "התחבר עם Google", מאשרים בדפדפן, וזהו.
+                   לוחצים "התחבר עם Google", מאשרים בדפדפן, מסמנים בתיבת הסימון הרשאת שליחת מיילים, וזהו.
                     פרטי ההתחברות נשמרים באחסון המאובטח של Windows ואינם מועלים לשום שרת.
                   </Typography>
 

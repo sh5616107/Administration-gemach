@@ -1290,7 +1290,7 @@ export const statsService = {
     for (const fund of funds) {
       const fundStats = await this.getStatsByFund(fund.id)
       result.byFund.push({
-        fundId: fund.id,
+        fund_id: fund.id,  // שינוי: fund_id במקום fundId כדי להתאים ל-Dashboard
         fundName: fund.name,
         activeLoans: fundStats.activeLoans,
         plannedLoans: fundStats.plannedLoans,

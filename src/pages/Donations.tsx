@@ -270,7 +270,7 @@ export default function Donations() {
       if (filters.amountTo && donation.amount > parseFloat(filters.amountTo)) return false;
       
       // סינון לפי קופה
-      if (selectedFundFilter !== 'all' && (donation as any).fund_id !== selectedFundFilter) return false;
+      if (selectedFundFilter !== 'all' && donation.fund_id !== selectedFundFilter) return false;
       
       return true;
     });
@@ -319,7 +319,7 @@ export default function Donations() {
     });
     
     // טעינת קופה מהתרומה הקיימת
-    setSelectedFundId((donation as any).fund_id || '');
+    setSelectedFundId(donation.fund_id || '');
     
     if (donation.payment_details) {
       try {

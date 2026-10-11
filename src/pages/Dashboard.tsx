@@ -752,10 +752,10 @@ export default function Dashboard() {
                           </Typography>
                           <Box sx={{ textAlign: 'left' }}>
                             <Typography variant="body1" fontWeight={500}>
-                              {fundStats.activeLoans || 0}
+                              {fundStats.activeLoans?.count || 0}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {formatCurrency(fundStats.activeLoansTotal || 0)}
+                              {formatCurrency(fundStats.activeLoans?.total || 0)}
                             </Typography>
                           </Box>
                         </Box>
