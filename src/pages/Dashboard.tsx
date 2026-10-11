@@ -743,6 +743,9 @@ export default function Dashboard() {
                     <CardContent>
                       <Typography variant="h6" fontWeight={600} color="primary" sx={{ mb: 2 }}>
                         {fund.name}
+                        {!fund.is_active && (
+                          <Chip label="מושבת" size="small" sx={{ ml: 1 }} color="default" />
+                        )}
                       </Typography>
                       
                       <Stack spacing={1.5}>
@@ -780,6 +783,48 @@ export default function Dashboard() {
                 </Grid>
               )
             })}
+
+            {/* שורת סיכום כוללת - רק אם יש יותר מקופה אחת */}
+            {((stats as any).byFund || []).length > 1 && (
+              <Grid item xs={12}>
+                <Card sx={{ bgcolor: 'grey.100', borderTop: '3px solid', borderColor: 'primary.main' }}>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+                      סה"כ כל הקופות
+                    </Typography>
+                    
+                    <Stack direction="row" spacing={4} justifyContent="space-around">
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">
+                          הלוואות פעילות
+                        </Typography>
+                        <Typography variant="h6" fontWeight={600}>
+                          {stats.activeLoans.count}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatCurrency(stats.activeLoans.total)}
+                        </Typography>
+                      </Box>
+                      
+                      <Divider orientation="vertical" flexItem />
+                      
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">
+                          כסף זמין
+                        </Typography>
+                        <Typography 
+                          variant="h6" 
+                          fontWeight={700}
+                          color={availableCash >= 0 ? 'success.main' : 'error.main'}
+                        >
+                          {formatCurrency(availableCash)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
           </Grid>
         </Box>
       )}

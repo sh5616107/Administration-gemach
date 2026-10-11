@@ -1316,11 +1316,21 @@ export const statsService = {
     }
 
     // הוספת סטטיסטיקות לפי קופה
-    const funds = await fundsService.getAll()
+    const allFunds = await fundsService.getAll()
+    
+    // כולל קופות פעילות + קופות מושבתות שיש להן הלוואות פעילות
+    const funds = allFunds.filter(f => {
+      if (f.is_active) return true
+      
+      // קופה מושבתת - בדוק אם יש לה הלוואות פעילות
+      const loansInFund = activeWithBalance.filter(l => l.fund_id === f.id)
+      return loansInFund.length > 0
+    })
+    
     for (const fund of funds) {
       const fundStats = await this.getStatsByFund(fund.id)
       result.byFund.push({
-        fund_id: fund.id,  // שינוי: fund_id במקום fundId כדי להתאים ל-Dashboard
+        fund_id: fund.id,
         fundName: fund.name,
         activeLoans: fundStats.activeLoans,
         plannedLoans: fundStats.plannedLoans,
@@ -1458,17 +1468,24 @@ export const statsService = {
   async getStatsByFund(fundId: string) {
     const today = new Date().toISOString().split('T')[0]
 
-    // הלוואות פעילות מהקופה
-    const allLoans = await loansService.getByFund(fundId)
+    // שימוש באותו סינון כמו getDashboardStats - רק לווים קיימים
+    const allLoans = await loansService.getAll()
+    const borrowers = await borrowersService.getAll()
+    const existingBorrowerIds = new Set(borrowers.map(b => b.id))
+
+    // הלוואות פעילות מהקופה (רק ללווים קיימים)
     const activeLoans = allLoans.filter(l =>
+      l.fund_id === fundId &&
       l.status === 'active' &&
       l.loan_date <= today &&
-      (l.remaining || 0) > 0
+      (l.remaining || 0) > 0 &&
+      existingBorrowerIds.has(l.borrower_id)
     )
 
     // הלוואות מתוכננות מהקופה
     const plannedLoans = allLoans.filter(l =>
-      l.status === 'planned' || l.loan_date > today
+      l.fund_id === fundId &&
+      (l.status === 'planned' || l.loan_date > today)
     )
 
     // הפקדות מהקופה
@@ -2871,6 +2888,26 @@ export const fundsService = {
     const existing = await this.getById(id)
     if (!existing) {
       throw new Error('קופה לא נמצאה')
+    }
+
+    // חסימה: לא ניתן להסיר is_default מקופת ברירת מחדל יחידה
+    if (existing.is_default && data.is_default === false) {
+      const allFunds = await this.getAll()
+      const otherDefaultFunds = allFunds.filter(f => f.id !== id && f.is_default)
+      
+      if (otherDefaultFunds.length === 0) {
+        throw new Error('לא ניתן להסיר את הסימון מקופת ברירת המחדל האחרונה. יש להגדיר קופה אחרת כברירת מחדל תחילה.')
+      }
+    }
+
+    // חסימה: לא ניתן להשבית קופת ברירת מחדל יחידה
+    if (existing.is_default && data.is_active === false) {
+      const allFunds = await this.getAll()
+      const activeFunds = allFunds.filter(f => f.is_active && f.id !== id)
+      
+      if (activeFunds.length === 0) {
+        throw new Error('לא ניתן להשבית את קופת ברירת המחדל היחידה. יש להגדיר קופה אחרת כברירת מחדל ופעילה תחילה.')
+      }
     }
 
     // בדיקת שם ייחודי

@@ -51,9 +51,10 @@ async function createBackupBeforeMigration(): Promise<void> {
   logger.info('💾 Creating backup before migration...')
   
   try {
-    const data = await loadAppData()
+    // שמירת דגל בלבד - לא עותק מלא של המסד
+    // המנגנון הקיים של הגיבוי כבר מטפל בזה (fullBackupService)
     const backupKey = `gemach_backup_pre_funds_migration_${Date.now()}`
-    localStorage.setItem(backupKey, JSON.stringify(data))
+    localStorage.setItem(backupKey, new Date().toISOString())
     
     logger.info('✅ Backup created:', backupKey)
   } catch (error) {
@@ -64,13 +65,8 @@ async function createBackupBeforeMigration(): Promise<void> {
 async function runMigration(): Promise<void> {
   logger.info('⚙️ Running migration...')
 
-  // טעינת נתונים קיימים לתוך ה-store הפנימי
-  const storedData = await loadAppData()
-  if (storedData) {
-    const { importAllData } = await import('../database')
-    await importAllData(storedData)
-  }
-
+  // הנתונים כבר בזיכרון (data store) - לא צריך importAllData
+  
   // קבלת/יצירת קופת ברירת מחדל
   const defaultFund = await getOrCreateDefaultFund()
   
