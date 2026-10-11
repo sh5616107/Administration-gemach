@@ -1478,7 +1478,7 @@ export const statsService = {
     setItem('expenses', id, { ...expense, fund_id: fundId, id, created_at: new Date().toISOString() })
     return { id }
   },
-  async updateExpense(id: string, expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: string; payment_method?: string; payment_details?: string; notes?: string }) {
+  async updateExpense(id: string, expense: { description: string; amount: number; expense_date: string; category: string; paid_by: string; borrower_id?: string; fund_id?: string; payment_method?: string; payment_details?: string; notes?: string }) {
     const existing = getItem<any>('expenses', id)
     if (existing) {
       setItem('expenses', String(id), { ...existing, ...expense })

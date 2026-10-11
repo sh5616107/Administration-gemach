@@ -162,10 +162,17 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         ];
 
         // הוספת fund_id אם נבחר (בדיקה מפורשת לא-ריק)
+        console.log('[DEPOSIT UPDATE DEBUG] selectedFundId before check:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
         if (selectedFundId && selectedFundId.trim() !== '') {
+          console.log('[DEPOSIT UPDATE DEBUG] Adding fund_id to UPDATE:', selectedFundId);
           updateFields.push('fund_id = ?');
           updateValues.push(selectedFundId);
+        } else {
+          console.log('[DEPOSIT UPDATE DEBUG] NOT adding fund_id - selectedFundId is empty or falsy');
         }
+
+        console.log('[DEPOSIT UPDATE DEBUG] UPDATE SQL:', `UPDATE deposits SET ${updateFields.join(', ')} WHERE id = ?`);
+        console.log('[DEPOSIT UPDATE DEBUG] UPDATE VALUES before id:', updateValues);
 
         updateValues.push(deposit.id);
 
@@ -191,13 +198,14 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         const depositStatus = formData.deposit_date > today ? 'planned' : 'active';
 
         const insertFields = [
-          'depositor_id', 'amount', 'deposit_date', 'period_type', 'due_date',
+          'depositor_id', 'fund_id', 'amount', 'deposit_date', 'period_type', 'due_date',
           'is_recurring', 'recurring_day', 'recurring_months', 'recurring_deposit_number', 'recurring_deposit_count',
           'notes', 'status'
         ];
-        const insertPlaceholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?'];
+        const insertPlaceholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?'];
         const insertValues: any[] = [
           depositor.id,
+          selectedFundId || '', // fund_id - יהיה ריק אם לא נבחר
           formData.amount,
           formData.deposit_date,
           formData.period_type,
@@ -211,12 +219,10 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
           depositStatus
         ];
 
-        // הוספת fund_id אם נבחר (בדיקה מפורשת לא-ריק)
-        if (selectedFundId && selectedFundId.trim() !== '') {
-          insertFields.push('fund_id');
-          insertPlaceholders.push('?');
-          insertValues.push(selectedFundId);
-        }
+        // לוג לדיבאג
+        console.log('[DEPOSIT DEBUG] selectedFundId:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
+        console.log('[DEPOSIT DEBUG] INSERT SQL:', `INSERT INTO deposits (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`);
+        console.log('[DEPOSIT DEBUG] INSERT VALUES:', insertValues);
 
         await db.run(
           `INSERT INTO deposits (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`,

@@ -71,6 +71,7 @@ import AttachmentMaintenanceTools from '../components/attachments/AttachmentMain
 import { exportFullBackupZip, importFullBackupZip, parseBackupJson } from '../services/fullBackupService'
 import { filterFeePayments, getFeePaymentsStats } from '../services/feePaymentsService'
 import type { FeePaymentsFilter } from '../types/feePayments'
+import FundSelector from '../components/funds/FundSelector'
 
 interface OverdueLoan {
   id: string  // UUID
@@ -207,6 +208,7 @@ export default function AdvancedTools() {
     category: 'fee',
     paid_by: 'gemach' as 'gemach' | 'borrower',
     borrower_id: null as string | null,
+    fund_id: '' as string,
     payment_method: '' as string,
     payment_details: '' as string,
     notes: ''
@@ -1328,6 +1330,7 @@ export default function AdvancedTools() {
           category: expenseForm.category,
           paid_by: expenseForm.paid_by,
           borrower_id: expenseForm.paid_by === 'borrower' ? expenseForm.borrower_id : undefined,
+          fund_id: expenseForm.fund_id || undefined,
           payment_method: expensePaymentData.payment_method,
           payment_details: paymentDetails,
           notes: expenseForm.notes
@@ -1342,6 +1345,7 @@ export default function AdvancedTools() {
           category: expenseForm.category,
           paid_by: expenseForm.paid_by,
           borrower_id: expenseForm.paid_by === 'borrower' ? expenseForm.borrower_id : undefined,
+          fund_id: expenseForm.fund_id || undefined,
           payment_method: expensePaymentData.payment_method,
           payment_details: paymentDetails,
           notes: expenseForm.notes
@@ -1368,6 +1372,7 @@ export default function AdvancedTools() {
       category: expense.category,
       paid_by: expense.paid_by,
       borrower_id: expense.borrower_id || null,
+      fund_id: (expense as any).fund_id || '',
       payment_method: expense.payment_method || '',
       payment_details: expense.payment_details || '',
       notes: expense.notes || ''
@@ -1392,6 +1397,7 @@ export default function AdvancedTools() {
       category: 'fee',
       paid_by: 'gemach',
       borrower_id: null,
+      fund_id: '',
       payment_method: '',
       payment_details: '',
       notes: ''
@@ -1802,6 +1808,12 @@ export default function AdvancedTools() {
                 <MenuItem value="borrower">לווה</MenuItem>
               </Select>
             </FormControl>
+            <FundSelector
+              value={expenseForm.fund_id}
+              onChange={(fundId) => setExpenseForm({ ...expenseForm, fund_id: fundId })}
+              label="קופה"
+              required
+            />
             {expenseForm.paid_by === 'borrower' && (
               <Autocomplete
                 options={borrowerOptions}

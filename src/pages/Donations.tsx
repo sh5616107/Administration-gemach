@@ -364,10 +364,17 @@ export default function Donations() {
         ];
         
         // הוספת fund_id - תמיד (אם ריק, השתמש בברירת מחדל)
+        console.log('[DONATION UPDATE DEBUG] selectedFundId before check:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
         if (selectedFundId && selectedFundId.trim()) {
+          console.log('[DONATION UPDATE DEBUG] Adding fund_id to UPDATE:', selectedFundId);
           updateFields.push('fund_id = ?');
           updateValues.push(selectedFundId);
+        } else {
+          console.log('[DONATION UPDATE DEBUG] NOT adding fund_id - selectedFundId is empty or falsy');
         }
+        
+        console.log('[DONATION UPDATE DEBUG] UPDATE SQL:', `UPDATE donations SET ${updateFields.join(', ')} WHERE id = ?`);
+        console.log('[DONATION UPDATE DEBUG] UPDATE VALUES:', updateValues);
         
         updateValues.push(activeDonation.id);
         
@@ -390,11 +397,18 @@ export default function Donations() {
         ];
         
         // הוספת fund_id אם נבחר (בדיקה מפורשת לא-ריק)
+        console.log('[DONATION DEBUG] selectedFundId before check:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
         if (selectedFundId && selectedFundId.trim() !== '') {
+          console.log('[DONATION DEBUG] Adding fund_id to INSERT:', selectedFundId);
           insertFields.push('fund_id');
           insertPlaceholders.push('?');
           insertValues.push(selectedFundId);
+        } else {
+          console.log('[DONATION DEBUG] NOT adding fund_id - selectedFundId is empty or falsy');
         }
+        
+        console.log('[DONATION DEBUG] INSERT SQL:', `INSERT INTO donations (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`);
+        console.log('[DONATION DEBUG] INSERT VALUES:', insertValues);
         
         await db.run(
           `INSERT INTO donations (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`,
