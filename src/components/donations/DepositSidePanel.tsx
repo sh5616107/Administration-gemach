@@ -171,9 +171,6 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
           console.log('[DEPOSIT UPDATE DEBUG] NOT adding fund_id - selectedFundId is empty or falsy');
         }
 
-        console.log('[DEPOSIT UPDATE DEBUG] UPDATE SQL:', `UPDATE deposits SET ${updateFields.join(', ')} WHERE id = ?`);
-        console.log('[DEPOSIT UPDATE DEBUG] UPDATE VALUES before id:', updateValues);
-
         updateValues.push(deposit.id);
 
         await db.run(
@@ -218,11 +215,6 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
           formData.notes,
           depositStatus
         ];
-
-        // לוג לדיבאג
-        console.log('[DEPOSIT DEBUG] selectedFundId:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
-        console.log('[DEPOSIT DEBUG] INSERT SQL:', `INSERT INTO deposits (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`);
-        console.log('[DEPOSIT DEBUG] INSERT VALUES:', insertValues);
 
         await db.run(
           `INSERT INTO deposits (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`,

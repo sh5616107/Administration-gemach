@@ -373,9 +373,6 @@ export default function Donations() {
           console.log('[DONATION UPDATE DEBUG] NOT adding fund_id - selectedFundId is empty or falsy');
         }
         
-        console.log('[DONATION UPDATE DEBUG] UPDATE SQL:', `UPDATE donations SET ${updateFields.join(', ')} WHERE id = ?`);
-        console.log('[DONATION UPDATE DEBUG] UPDATE VALUES:', updateValues);
-        
         updateValues.push(activeDonation.id);
         
         await db.run(
@@ -396,10 +393,6 @@ export default function Donations() {
           JSON.stringify(paymentMethod),
           selectedFundId || '' // fund_id תמיד בסוף - אם ריק ישתמש בברירת מחדל
         ];
-        
-        console.log('[DONATION DEBUG] selectedFundId:', JSON.stringify(selectedFundId), 'type:', typeof selectedFundId);
-        console.log('[DONATION DEBUG] INSERT SQL:', `INSERT INTO donations (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`);
-        console.log('[DONATION DEBUG] INSERT VALUES:', insertValues);
         
         await db.run(
           `INSERT INTO donations (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`,
