@@ -60,6 +60,7 @@ import DepositSidePanel from '../components/donations/DepositSidePanel';
 import { EditRecurringDialog } from '../components/recurring/EditRecurringDialog';
 import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
 import AmountInput from '../components/AmountInput';
+import FundSelector from '../components/funds/FundSelector';
 
 interface Depositor {
   id: string;

@@ -49,6 +49,7 @@ import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
 import AmountInput from '../components/AmountInput';
 import PaymentMethodSelect, { PaymentMethodData } from '../components/PaymentMethodSelect';
 import AttachmentsSection from '../components/attachments/AttachmentsSection';
+import FundSelector from '../components/funds/FundSelector';
 
 interface Donor {
   id: number;
@@ -124,6 +125,7 @@ export default function Donations() {
     donation_date: new Date().toISOString().split('T')[0],
     notes: '',
   });
+  const [selectedFundId, setSelectedFundId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
 
   // Form state for donor dialog
@@ -271,6 +273,7 @@ export default function Donations() {
       donation_date: new Date().toISOString().split('T')[0],
       notes: '',
     });
+    setSelectedFundId('');
     setPaymentMethod({ payment_method: '' });
     setDonationDialogOpen(true);
   };
@@ -308,36 +311,58 @@ export default function Donations() {
     
     try {
       if (activeDonation?.id) {
+        // עדכון תרומה קיימת
+        const updateFields = [
+          'amount = ?',
+          'donation_date = ?',
+          'notes = ?',
+          'payment_method = ?',
+          'payment_details = ?'
+        ];
+        const updateValues: any[] = [
+          donationForm.amount,
+          donationForm.donation_date,
+          donationForm.notes,
+          paymentMethod.payment_method,
+          JSON.stringify(paymentMethod)
+        ];
+        
+        // הוספת fund_id אם נבחר
+        if (selectedFundId) {
+          updateFields.push('fund_id = ?');
+          updateValues.push(selectedFundId);
+        }
+        
+        updateValues.push(activeDonation.id);
+        
         await db.run(
-          `UPDATE donations SET 
-            amount = ?, 
-            donation_date = ?, 
-            notes = ?,
-            payment_method = ?,
-            payment_details = ?
-          WHERE id = ?`,
-          [
-            donationForm.amount,
-            donationForm.donation_date,
-            donationForm.notes,
-            paymentMethod.payment_method,
-            JSON.stringify(paymentMethod),
-            activeDonation.id
-          ]
+          `UPDATE donations SET ${updateFields.join(', ')} WHERE id = ?`,
+          updateValues
         );
         setSnackbar({ open: true, message: 'התרומה עודכנה בהצלחה', severity: 'success' });
       } else {
+        // תרומה חדשה
+        const insertFields = ['donor_id', 'amount', 'donation_date', 'notes', 'payment_method', 'payment_details'];
+        const insertPlaceholders = ['?', '?', '?', '?', '?', '?'];
+        const insertValues: any[] = [
+          selectedDonor.id,
+          donationForm.amount,
+          donationForm.donation_date,
+          donationForm.notes,
+          paymentMethod.payment_method,
+          JSON.stringify(paymentMethod)
+        ];
+        
+        // הוספת fund_id אם נבחר
+        if (selectedFundId) {
+          insertFields.push('fund_id');
+          insertPlaceholders.push('?');
+          insertValues.push(selectedFundId);
+        }
+        
         await db.run(
-          `INSERT INTO donations (donor_id, amount, donation_date, notes, payment_method, payment_details) 
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            selectedDonor.id,
-            donationForm.amount,
-            donationForm.donation_date,
-            donationForm.notes,
-            paymentMethod.payment_method,
-            JSON.stringify(paymentMethod)
-          ]
+          `INSERT INTO donations (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`,
+          insertValues
         );
         setSnackbar({ open: true, message: 'התרומה נוספה בהצלחה', severity: 'success' });
       }
@@ -1024,6 +1049,12 @@ export default function Donations() {
             label="סכום התרומה *"
             value={donationForm.amount}
             onChange={(value) => setDonationForm({ ...donationForm, amount: value })}
+          />
+
+          <FundSelector
+            value={selectedFundId}
+            onChange={setSelectedFundId}
+            label="קופה"
           />
 
           <TextField

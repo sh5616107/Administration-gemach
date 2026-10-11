@@ -58,6 +58,7 @@ import AmountInput from '../AmountInput'
 import CrossCheckWarningDialog from '../CrossCheckWarningDialog'
 import { checkGuarantorForLoan, checkBorrowerForLoan, type CrossCheckResult } from '../../services/crossCheck'
 import { EditRecurringDialog } from '../recurring/EditRecurringDialog'
+import FundSelector from '../funds/FundSelector'
 
 const emptyLoan: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'> = {
   borrower_id: '',
@@ -87,6 +88,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const [borrowerLoans, setBorrowerLoans] = useState<Loan[]>([])
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
   const [formData, setFormData] = useState<Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'>>(emptyLoan)
+  const [selectedFundId, setSelectedFundId] = useState<string>('')
   const [repayments, setRepayments] = useState<Repayment[]>([])
   const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false)
   const [repaymentAmount, setRepaymentAmount] = useState(0)
@@ -326,6 +328,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
 
   const handleNewLoan = () => {
     setSelectedLoan(null)
+    setSelectedFundId('')
     // Calculate default due date based on settings
     const defaultMonths = parseInt(settings.default_loan_months) || 12
     const defaultLoanType = settings.default_loan_type || 'flexible'
@@ -348,6 +351,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const handleSelectLoan = (loan: Loan) => {
     setSelectedLoan(loan)
     setFormData(loan)
+    setSelectedFundId(loan.fund_id || '')
   }
 
   const handleSave = async () => {
@@ -449,14 +453,21 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         setSnackbar({ open: true, message: 'ההלוואה עודכנה בהצלחה', severity: 'success' })
         onSaved?.() // Call callback to refresh parent
       } else {
-        const result = await loansService.create({
+        const loanData: any = {
           ...formData,
           recurring_loan_number: recurringLoanNumber,
           recurring_loan_count: recurringLoanCount,
           recurring_series_id: formData.is_recurring === 1 ? crypto.randomUUID() : undefined,
           payment_method: loanPaymentMethod.payment_method,
           payment_details: JSON.stringify(loanPaymentMethod),
-        })
+        }
+        
+        // הוספת fund_id אם נבחר
+        if (selectedFundId) {
+          loanData.fund_id = selectedFundId
+        }
+        
+        const result = await loansService.create(loanData)
         
         // If this loan was created from waitlist, approve the entry
         if (waitlistEntry) {
@@ -1502,6 +1513,13 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   onChange={(value) => setFormData({ ...formData, amount: value })}
                   disabled={selectedLoan?.status === 'closed'}
                   helperText={selectedLoan?.status === 'closed' ? 'לא ניתן לשנות סכום של הלוואה שנסגרה (נפרעה במלואה)' : undefined}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <FundSelector
+                  value={selectedFundId}
+                  onChange={setSelectedFundId}
+                  label="קופה"
                 />
               </Grid>
               <Grid item xs={12} md={4}>

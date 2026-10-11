@@ -35,8 +35,8 @@ import {
   DialogActions,
   LinearProgress,
 } from '@mui/material'
-import { 
-  Save as SaveIcon, 
+import {
+  Save as SaveIcon,
   Upload as UploadIcon,
   ExpandMore as ExpandMoreIcon,
   Lock as LockIcon,
@@ -48,6 +48,7 @@ import {
   Description as DescriptionIcon,
   Info as InfoIcon,
   SystemUpdate as UpdateIcon,
+  AccountBalanceWallet,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
 import { isProtectionEnabled, setProtectionEnabled, setUserPassword, getUserPassword, setCustomHint, getCustomHint } from '../services/protection'
@@ -55,6 +56,7 @@ import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
+import FundsManagement from '../components/funds/FundsManagement'
 
 const defaultFieldLabels = {
   borrower_first_name: 'שם פרטי',
@@ -862,6 +864,23 @@ export default function Settings() {
               </Typography>
             </CardContent>
           </Card>
+        </Grid>
+
+        {/* Funds Management - Accordion */}
+        <Grid item xs={12}>
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AccountBalanceWallet /> ניהול קופות
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                נהל קופות מרובות לניהול נפרד של כספי הלוואות, תרומות והפקדות. כל הלוואה/תרומה/הפקדה משויכת לקופה אחת.
+              </Typography>
+              <FundsManagement />
+            </AccordionDetails>
+          </Accordion>
         </Grid>
 
         {/* Field Customization - Accordion */}
