@@ -401,6 +401,30 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       return
     }
 
+    // אזהרה על חריגת יתרה בקופה (רק להלוואות חדשות)
+    if (!selectedLoan && selectedFundId) {
+      try {
+        const { statsService } = await import('../../services/database')
+        const fundStats = await statsService.getStatsByFund(selectedFundId)
+        
+        if (formData.amount > fundStats.availableCash) {
+          const confirmed = await confirmAction(
+            `⚠️ אזהרת חריגת יתרה\n\n` +
+            `סכום ההלוואה (${formData.amount.toLocaleString('he-IL')} ₪) גדול מהכסף הזמין בקופה (${fundStats.availableCash.toLocaleString('he-IL')} ₪).\n\n` +
+            `האם להמשיך בכל זאת?`
+          )
+          
+          if (!confirmed) {
+            setIsSavingLoan(false)
+            return
+          }
+        }
+      } catch (error) {
+        console.error('Error checking fund balance:', error)
+        // ממשיכים גם אם הבדיקה נכשלה
+      }
+    }
+
     // מניעת הגשה כפולה
     if (isSavingLoan) return
     setIsSavingLoan(true)

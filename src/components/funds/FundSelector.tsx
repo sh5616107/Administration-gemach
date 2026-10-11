@@ -14,7 +14,8 @@ interface FundSelectorProps {
   label?: string
   disabled?: boolean
   required?: boolean
-  includeInactive?: boolean  // להצגת קופות מושבתות (בעריכת רשומה קיימת)
+  includeInactive?: boolean  // להצגת קו (בעריכת רשומה קיימת)
+  excludeFundId?: string  // להסתיר קופה מסוימת (בהעברה בין קופות)
 }
 
 export default function FundSelector({ 
@@ -24,6 +25,7 @@ export default function FundSelector({
   disabled = false,
   required = false,
   includeInactive = false,
+  excludeFundId,
 }: FundSelectorProps) {
   const [funds, setFunds] = useState<Fund[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,13 +77,15 @@ export default function FundSelector({
         disabled={disabled || loading}
         required={required}
       >
-        {funds.map((fund) => (
-          <MenuItem key={fund.id} value={fund.id}>
-            {fund.name}
-            {fund.is_default && ' (ברירת מחדל)'}
-            {!fund.is_active && ' (מושבת)'}
-          </MenuItem>
-        ))}
+        {funds
+          .filter(fund => !excludeFundId || fund.id !== excludeFundId)
+          .map((fund) => (
+            <MenuItem key={fund.id} value={fund.id}>
+              {fund.name}
+              {fund.is_default && ' (ברירת מחדל)'}
+              {!fund.is_active && ' (מושבת)'}
+            </MenuItem>
+          ))}
       </Select>
     </FormControl>
   )

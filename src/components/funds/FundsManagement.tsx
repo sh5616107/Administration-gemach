@@ -21,6 +21,7 @@ import {
   Alert,
   FormControlLabel,
   Switch,
+  Stack,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -28,13 +29,16 @@ import {
   Delete as DeleteIcon,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
+  SwapHoriz as TransferIcon,
 } from '@mui/icons-material'
 import { fundsService, type Fund } from '../../services/database'
 import { confirmAction, confirmDeleteMessage } from '../../utils/confirmDialog'
+import TransferFundsDialog from './TransferFundsDialog'
 
 export default function FundsManagement() {
   const [funds, setFunds] = useState<Fund[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [editingFund, setEditingFund] = useState<Fund | null>(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -209,13 +213,24 @@ export default function FundsManagement() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6">ניהול קופות</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
-        >
-          הוסף קופה
-        </Button>
+        <Stack direction="row" spacing={2}>
+          {funds.length > 1 && (
+            <Button
+              variant="outlined"
+              startIcon={<TransferIcon />}
+              onClick={() => setTransferDialogOpen(true)}
+            >
+              העבר בין קופות
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
+          >
+            הוסף קופה
+          </Button>
+        </Stack>
       </Box>
       
       {funds.length === 1 && (
@@ -331,6 +346,16 @@ export default function FundsManagement() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* דיאלוג העברה בין קופות */}
+      <TransferFundsDialog
+        open={transferDialogOpen}
+        onClose={() => setTransferDialogOpen(false)}
+        onTransferred={() => {
+          setSnackbar({ open: true, message: 'הכסף הועבר בהצלחה בין הקופות', severity: 'success' })
+          loadFunds()
+        }}
+      />
 
       <Snackbar
         open={snackbar.open}
