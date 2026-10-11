@@ -1,7 +1,7 @@
 {
-  "version": "4.3.9",
-  "notes": "## שינויים בגרסה זו\n\nעדכונים וטיוטים\n\n### הורדה\nהורד את הקובץ המתאים למערכת ההפעלה שלך מהקבצים למטה.",
-  "pub_date": "2026-08-04T11:28:49.202Z",
+  "version": "4.7.0",
+  "notes": "# גרסה 4.7.0 - שיפורים משמעותיים\n\n## חידושים עיקריים ✨\n\n### 📧 התחברות לחשבון Gmail ושליחת מיילים ישירות מהמערכת\n**מה זה אומר?** עכשיו תוכל לשלוח מיילים תזכורת, התראות ומסמכים ישירות מתוך המערכת ללווים וערבים!\n\n**מה כלול:**\n- התחברות מאובטחת באמצעות Google OAuth (כמו Gmail רגיל)\n- שליחת מיילים תזכורת והתראות בלחיצת כפתור\n- שליחת שטרות, קבלות ומסמכים באימייל אוטומטית\n- שמירה מוצפנת של אישורי גישה במערכת ההפעלה\n- חיסכון בזמן ושיפור השירות ללווים\n\n### 💰 ניהול קובות - למגזר המתקדם\n**מה זה אומר?** אם יש לך יותר מקופה אחת או מספר סניפים, עכשיו תוכל לנהל הכל ממקום אחד!\n\n**מה כלול:**\n- יצירה וניהול של קופות גמ\"ח נפרדות (קופה א', קופה ב', סניף ירושלים, וכו')\n- הקצאת כל הלוואה והפקדה לקופה ספציפית\n- דשבורד מרכזי שמראה את כל הקו\n- דוחות וביקורת נפרדים לכל קופה\n- העברת כספים בין קופות עם בקרה מלאה\n- סינון וחיפוש לפי קופה בכל מקום במערכת\n\n## תיקונים והשבחות 🔧\n- שיפור חישובי יתרות וזמינות בהפקדות\n- עדכון אוטומטי של כרטיסי החזר\n- אופטימיזציה של ביצועים ומהירות\n\n### הורדה והתקנה\nהאפליקציה תתעדכן אוטומטית. כל הנתונים שלך נשמרים ומוגנים.",
+  "pub_date": "2027-01-11T12:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTFFUSHhLUVlZeldRN1dhV21tTjlhRllUaUFGZ1hmdEJHVTBXL2k4UHNONzlFeWE0K2dSZ2ROSHdmUG1ORW1TdW95QkRkTGYxbU9HZzl1U2U1UVNvSzhGQ2FKWXpsNWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1ODQyOTI3CWZpbGU6Z2VtYWNoLW1hbmFnZXJfNC4zLjlfeDY0LXNldHVwLmV4ZQpRdUtDWjNCWmMyR0cxQ3ZPQ3grQVEzdGdlaDZLZ3o5aUxlT0p6eGVKOHV1bEFYa2MrVnNTOWVpYU5qVnF4SXVlTmlNMHFLV1JFQnRZTUF2ZlZKMzhCZz09Cg==",
