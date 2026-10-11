@@ -161,8 +161,8 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
           recalculatedStatus
         ];
 
-        // הוספת fund_id אם נבחר
-        if (selectedFundId) {
+        // הוספת fund_id אם נבחר (בדיקה מפורשת לא-ריק)
+        if (selectedFundId && selectedFundId.trim() !== '') {
           updateFields.push('fund_id = ?');
           updateValues.push(selectedFundId);
         }
@@ -211,8 +211,8 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
           depositStatus
         ];
 
-        // הוספת fund_id אם נבחר
-        if (selectedFundId) {
+        // הוספת fund_id אם נבחר (בדיקה מפורשת לא-ריק)
+        if (selectedFundId && selectedFundId.trim() !== '') {
           insertFields.push('fund_id');
           insertPlaceholders.push('?');
           insertValues.push(selectedFundId);
