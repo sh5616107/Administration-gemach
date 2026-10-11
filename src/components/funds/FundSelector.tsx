@@ -14,6 +14,7 @@ interface FundSelectorProps {
   label?: string
   disabled?: boolean
   required?: boolean
+  includeInactive?: boolean  // להצגת קופות מושבתות (בעריכת רשומה קיימת)
 }
 
 export default function FundSelector({ 
@@ -22,18 +23,32 @@ export default function FundSelector({
   label = 'קופה',
   disabled = false,
   required = false,
+  includeInactive = false,
 }: FundSelectorProps) {
   const [funds, setFunds] = useState<Fund[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadFunds()
-  }, [])
+  }, [includeInactive])
 
   const loadFunds = async () => {
     try {
-      const activeFunds = await fundsService.getActive()
-      setFunds(activeFunds)
+      let allFunds
+      if (includeInactive) {
+        allFunds = await fundsService.getAll()
+      } else {
+        allFunds = await fundsService.getActive()
+      }
+      setFunds(allFunds)
+      
+      // בחירה אוטומטית של ברירת מחדל אם אין ערך
+      if (!value && allFunds.length > 0) {
+        const defaultFund = allFunds.find(f => f.is_default)
+        if (defaultFund) {
+          onChange(defaultFund.id)
+        }
+      }
     } catch (error) {
       console.error('Error loading funds:', error)
     } finally {
@@ -41,8 +56,8 @@ export default function FundSelector({
     }
   }
 
-  // מוסתר אם יש רק קופה אחת
-  if (funds.length <= 1 || loading) {
+  // מוסתר אם יש רק קופה אחת (אלא אם includeInactive=true)
+  if (!loading && funds.length <= 1 && !includeInactive) {
     return null
   }
 
@@ -57,13 +72,14 @@ export default function FundSelector({
         value={value || ''}
         label={label}
         onChange={handleChange}
-        disabled={disabled}
+        disabled={disabled || loading}
         required={required}
       >
         {funds.map((fund) => (
           <MenuItem key={fund.id} value={fund.id}>
             {fund.name}
             {fund.is_default && ' (ברירת מחדל)'}
+            {!fund.is_active && ' (מושבת)'}
           </MenuItem>
         ))}
       </Select>
