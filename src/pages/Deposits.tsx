@@ -52,7 +52,7 @@ import {
 } from '@mui/icons-material';
 import { db, depositWithdrawalsService, depositsService } from '../services/database';
 import { confirmAction, confirmDeleteMessage } from '../utils/confirmDialog';
-import { generateDepositorReport, generateDepositDocument, openEmailWithDocument, createDepositorReportEmailData, EmailProvider } from '../services/documents';
+import { generateDepositorReport, generateDepositDocument, openEmailWithDocument, createDepositorReportEmailData, createDepositEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
 import { getDocumentLayout } from '../utils/documentLayoutHelper';
 import DepositorSidePanel from '../components/donations/DepositorSidePanel';
@@ -590,6 +590,61 @@ export default function Deposits() {
     }
   };
 
+  // שליחת שטר ההפקדה במייל למפקיד (אותו מסמך כמו כפתור ההדפסה, מצורף כ-PDF)
+  const handleSendDepositEmail = async (deposit: Deposit) => {
+    if (!selectedDepositor) return;
+    if (!selectedDepositor.email) {
+      setSnackbar({ open: true, message: 'למפקיד זה לא הוזנה כתובת מייל', severity: 'error' });
+      return;
+    }
+
+    try {
+      const withdrawals = await depositWithdrawalsService.getByDeposit(deposit.id);
+
+      const emailData = createDepositEmailData({
+        gemachName: settings.gemach_name || 'גמ"ח',
+        gemachLogo: settings.gemach_logo,
+        gemachDocumentFrame: settings.gemach_document_frame,
+        frameMarginTop: settings.gemach_frame_margin_top,
+        frameMarginBottom: settings.gemach_frame_margin_bottom,
+        frameMarginRight: settings.gemach_frame_margin_right,
+        frameMarginLeft: settings.gemach_frame_margin_left,
+        depositorName: `${selectedDepositor.first_name} ${selectedDepositor.last_name}`,
+        depositorEmail: selectedDepositor.email,
+        amount: deposit.amount,
+        depositDate: deposit.deposit_date,
+        periodType: deposit.period_type,
+        dueDate: deposit.due_date,
+        dateFormat: settings.date_format,
+        isRecurring: deposit.is_recurring === 1,
+        recurringDepositNumber: deposit.recurring_deposit_number,
+        recurringDepositCount: deposit.recurring_deposit_count,
+        withdrawals: withdrawals.map(w => ({ amount: w.amount, withdrawal_date: w.withdrawal_date })),
+      }, depositReceiptLayout);
+
+      const provider = (settings.email_provider || 'gmail') as EmailProvider;
+      const result = await openEmailWithDocument(emailData, provider);
+      // ביטול בחלון העריכה הוא החלטת משתמש, לא שגיאה — לא מציגים הודעה
+      if (result.cancelled) return;
+      setSnackbar({ open: true, message: result.message, severity: result.success ? 'success' : 'error' });
+    } catch (error) {
+      console.error('Error sending deposit email:', error);
+      setSnackbar({ open: true, message: 'שגיאה בשליחת המייל', severity: 'error' });
+    }
+  };
+
+  // לחיצה על כתובת המייל של המפקיד: חלון עריכה (או חלון המייל של הספק) — לא שולחת בלי אישור
+  const handleOpenDepositorEmail = async (email: string) => {
+    const provider = (settings.email_provider || 'gmail') as EmailProvider;
+    const result = await openEmailWithDocument(
+      { to: email, subject: '', body: '', documentType: 'depositor_report' },
+      provider
+    );
+    if (!result.success && !result.cancelled) {
+      setSnackbar({ open: true, message: result.message, severity: 'error' });
+    }
+  };
+
   const formatCurrency = (amount: number) => `₪${amount.toLocaleString()}`;
 
   return (
@@ -1037,6 +1092,22 @@ export default function Deposits() {
                               </IconButton>
                             </Tooltip>
                             
+                            {selectedDepositor?.email && (
+                              <Tooltip title="שלח שטר במייל">
+                                <IconButton
+                                  size="small"
+                                  color="info"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendDepositEmail(deposit);
+                                  }}
+                                  sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                                >
+                                  <EmailIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+
                             <Tooltip title="היסטוריית משיכות">
                               <IconButton
                                 size="small"
@@ -1119,7 +1190,12 @@ export default function Deposits() {
                   {selectedDepositor.email && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <EmailIcon fontSize="small" color="action" />
-                      <Typography>{selectedDepositor.email}</Typography>
+                      <Typography
+                        onClick={() => handleOpenDepositorEmail(selectedDepositor.email!)}
+                        sx={{ color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        {selectedDepositor.email}
+                      </Typography>
                     </Box>
                   )}
                   {selectedDepositor.id_number && (
