@@ -5,6 +5,7 @@
  * ומספק API אחיד לעבודה עם אנשי קשר במערכת הגמ"ח.
  */
 
+import { toLocalDateStr } from '../utils/localDate'
 import {
   UnifiedContact,
   ContactRole,
@@ -893,7 +894,7 @@ export async function convertDepositToDonation(depositId: number, contactPhone: 
   }
 
   // יצירת תרומה
-  const donationDate = new Date().toISOString().split('T')[0]
+  const donationDate = toLocalDateStr()
   
   // אם אין donor_id, צריך ליצור רשומת תורם
   let donorId = contact.donor_id

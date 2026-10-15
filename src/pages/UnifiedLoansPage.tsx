@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
@@ -80,7 +81,7 @@ function calculateNextDueDate(repaymentDay?: number): string | undefined {
   
   // אם היום עדיין לא חלף החודש
   if (today.getDate() <= effectiveDay) {
-    return new Date(year, month, effectiveDay).toISOString().split('T')[0];
+    return toLocalDateStr(new Date(year, month, effectiveDay));
   }
   
   // התאריך כבר עבר החודש - עובר לחודש הבא
@@ -90,7 +91,7 @@ function calculateNextDueDate(repaymentDay?: number): string | undefined {
   const lastDayOfNextMonth = new Date(nextYear, actualNextMonth + 1, 0).getDate();
   const effectiveDayNextMonth = Math.min(repaymentDay, lastDayOfNextMonth);
   
-  return new Date(nextYear, actualNextMonth, effectiveDayNextMonth).toISOString().split('T')[0];
+  return toLocalDateStr(new Date(nextYear, actualNextMonth, effectiveDayNextMonth));
 }
 
 interface UnifiedLoansPageProps {
@@ -534,7 +535,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
     setIsSubmittingMultiRepayment(true);
     
     try {
-      const activeLoans = loans.filter(l => (l.remaining || 0) > 0 && l.loan_date <= new Date().toISOString().split('T')[0]);
+      const activeLoans = loans.filter(l => (l.remaining || 0) > 0 && l.loan_date <= toLocalDateStr());
       
       if (activeLoans.length === 0) {
         setSnackbar({ open: true, message: 'אין הלוואות פעילות', severity: 'error' });
@@ -542,7 +543,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       }
       
       let remainingAmount = multiRepaymentAmount;
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalDateStr();
       
       // Sort by oldest first
       activeLoans.sort((a, b) => a.loan_date.localeCompare(b.loan_date));
@@ -721,7 +722,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                   >
                     סינון {hasActiveFilters && `(${filteredLoans.length}/${loans.length})`}
                   </Button>
-                  {loans.some(loan => (loan.remaining || 0) > 0 && loan.loan_date <= new Date().toISOString().split('T')[0]) && (
+                  {loans.some(loan => (loan.remaining || 0) > 0 && loan.loan_date <= toLocalDateStr()) && (
                     <Button
                       variant="outlined"
                       color="secondary"
@@ -1022,7 +1023,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                                     }}
                                   >
                                     {/* Add repayment button - show for all active loans (not planned) */}
-                                    {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= new Date().toISOString().split('T')[0] && (
+                                    {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= toLocalDateStr() && (
                                       <Tooltip title="הוסף פירעון">
                                         <IconButton
                                           size="small"
@@ -1151,7 +1152,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                           )}
 
                           {/* Add repayment button - show for all active loans (not planned) */}
-                          {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= new Date().toISOString().split('T')[0] && (
+                          {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= toLocalDateStr() && (
                             <Tooltip title="הוסף פירעון">
                               <IconButton
                                 size="small"

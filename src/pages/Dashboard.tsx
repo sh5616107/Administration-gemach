@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -276,7 +277,7 @@ export default function Dashboard() {
   const fetchScheduledLoans = async () => {
     setDialogLoading(true)
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = toLocalDateStr()
       const allLoans = await loansService.getAll() as any[]
       const borrowers = await borrowersService.getAll()
       const existingBorrowerIds = new Set(borrowers.map(b => b.id))
@@ -468,7 +469,7 @@ export default function Dashboard() {
       label: 'סטטוס',
       align: 'center' as const,
       format: (deposit: any) => {
-        const today = new Date().toISOString().split('T')[0]
+        const today = toLocalDateStr()
         if (deposit.status === 'planned' || deposit.deposit_date > today) {
           return 'מתוכננת'
         } else if (deposit.status === 'withdrawn') {

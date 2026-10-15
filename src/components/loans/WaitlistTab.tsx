@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../../utils/localDate'
 import { useState, useEffect } from 'react'
 import {
   Box,
@@ -439,7 +440,7 @@ export default function WaitlistTab() {
         
         // צור רשימה של הפקדות עתידיות עד 3 חודשים
         while (currentDate <= threeMonths && nextDeposits.length < 10) {
-          nextDeposits.push(currentDate.toISOString().split('T')[0])
+          nextDeposits.push(toLocalDateStr(currentDate))
           currentDate = new Date(currentDate)
           currentDate.setMonth(currentDate.getMonth() + recurringMonths)
         }
@@ -527,7 +528,7 @@ export default function WaitlistTab() {
             futureDate = new Date(futureDate)
             futureDate.setMonth(futureDate.getMonth() + recurringMonths)
             if (futureDate <= threeMonths) {
-              futureDates.push(futureDate.toISOString().split('T')[0])
+              futureDates.push(toLocalDateStr(futureDate))
             }
           }
           
@@ -656,7 +657,7 @@ export default function WaitlistTab() {
         await waitlistService.create({
           borrower_id: selectedBorrower.id,
           requested_amount: requestedAmount,
-          request_date: new Date().toISOString().split('T')[0],
+          request_date: toLocalDateStr(),
           loan_type: loanType,
           requested_months: requestedMonths,
           notes,

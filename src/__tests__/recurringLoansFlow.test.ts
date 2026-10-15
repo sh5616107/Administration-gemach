@@ -70,7 +70,7 @@ describe('Recurring Loans Flow - Complete Cycle', () => {
         recurring_loan_count: 12, // נשאר אותו דבר
         guarantor1_id: 10,
         guarantor2_id: 20,
-      })
+      }), { allowInactiveFund: true }
     )
 
     // בדיקה שההלוואה המקורית עודכנה
@@ -116,7 +116,7 @@ describe('Recurring Loans Flow - Complete Cycle', () => {
         recurring_loan_number: 3, // 2+1=3
         recurring_loan_count: 12, // נשאר אותו דבר
         recurring_months: 9, // 10-1=9
-      })
+      }), { allowInactiveFund: true }
     )
 
     // בדיקה שההלוואה השנייה עודכנה
@@ -157,7 +157,7 @@ describe('Recurring Loans Flow - Complete Cycle', () => {
         recurring_loan_number: 12, // 11+1=12
         recurring_loan_count: 12,
         recurring_months: 0, // 1-1=0 - זו ההלוואה האחרונה!
-      })
+      }), { allowInactiveFund: true }
     )
 
     // בדיקה שההלוואה ה-11 עודכנה
@@ -241,7 +241,7 @@ describe('Recurring Loans Flow - Complete Cycle', () => {
         repayment_amount: 1000,
         repayment_day: 25,
         repayment_start_date: '2026-01-25',
-      })
+      }), { allowInactiveFund: true }
     )
 
     // בדיקה שההערות כוללות התייחסות להלוואה המקורית
@@ -279,7 +279,7 @@ describe('Recurring Loans Flow - Complete Cycle', () => {
       expect.objectContaining({
         loan_date: '2026-02-28',
         recurring_day: 31, // נשאר 31 למרות שהתאריך הוא 28
-      })
+      }), { allowInactiveFund: true }
     )
   })
 
@@ -322,7 +322,7 @@ describe('Recurring Loans Flow - Complete Cycle', () => {
             recurring_loan_number: month + 1,
             recurring_loan_count: 12,
             recurring_months: 12 - month - 1,
-          })
+          }), { allowInactiveFund: true }
         )
 
         currentLoanId++
@@ -376,7 +376,7 @@ describe('Recurring Loans Flow - Complete Cycle', () => {
         repayment_amount: 1000,
         repayment_day: 25,
         repayment_start_date: '2026-01-25',
-      })
+      }), { allowInactiveFund: true }
     )
   })
 })

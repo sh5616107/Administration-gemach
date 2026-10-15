@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../../utils/localDate'
 import { useState, useEffect } from 'react'
 import {
   Box,
@@ -132,7 +133,7 @@ export default function GuarantorsTab() {
 
   const isDueDateReached = (dueDate?: string) => {
     if (!dueDate) return false
-    return dueDate <= new Date().toISOString().split('T')[0]
+    return dueDate <= toLocalDateStr()
   }
 
   const loadGuarantorLoans = async () => {
@@ -369,7 +370,7 @@ export default function GuarantorsTab() {
       await guarantorLoansService.addRepayment(
         selectedGuarantorLoan.id,
         amount,
-        new Date().toISOString().split('T')[0]
+        toLocalDateStr()
       )
       setSnackbar({ open: true, message: 'התשלום נרשם בהצלחה', severity: 'success' })
       setRepaymentDialogOpen(false)
@@ -411,7 +412,7 @@ export default function GuarantorsTab() {
           // תמיד מחזירים לסטטוס overdue, לא משנה מה הסטטוס הנוכחי
           await loansService.update(glToDelete.original_loan_id, { 
             status: 'overdue',
-            notes: (originalLoan.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] הוחזר מערב לסטטוס באיחור`
+            notes: (originalLoan.notes || '') + `\n[${toLocalDateStr()}] הוחזר מערב לסטטוס באיחור`
           })
           setSnackbar({ 
             open: true, 

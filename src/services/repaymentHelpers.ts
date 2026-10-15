@@ -3,6 +3,7 @@
  * משותף לשימוש ב-AlertsDialog, UnifiedLoansPage ומקומות נוספים
  */
 
+import { toLocalDateStr } from '../utils/localDate'
 import { repaymentsService, loansService } from './database'
 import { calculateNextRepaymentNumber } from './recurringRepaymentsService'
 
@@ -62,7 +63,7 @@ export async function createRepaymentWithNumbering(params: CreateRepaymentParams
    await repaymentsService.create({
     loan_id: loanId,
     amount,
-    payment_date: paymentDate || new Date().toISOString().split('T')[0],
+    payment_date: paymentDate || toLocalDateStr(),
     payment_method: paymentMethod,
     payment_details: paymentDetails,
     notes,

@@ -1,10 +1,14 @@
-import { commitData, fundsService, getAllItems, setItem } from '../database'
+import { commitData, exportAllData, fundsService, getAllItems, importAllData, setItem } from '../database'
 import { saveAppData, loadAppData } from '../persistence'
 import logger from '../../utils/logger'
 
 const MIGRATION_KEY = 'funds_migration_v1_completed'
 const SCHEMA_VERSION_KEY = 'schema_version'
 const CURRENT_SCHEMA_VERSION = '2.0.0'
+
+// עותק מלא של הנתונים שנלקח לפני המיגרציה. נשמר בזיכרון (לא ב-localStorage שמוגבל
+// בגודל) ומשמש ל-rollback אמיתי אם המיגרציה נכשלת.
+let preMigrationSnapshot: any | null = null
 
 /**
  * מיגרציה למערכת קופות מרובות
@@ -51,8 +55,13 @@ async function createBackupBeforeMigration(): Promise<void> {
   logger.info('💾 Creating backup before migration...')
   
   try {
-    // שמירת דגל בלבד - לא עותק מלא של המסד
-    // המנגנון הקיים של הגיבוי כבר מטפל בזה (fullBackupService)
+    // עותק מלא של הנתונים כפי שהם שמורים בדיסק (ואם אין - מהזיכרון), כדי שה-rollback
+    // ישחזר את מצב האמת ולא יידרס בנתונים ריקים שנטענו עדיין.
+    const persisted = await loadAppData()
+    const source = persisted ?? await exportAllData()
+    preMigrationSnapshot = JSON.parse(JSON.stringify(source))
+
+    // סימון בלבד ב-localStorage (חותמת זמן) - העותק עצמו בזיכרון
     const backupKey = `gemach_backup_pre_funds_migration_${Date.now()}`
     localStorage.setItem(backupKey, new Date().toISOString())
     
@@ -134,21 +143,16 @@ async function attemptRollback(): Promise<void> {
   logger.info('🔄 Attempting rollback...')
   
   try {
-    // מצא את הגיבוי האחרון
-    const backupKeys = Object.keys(localStorage)
-      .filter(k => k.startsWith('gemach_backup_pre_funds_migration_'))
-      .sort()
-      .reverse()
-    
-    if (backupKeys.length === 0) {
+    if (!preMigrationSnapshot) {
       throw new Error('לא נמצא גיבוי לשחזור')
     }
 
-    const latestBackup = backupKeys[0]
-    const backupData = JSON.parse(localStorage.getItem(latestBackup)!)
-    
-    await saveAppData(backupData)
-    logger.info('✅ Rollback successful from:', latestBackup)
+    // שחזור אמיתי: גם הדיסק וגם הזיכרון חוזרים למצב שלפני המיגרציה
+    const snapshot = JSON.parse(JSON.stringify(preMigrationSnapshot))
+    await saveAppData(snapshot)
+    await importAllData(snapshot)
+    await commitData()
+    logger.info('✅ Rollback successful from in-memory snapshot')
   } catch (error) {
     logger.error('❌ Rollback failed:', error)
     throw new Error('שחזור מגיבוי נכשל. אנא שחזר גיבוי ידני.')

@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect } from 'react'
 import {
   Dialog,
@@ -46,7 +47,7 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     amount: '',
-    refund_date: new Date().toISOString().split('T')[0],
+    refund_date: toLocalDateStr(),
     paymentMethod: {
       payment_method: 'cash' as const,
     } as PaymentMethodData,
@@ -183,7 +184,7 @@ export function GuarantorRefundDialog({ open, onClose, guarantorLoan: initialGua
   const resetForm = () => {
     setFormData({
       amount: '',
-      refund_date: new Date().toISOString().split('T')[0],
+      refund_date: toLocalDateStr(),
       paymentMethod: { payment_method: 'cash' },
       notes: ''
     })

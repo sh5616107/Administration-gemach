@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { loansService, repaymentsService, borrowersService, db, getAllItems, flushPendingSave } from './database'
 import { loanRepository } from './repositories/loanRepository'
 import { repaymentRepository } from './repositories/repaymentRepository'
@@ -116,7 +117,7 @@ function getLastMissedLoanRepairDate(loanId: string): string | null {
 function markMissedLoanRepairAttempt(loanId: string): void {
   try {
     const log = JSON.parse(localStorage.getItem(MISSED_LOANS_REPAIR_KEY) || '{}')
-    log[loanId] = new Date().toISOString().split('T')[0]
+    log[loanId] = toLocalDateStr()
     localStorage.setItem(MISSED_LOANS_REPAIR_KEY, JSON.stringify(log))
   } catch (e) {
     console.error('[REPAIR-LOG] Error marking repair attempt:', e)
@@ -135,13 +136,13 @@ export async function checkRecurringLoans(): Promise<Alert[]> {
   const alerts: Alert[] = []
   const today = new Date()
   const todayDay = today.getDate()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = toLocalDateStr(today)
   
   // Get last day of current month
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   
   // Get the first day of current month
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+  const firstDayOfMonth = toLocalDateStr(new Date(today.getFullYear(), today.getMonth(), 1))
 
   try {
     // Get all loans with recurring enabled and active status
@@ -237,13 +238,13 @@ export async function checkAutoRepayments(): Promise<Alert[]> {
   const alerts: Alert[] = []
   const today = new Date()
   const todayDay = today.getDate()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = toLocalDateStr(today)
   
   // Get last day of current month
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   
   // Get the first day of current month
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+  const firstDayOfMonth = toLocalDateStr(new Date(today.getFullYear(), today.getMonth(), 1))
 
   try {
     // Get all loans with auto repayment enabled
@@ -311,7 +312,7 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
       return false
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     
     // חישוב מספר ההלוואה המחזורית
     // אם ההלוואה המקורית היא 1/12 ויש לה recurring_months=11
@@ -367,7 +368,7 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
       repayment_day: loan.repayment_day,
       repayment_start_date: loan.repayment_start_date,
       notes: `הלוואה מחזורית מהלוואה #${originalLoanId} (${newLoanNumber}/${totalCount})`
-    })
+    }, { allowInactiveFund: true })  // המשך סדרה קיימת באותה קופה גם אם הושבתה
 
     // Update original loan to reduce recurring months
     // ⚠️ CRITICAL: Do NOT update recurring_loan_number of the original loan!
@@ -386,7 +387,7 @@ export async function createRecurringLoan(originalLoanId: string): Promise<boole
 // Process an auto repayment
 export async function processAutoRepayment(loanId: string, amount: number): Promise<boolean> {
   try {
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     
     // Get loan details to calculate repayment number
     const loan = await loansService.getById(loanId) as any
@@ -526,7 +527,7 @@ export async function autoCreateRecurringLoans(): Promise<void> {
   }, AUTO_CREATE_LOCK_TIMEOUT)
   
   const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = toLocalDateStr(today)
   const day = today.getDate()
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   
@@ -600,7 +601,7 @@ export async function autoCreateRecurringLoans(): Promise<void> {
       }
       
       // Get the first day of current month
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+      const firstDayOfMonth = toLocalDateStr(new Date(today.getFullYear(), today.getMonth(), 1))
       
       // Now check if the NEXT loan in sequence already exists
       // Check in ALL loans (including deleted) to see if loan was created and then deleted
@@ -679,7 +680,7 @@ export async function autoCreateRecurringLoans(): Promise<void> {
 // Auto-create recurring deposits that are due today
 export async function autoCreateRecurringDeposits(): Promise<void> {
   const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = toLocalDateStr(today)
   const day = today.getDate()
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   
@@ -761,7 +762,7 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
       }
       
       // Get the first day of current month
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+      const firstDayOfMonth = toLocalDateStr(new Date(today.getFullYear(), today.getMonth(), 1))
       
       // Check in ALL deposits (including deleted) to see if deposit was created and then deleted
       const existingDepositThisMonth = allDepositsIncludingDeleted.find((d: any) => 
@@ -802,7 +803,7 @@ export async function autoCreateRecurringDeposits(): Promise<void> {
 
 // Activate planned loans that have reached their loan date
 export async function activatePlannedLoans(): Promise<number> {
-  const today = new Date().toISOString().split('T')[0]
+  const today = toLocalDateStr()
   let activatedCount = 0
   
   console.log('[SCHEDULER] activatePlannedLoans called, today:', today)
@@ -836,7 +837,7 @@ export async function activatePlannedLoans(): Promise<number> {
 
 // Activate planned deposits that have reached their deposit date
 export async function activatePlannedDeposits(): Promise<number> {
-  const today = new Date().toISOString().split('T')[0]
+  const today = toLocalDateStr()
   let activatedCount = 0
   
   console.log('[SCHEDULER] activatePlannedDeposits called, today:', today)
@@ -869,7 +870,7 @@ export async function activatePlannedDeposits(): Promise<number> {
 // Check for planned loans that become active today (for alerts)
 export async function checkPlannedLoansToday(): Promise<Alert[]> {
   const alerts: Alert[] = []
-  const today = new Date().toISOString().split('T')[0]
+  const today = toLocalDateStr()
   
   try {
     const loans = await loansService.getAll()
@@ -902,7 +903,7 @@ export async function checkRecurringDeposits(): Promise<Alert[]> {
   const alerts: Alert[] = []
   const today = new Date()
   const todayDay = today.getDate()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = toLocalDateStr(today)
   
   // Get last day of current month
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
@@ -1009,7 +1010,7 @@ export async function createRecurringDeposit(originalDepositId: string): Promise
     // ✅ תיקון: שימוש ב-depositRepository במקום db.query
     const deposit = await depositRepository.getById(originalDepositId)
     if (!deposit) return false
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     
     // ✅ תיקון באג 3: מציאת ההפקדה האחרונה במשפחה (לפי recurring_deposit_number הגבוה ביותר)
     // כדי לחשב נכון את המספר הבא

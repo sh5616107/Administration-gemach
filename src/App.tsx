@@ -1,3 +1,4 @@
+import { toLocalDateStr } from './utils/localDate'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +36,7 @@ const BankDebugPage = lazy(() => import('./pages/bank/BankDebugPage'))
 import { exportAllData } from './services/database'
 import { isProtectionEnabled, checkAuthenticated } from './services/protection'
 import { runPendingMigrations } from './services/migrations'
-import { runStartupChecks } from './services/scheduler'
+import { runStartupChecks, activatePlannedLoans, activatePlannedDeposits } from './services/scheduler'
 import localforage from 'localforage'
 import UpdateChecker from './components/UpdateChecker'
 
@@ -84,7 +85,7 @@ async function checkAutoBackup() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `gemach_auto_backup_${now.toISOString().split('T')[0]}.json`
+      a.download = `gemach_auto_backup_${toLocalDateStr(now)}.json`
       a.click()
       URL.revokeObjectURL(url)
 
@@ -135,6 +136,16 @@ function App() {
     
     // Check auto backup on app start
     checkAutoBackup()
+  }, [])
+
+  // הפעלת הלוואות/הפקדות מתוכננות שתאריכן הגיע - גם כשהתוכנה נשארת פתוחה לאורך
+  // חצות. קודם זה קרה רק בהפעלת התוכנה, והסטטוס נשאר planned עד הפעלה מחדש.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      activatePlannedLoans().catch(err => console.error('[APP] activatePlannedLoans error:', err))
+      activatePlannedDeposits().catch(err => console.error('[APP] activatePlannedDeposits error:', err))
+    }, 10 * 60 * 1000)
+    return () => window.clearInterval(intervalId)
   }, [])
 
   const handleUnlock = () => {

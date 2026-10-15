@@ -3,6 +3,7 @@
  * טעינת אירועים פיננסיים לתצוגה בלוח השנה
  */
 
+import { toLocalDateStr } from '../utils/localDate'
 import { loansService, Loan, repaymentsService, depositorsService } from './database'
 import { db } from './database'
 import { repaymentRepository } from './repositories/repaymentRepository'
@@ -303,7 +304,7 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
       events.push({
         id: `recurring_deposit_${deposit.id}_${year}_${month}`,
         type: 'recurring_deposit',
-        date: eventDate.toISOString().split('T')[0],
+        date: toLocalDateStr(eventDate),
         title: 'הפקדה מחזורית',
         description: `הפקדה של ${deposit.depositor_name || ''}`,
         amount: deposit.amount,

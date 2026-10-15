@@ -1,6 +1,7 @@
 // Simple JSON file storage
 // Uses localStorage with manual backup/restore to JSON file
 
+import { toLocalDateStr } from '../utils/localDate'
 import type { Attachment, AttachmentEntityType } from '../types/attachments'
 import logger from '../utils/logger'
 import { depositRepository } from './repositories/depositRepository'
@@ -1044,6 +1045,39 @@ export const guarantorsService = {
 }
 
 
+// ---------------------------------------------------------------------------
+// הגדרות משותפות ל"הלוואה יוצאת" / "הלוואה מתוכננת" - מקור אמת יחיד לכל חישובי
+// הכסף הזמין. הסטטוס planned->active מתעדכן רק בהפעלת התוכנה (scheduler), לכן
+// החישוב לא נשען עליו: הלוואה שתאריכה הגיע נחשבת יוצאת גם אם הסטטוס עוד planned,
+// והלוואה overdue (סטטוס חוקי לפי הוולידטור) נחשבת יוצאת כל עוד יש לה יתרה.
+// ---------------------------------------------------------------------------
+export function isOutstandingLoan(
+  l: { status: string; loan_date: string; remaining?: number },
+  today: string
+): boolean {
+  return (
+    (l.status === 'active' || l.status === 'overdue' || l.status === 'planned') &&
+    l.loan_date <= today &&
+    (l.remaining || 0) > 0
+  )
+}
+
+export function isPlannedLoan(l: { status: string; loan_date: string }, today: string): boolean {
+  return l.status !== 'closed' && l.loan_date > today
+}
+
+/**
+ * חסימה בשכבת השירות: אי אפשר ליצור רשומות חדשות בקופה שאינה פעילה.
+ * (קודם החסימה הייתה רק ב-UI, ולכן ייבוא/סקריפטים/יצירה אוטומטית עקפו אותה.)
+ * קופה שלא קיימת בכלל לא נחסמת כאן - ensureFundsIntegrity מטפל בה.
+ */
+function assertFundAcceptsNewRecords(fundId: string): void {
+  const fund = getItem<Fund>('funds', fundId)
+  if (fund && !fund.is_deleted && !fund.is_active) {
+    throw new Error(`הקופה "${fund.name}" אינה פעילה - לא ניתן ליצור בה רשומות חדשות`)
+  }
+}
+
 // Loans Service
 export interface Loan { 
   id: string;  // UUID (technical primary key)
@@ -1108,7 +1142,7 @@ export const loansService = {
     } 
     return l 
   },
-  async create(l: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'> & { fund_id?: string }): Promise<{ lastInsertRowid: string }> { 
+  async create(l: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'> & { fund_id?: string }, options?: { allowInactiveFund?: boolean }): Promise<{ lastInsertRowid: string }> { 
     // אם לא צוין fund_id, השתמש בקופת ברירת מחדל
     let fundId = l.fund_id
     if (!fundId) {
@@ -1127,6 +1161,10 @@ export const loansService = {
       }
     }
     
+    // הלוואה חדשה לא נוצרת בקופה מושבתת. חריג מפורש: המשך סדרת הלוואות מחזוריות
+    // קיימת (scheduler) ממשיך באותה קופה כדי לא לשבור את הסדרה באמצע.
+    if (!options?.allowInactiveFund) assertFundAcceptsNewRecords(fundId)
+
     const id = generateId('loans'); 
     const loan_number = generateNumericId('loans'); 
     const status = new Date(l.loan_date) > new Date() ? 'planned' : 'active'; 
@@ -1189,7 +1227,7 @@ export const loansService = {
     await flushPendingSave()
   },
   async delete(id: string): Promise<void> { const e = await this.getById(id); if (e) { setItem('loans', id, { ...e, is_deleted: true, deleted_at: new Date().toISOString() }); await flushPendingSave() }; await attachmentsService.softDeleteByEntity('loan', id) },
-  async getOverdue(): Promise<Loan[]> { const t = new Date().toISOString().split('T')[0]; return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
+  async getOverdue(): Promise<Loan[]> { const t = toLocalDateStr(); return (await this.getAll()).filter(l => l.loan_type === 'fixed' && l.due_date && l.due_date < t && (l.status === 'active' || l.status === 'overdue') && (l.remaining || 0) > 0 && l.auto_repayment !== 1) },
   
   /**
    * פונקציה מרכזית לקבלת הלוואות פעילות ללווים קיימים בלבד
@@ -1202,13 +1240,11 @@ export const loansService = {
     const allLoans = await this.getAll()
     const borrowers = await borrowersService.getAll()
     const existingBorrowerIds = new Set(borrowers.map(b => b.id))
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     
     return allLoans
       .filter(l => 
-        l.status === 'active' && 
-        l.loan_date <= today &&
-        (l.remaining || 0) > 0 &&
+        isOutstandingLoan(l, today) &&
         existingBorrowerIds.has(l.borrower_id)
       )
       .sort((a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime())
@@ -1303,16 +1339,14 @@ export const repaymentsService = {
 // Stats Service
 export const statsService = {
   async getDashboardStats() {
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     
     // שימוש בפונקציה המרכזית
     const activeWithBalance = await loansService.getActiveLoansForExistingBorrowers()
     
     // הלוואות מתוכננות
     const allLoans = await loansService.getAll()
-    const planned = allLoans.filter(l => 
-      (l.status === 'planned' || l.loan_date > today)
-    )
+    const planned = allLoans.filter(l => isPlannedLoan(l, today))
     
     // ✅ תיקון קריטי: שימוש ב-depositRepository במקום db.query
     // db.query מחזיר גם רשומות מחוקות!
@@ -1342,8 +1376,10 @@ export const statsService = {
       totalDeposits += (depositAmount - totalWithdrawn)
     }
     
-    const dons = getAllItems<{ amount: number }>('donations')
-    const expenses = getAllItems<{ amount: number; paid_by: string }>('expenses')
+    // תרומות/הוצאות שנמחקו (soft delete) לא נספרות - אותו סינון כמו ב-getStatsByFund,
+    // כדי שהסכום הכללי בדף הבית יהיה שווה לסכום הקופות.
+    const dons = await donationsService.getAll()
+    const expenses = await expensesService.getAll()
     const gemachExpenses = expenses.filter(e => e.paid_by === 'gemach').reduce((s, e) => s + e.amount, 0)
     
     const result = {
@@ -1392,18 +1428,19 @@ export const statsService = {
   async getActiveBorrowers() {
     const loans = await loansService.getAll()
     const borrowers = await borrowersService.getAll()
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     const stats = new Map<string, { loan_count: number; total_debt: number }>()
-    for (const l of loans) { if (l.status === 'active' && l.loan_date <= today && (l.remaining || 0) > 0) { const s = stats.get(l.borrower_id) || { loan_count: 0, total_debt: 0 }; s.loan_count++; s.total_debt += l.remaining || 0; stats.set(l.borrower_id, s) } }
+    for (const l of loans) { if (isOutstandingLoan(l, today)) { const s = stats.get(l.borrower_id) || { loan_count: 0, total_debt: 0 }; s.loan_count++; s.total_debt += l.remaining || 0; stats.set(l.borrower_id, s) } }
     return borrowers.filter(b => stats.has(b.id)).map(b => ({ ...b, ...stats.get(b.id) })).sort((a, b) => (b.total_debt || 0) - (a.total_debt || 0))
   },
   async getPaymentMethodStats() {
-    const loans = getAllItems<any>('loans')
-    const repayments = getAllItems<any>('repayments')
-    const donations = getAllItems<any>('donations')
+    // כל המקורות מסוננים מרשומות שנמחקו (soft delete)
+    const loans = getAllItems<any>('loans').filter(l => !l.is_deleted)
+    const repayments = getAllItems<any>('repayments').filter(r => !r.is_deleted)
+    const donations = getAllItems<any>('donations').filter(d => !d.is_deleted)
     // ✅ תיקון ריפקטור: החלפת db.query() ב-getAllItems עם סינון
     const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted)
-    const expenses = getAllItems<any>('expenses')
+    const expenses = getAllItems<any>('expenses').filter(e => !e.is_deleted)
     
     const methods = ['cash', 'credit', 'transfer', 'check', 'other']
     const stats: Record<string, { loansOut: number; repaymentsIn: number; donationsIn: number; depositsIn: number; withdrawalsOut: number; expensesOut: number }> = {}
@@ -1464,7 +1501,7 @@ export const statsService = {
     return stats
   },
   async getExpenses() {
-    const expenses = getAllItems<any>('expenses')
+    const expenses = getAllItems<any>('expenses').filter(e => !e.is_deleted)
     const borrowers = await borrowersService.getAll()
     return expenses.map(e => ({
       ...e,
@@ -1472,7 +1509,7 @@ export const statsService = {
     })).sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime())
   },
   async getExpensesByBorrower(borrowerId: string) {
-    const expenses = getAllItems<any>('expenses')
+    const expenses = getAllItems<any>('expenses').filter(e => !e.is_deleted)
     return expenses.filter(e => e.paid_by === 'borrower' && e.borrower_id === borrowerId)
       .sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime())
   },
@@ -1495,6 +1532,7 @@ export const statsService = {
       }
     }
     
+    assertFundAcceptsNewRecords(fundId)
     const id = generateId('expenses')
     setItem('expenses', id, { ...expense, fund_id: fundId, id, created_at: new Date().toISOString() })
     return { id }
@@ -1509,13 +1547,13 @@ export const statsService = {
     removeItem('expenses', String(id))
   },
   async getTotalGemachExpenses() {
-    const expenses = getAllItems<any>('expenses')
+    const expenses = getAllItems<any>('expenses').filter(e => !e.is_deleted)
     return expenses.filter(e => e.paid_by === 'gemach').reduce((sum, e) => sum + (e.amount || 0), 0)
   },
 
   // סטטיסטיקות לפי קופה
   async getStatsByFund(fundId: string) {
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
 
     // שימוש באותו סינון כמו getDashboardStats - רק לווים קיימים
     const allLoans = await loansService.getAll()
@@ -1525,16 +1563,14 @@ export const statsService = {
     // הלוואות פעילות מהקופה (רק ללווים קיימים)
     const activeLoans = allLoans.filter(l =>
       l.fund_id === fundId &&
-      l.status === 'active' &&
-      l.loan_date <= today &&
-      (l.remaining || 0) > 0 &&
+      isOutstandingLoan(l, today) &&
       existingBorrowerIds.has(l.borrower_id)
     )
 
     // הלוואות מתוכננות מהקופה
     const plannedLoans = allLoans.filter(l =>
       l.fund_id === fundId &&
-      (l.status === 'planned' || l.loan_date > today)
+      isPlannedLoan(l, today)
     )
 
     // הפקדות מהקופה
@@ -1589,7 +1625,7 @@ export const statsService = {
     const existingIds = new Set(borrowers.map(b => b.id))
     
     const orphaned = loans.filter(l =>
-      l.status === 'active' &&
+      (l.status === 'active' || l.status === 'overdue') &&
       (l.remaining || 0) > 0 &&
       !existingIds.has(l.borrower_id)
     )
@@ -2038,7 +2074,7 @@ export const donorsService = {
   },
   async delete(id: number | string): Promise<void> {
     // בדיקה: האם לתורם יש תרומות פעילות?
-    const donations = getAllItems<any>('donations').filter(d => !d.is_deleted && d.donor_id === Number(id))
+    const donations = getAllItems<any>('donations').filter(d => !d.is_deleted && String(d.donor_id) === String(id))
     
     if (donations.length > 0) {
       throw new Error(`לא ניתן למחוק תורם עם ${donations.length} תרומות. יש למחוק את התרומות תחילה.`)
@@ -2085,7 +2121,7 @@ export const depositorsService = {
   },
   async delete(id: number | string): Promise<void> {
     // בדיקה: האם למפקיד יש הפקדות פעילות?
-    const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted && d.depositor_id === Number(id))
+    const deposits = getAllItems<any>('deposits').filter(d => !d.is_deleted && String(d.depositor_id) === String(id))
     const activeDeposits = deposits.filter(d => d.status === 'active' || d.status === 'planned')
     
     if (activeDeposits.length > 0) {
@@ -2163,6 +2199,7 @@ export const depositsService = {
       }
     }
     
+    assertFundAcceptsNewRecords(fundId)
     const id = generateId('deposits')
     const record: Deposit = { ...d, fund_id: fundId, id, created_at: new Date().toISOString() }
     setItem('deposits', id, record)
@@ -2170,10 +2207,12 @@ export const depositsService = {
     return { lastInsertRowid: id }
   },
   async delete(id: string): Promise<void> {
-    // Soft delete - גם של כל המשיכות שלו
+    // Soft delete - גם של כל המשיכות שלו. מסמנים אותן ישירות (בלי depositWithdrawalsService.delete)
+    // כדי שלא יחושב מחדש סטטוס/withdrawn_amount של ההפקדה ברגע מחיקתה - כך
+    // ההפקדה נשמרת במצבה האחרון וניתנת לשחזור יחד עם המשיכות שלה.
     const withdrawals = await depositWithdrawalsService.getByDeposit(id)
     for (const withdrawal of withdrawals) {
-      await depositWithdrawalsService.delete(withdrawal.id)
+      setItem('depositWithdrawals', withdrawal.id, { ...withdrawal, is_deleted: true, deleted_at: new Date().toISOString() })
     }
     
     const deposit = await this.getById(id)
@@ -2235,6 +2274,7 @@ export const donationsService = {
       }
     }
     
+    assertFundAcceptsNewRecords(fundId)
     const id = generateNumericId('donations')
     const record: Donation = { ...d, fund_id: fundId, id, created_at: new Date().toISOString() }
     setItem('donations', String(id), record)
@@ -2309,6 +2349,7 @@ export const expensesService = {
       }
     }
     
+    assertFundAcceptsNewRecords(fundId)
     const id = generateId('expenses')
     const record: Expense = { ...e, fund_id: fundId, id, created_at: new Date().toISOString() }
     setItem('expenses', id, record)
@@ -2517,7 +2558,7 @@ export const waitlistService = {
     
     await this.update(id, { 
       status: 'approved',
-      notes: (entry.notes || '') + `\n[${new Date().toISOString().split('T')[0]}] אושר - הלוואה #${loanId}`
+      notes: (entry.notes || '') + `\n[${toLocalDateStr()}] אושר - הלוואה #${loanId}`
     })
   }
 }
@@ -2532,17 +2573,20 @@ export interface DepositWithdrawal {
   payment_details?: string
   notes?: string
   created_at: string
+  is_deleted?: boolean
+  deleted_at?: string
 }
 
 export const depositWithdrawalsService = {
   async getAll(): Promise<DepositWithdrawal[]> {
-    return getAllItems<DepositWithdrawal>('depositWithdrawals').sort((a, b) => 
+    return getAllItems<DepositWithdrawal>('depositWithdrawals').filter(w => !w.is_deleted).sort((a, b) => 
       new Date(b.withdrawal_date).getTime() - new Date(a.withdrawal_date).getTime()
     )
   },
   
   async getById(id: string): Promise<DepositWithdrawal | null> {
-    return getItem<DepositWithdrawal>('depositWithdrawals', String(id))
+    const w = getItem<DepositWithdrawal>('depositWithdrawals', String(id))
+    return (w && !w.is_deleted) ? w : null
   },
   
   async getByDeposit(depositId: string): Promise<DepositWithdrawal[]> {
@@ -2566,8 +2610,8 @@ export const depositWithdrawalsService = {
     // ✅ תיקון BLOCKER: עדכן את הdeposit parent אחרי מחיקת withdrawal
     const depositId = String(withdrawal.deposit_id)
     
-    // מחק את הwithdrawal
-    removeItem('depositWithdrawals', id)
+    // מחיקה רכה (soft delete) - נשמרת לצורך שחזור/ביקורת, ולא נספרת בשום חישוב
+    setItem('depositWithdrawals', id, { ...withdrawal, is_deleted: true, deleted_at: new Date().toISOString() })
     
     // חשב מחדש את total withdrawn מכל הwithdrawals הנותרים
     const remainingWithdrawals = await this.getByDeposit(depositId)

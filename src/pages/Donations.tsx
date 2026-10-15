@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -129,7 +130,7 @@ export default function Donations() {
   // Form state for donation dialog
   const [donationForm, setDonationForm] = useState({
     amount: 0,
-    donation_date: new Date().toISOString().split('T')[0],
+    donation_date: toLocalDateStr(),
     notes: '',
   });
   const [selectedFundId, setSelectedFundId] = useState<string>('');
@@ -293,7 +294,7 @@ export default function Donations() {
     setActiveDonation(null);
     setDonationForm({
       amount: 0,
-      donation_date: new Date().toISOString().split('T')[0],
+      donation_date: toLocalDateStr(),
       notes: '',
     });
     

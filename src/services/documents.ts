@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { toHebrewDate } from '../utils/dateUtils'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -515,7 +516,7 @@ function applyDocumentBranding(
  */
 export function buildLoanDocumentHtml(data: LoanDocumentData, layout?: DocumentLayoutConfig): string {
   const today = new Date().toLocaleDateString('he-IL')
-  const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
+  const todayHebrew = toHebrewDate(toLocalDateStr())
   const showHebrew = data.dateFormat === 'combined'
 
   const loanDateDisplay = new Date(data.loanDate).toLocaleDateString('he-IL')
@@ -887,7 +888,7 @@ export function buildDepositDocumentHtml(data: {
   withdrawals?: Array<{ amount: number; withdrawal_date: string }>
 }, layout?: DocumentLayoutConfig): string {
   const today = new Date().toLocaleDateString('he-IL')
-  const todayHebrew = toHebrewDate(new Date().toISOString().split('T')[0])
+  const todayHebrew = toHebrewDate(toLocalDateStr())
   const showHebrew = data.dateFormat === 'combined'
 
   const depositDateDisplay = new Date(data.depositDate).toLocaleDateString('he-IL')

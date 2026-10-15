@@ -4,6 +4,7 @@
  * Page for reviewing and approving matches between bank transactions and records.
  */
 
+import { toLocalDateStr } from '../../utils/localDate'
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -274,7 +275,7 @@ const BankMatchingPage: React.FC = () => {
               last_name: borrower.last_name,
               phone: borrower.phone || '',
               loan_amount: loanAny.remaining,
-              loan_date: loanAny.loan_date || loanAny.date || new Date().toISOString().split('T')[0],
+              loan_date: loanAny.loan_date || loanAny.date || toLocalDateStr(),
               loan_id: loanAny.id,
             });
           }

@@ -1,5 +1,6 @@
 // Migration scripts for database schema changes
 
+import { toLocalDateStr } from '../utils/localDate'
 import localforage from 'localforage'
 import { guarantorLoansService, guarantorLoanRepaymentsService, loansService, exportAllData, importAllData, stores } from './database'
 import {
@@ -1545,7 +1546,7 @@ export async function fixDepositStatuses(): Promise<{ fixed: number }> {
   console.log('🔄 Starting fix deposit statuses migration...')
   
   const { db, getAllItems } = await import('./database')
-  const today = new Date().toISOString().split('T')[0]
+  const today = toLocalDateStr()
   
   const allDeposits = getAllItems('deposits') as any[]
   const deposits = allDeposits.filter(d => !d.is_deleted)

@@ -3,6 +3,7 @@
  * תמיכה בייבוא לווים, ערבים, הלוואות, תרומות והפקדות
  */
 
+import { toLocalDateStr } from '../utils/localDate'
 import * as XLSX from 'xlsx'
 import { borrowersService, guarantorsService, loansService, donorsService, depositorsService, repaymentsService, db, getAllItems } from './database'
 
@@ -664,7 +665,7 @@ async function importLoans(
     const result = await loansService.create({
       borrower_id: borrowerId,
       amount: parseFloat(data.amount) || 0,
-      loan_date: parseDate(data.loan_date) || new Date().toISOString().split('T')[0],
+      loan_date: parseDate(data.loan_date) || toLocalDateStr(),
       due_date: parseDate(data.due_date) || undefined,
       loan_type: loanType,
       guarantor1_id: guarantor1Id,
@@ -707,7 +708,7 @@ async function importRepayments(
     
     await db.run(
       'INSERT INTO repayments (loan_id, amount, payment_date, notes) VALUES (?, ?, ?, ?)',
-      [loanId, parseFloat(data.amount) || 0, parseDate(data.payment_date) || new Date().toISOString().split('T')[0], data.notes?.toString() || '']
+      [loanId, parseFloat(data.amount) || 0, parseDate(data.payment_date) || toLocalDateStr(), data.notes?.toString() || '']
     )
     count++
   }
@@ -754,7 +755,7 @@ async function importDonations(rows: ValidationResult[]): Promise<number> {
     // יצירת תרומה
     await db.run(
       'INSERT INTO donations (donor_id, amount, donation_date, notes, payment_method) VALUES (?, ?, ?, ?, ?)',
-      [donorId, parseFloat(data.amount) || 0, parseDate(data.donation_date) || new Date().toISOString().split('T')[0], data.notes?.toString() || '', '']
+      [donorId, parseFloat(data.amount) || 0, parseDate(data.donation_date) || toLocalDateStr(), data.notes?.toString() || '', '']
     )
     count++
   }
@@ -826,7 +827,7 @@ async function importDeposits(rows: ValidationResult[]): Promise<number> {
       [
         depositorId, 
         parseFloat(data.amount) || 0, 
-        parseDate(data.deposit_date) || new Date().toISOString().split('T')[0], 
+        parseDate(data.deposit_date) || toLocalDateStr(), 
         periodType, 
         parseDate(data.due_date) || null, 
         isRecurring, 
@@ -926,7 +927,7 @@ async function importWaitlist(
     await waitlistService.create({
       borrower_id: borrowerId,
       requested_amount: parseFloat(data.requested_amount) || 0,
-      request_date: parseDate(data.request_date) || new Date().toISOString().split('T')[0],
+      request_date: parseDate(data.request_date) || toLocalDateStr(),
       loan_type: loanType,
       requested_months: data.requested_months ? parseInt(data.requested_months) : undefined,
       notes: data.notes?.toString() || '',
@@ -1307,7 +1308,7 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
         const res = await loansService.create({
           borrower_id: borrowerId,
           amount: parseFloat(data.amount) || 0,
-          loan_date: parseDate(data.loan_date) || new Date().toISOString().split('T')[0],
+          loan_date: parseDate(data.loan_date) || toLocalDateStr(),
           due_date: parseDate(data.due_date) || undefined,
           loan_type: data.loan_type?.toString().includes('קבוע') ? 'fixed' : 'flexible',
           guarantor1_id: g1Id,
@@ -1350,7 +1351,7 @@ export async function executeFullImport(file: File): Promise<FullImportResult> {
         
         await db.run(
           'INSERT INTO repayments (loan_id, amount, payment_date, notes) VALUES (?, ?, ?, ?)',
-          [loanId, parseFloat(data.amount) || 0, parseDate(data.payment_date) || new Date().toISOString().split('T')[0], data.notes?.toString() || '']
+          [loanId, parseFloat(data.amount) || 0, parseDate(data.payment_date) || toLocalDateStr(), data.notes?.toString() || '']
         )
         result.repayments.success++
       }

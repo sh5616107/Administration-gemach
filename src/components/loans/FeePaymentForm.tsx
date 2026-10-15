@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../../utils/localDate'
 import { useState, useEffect } from 'react'
 import {
   Box,
@@ -67,7 +68,7 @@ export default function FeePaymentForm({
   const [formData, setFormData] = useState({
     fee_type: 'processing' as FeeType,
     amount: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: toLocalDateStr(),
     status: 'paid' as FeeStatus,
     note: '',
   })
@@ -151,7 +152,7 @@ export default function FeePaymentForm({
     setFormData({
       fee_type: 'processing',
       amount: '',
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: toLocalDateStr(),
       status: 'paid',
       note: '',
     })

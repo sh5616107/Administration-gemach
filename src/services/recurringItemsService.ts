@@ -11,6 +11,7 @@
  * Feature: recurring-items-management
  */
 
+import { toLocalDateStr } from '../utils/localDate'
 import { loansService, repaymentsService, db, getAllItems, depositorsService, flushPendingSave, type Repayment, type Loan } from './database'
 import { getLoanFamily, getAllFamilyRepayments } from './recurringRepaymentsService'
 
@@ -353,7 +354,7 @@ export async function getSeriesItems(
   // 4. Mark Past/Future
   const today = new Date()
   today.setHours(0, 0, 0, 0) // Reset to start of day
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = toLocalDateStr(today)
   const dateField = getDateField(itemType)
 
   return seriesItems.map(item => {
@@ -597,7 +598,7 @@ export async function updateSeriesItems(
     
     // 4. עדכון פריטים עתידיים + הפריט האחרון בסדרה
     // הפריט האחרון (לפי מספר) מייצג את ההגדרות שהמתזמן יקרא בפעם הבאה
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     const futureItems = seriesItems.filter(item => item.date >= today)
     
     // מציאת הפריט האחרון בסדרה (לפי item_number הגבוה ביותר)
@@ -697,7 +698,7 @@ export async function getUpdateSummary(
   // Regular flow
   const seriesItems = await getSeriesItems(itemId, itemType)
   const originalItem = seriesItems[0]
-  const today = new Date().toISOString().split('T')[0]
+  const today = toLocalDateStr()
 
   // ✅ תיקון באג 1: ספירה של פריטים עתידיים + הפריט האחרון
   const pastItems = seriesItems.filter(item => item.date <= today).length

@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../../utils/localDate'
 import { useState, useEffect } from 'react';
 import { 
   Drawer, 
@@ -64,7 +65,7 @@ interface DepositSidePanelProps {
 export default function DepositSidePanel({ open, deposit, depositor, onClose, onSaved, selectedFundId, onFundChange }: DepositSidePanelProps) {
   const [formData, setFormData] = useState({
     amount: 0,
-    deposit_date: new Date().toISOString().split('T')[0],
+    deposit_date: toLocalDateStr(),
     period_type: 'flexible',
     due_date: '',
     notes: '',
@@ -94,7 +95,7 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         // Reset for new deposit
         setFormData({
           amount: 0,
-          deposit_date: new Date().toISOString().split('T')[0],
+          deposit_date: toLocalDateStr(),
           period_type: 'flexible',
           due_date: '',
           notes: '',
@@ -136,7 +137,7 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         // (למשל מהיום לעתיד, או להיפך) לא שינה את הסטטוס בפועל. מחשבים
         // מחדש planned/active לפי התאריך החדש — אבל בלי לדרוס 'withdrawn',
         // כי הפקדה שכבר נמשכה צריכה להישאר כ-withdrawn ללא קשר לתאריך.
-        const today = new Date().toISOString().split('T')[0];
+        const today = toLocalDateStr();
         const recalculatedStatus =
           deposit.status === 'withdrawn'
             ? 'withdrawn'
@@ -191,7 +192,7 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         // 🐛 BUG FIX: הפקדה עם תאריך עתידי חייבת להיכנס כ-'planned' ולא כ-'active',
         // בדיוק כפי שנעשה עבור הלוואות. אחרת activatePlannedDeposits() ב-scheduler
         // לעולם לא מוצא מה לקדם, וההפקדה נחשבת "קיימת בקופה" עוד לפני שהגיע תאריכה.
-        const today = new Date().toISOString().split('T')[0];
+        const today = toLocalDateStr();
         const depositStatus = formData.deposit_date > today ? 'planned' : 'active';
 
         const insertFields = [

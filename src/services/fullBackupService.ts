@@ -17,6 +17,7 @@
  * matter. Both are offered side by side in Advanced Tools.
  */
 
+import { toLocalDateStr } from '../utils/localDate'
 import JSZip from 'jszip'
 import { exportAllData } from './database'
 
@@ -118,7 +119,7 @@ export async function exportFullBackupZip(
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `gemach_backup_full_${new Date().toISOString().split('T')[0]}.zip`
+  a.download = `gemach_backup_full_${toLocalDateStr()}.zip`
   a.click()
   URL.revokeObjectURL(url)
 

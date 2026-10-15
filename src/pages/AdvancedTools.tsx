@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import {
@@ -58,7 +59,7 @@ import {
   CardGiftcard as CardGiftcardIcon,
   Handshake as HandshakeIcon,
 } from '@mui/icons-material'
-import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService, blacklistService, repaymentsService } from '../services/database'
+import { db, loansService, borrowersService, guarantorsService, importAllData, exportAllData, statsService, guarantorLoansService, depositWithdrawalsService, depositsService, donationsService, blacklistService, repaymentsService } from '../services/database'
 import { generateFullReport, generateBorrowerReport, generateExpenseReceipt, generatePeriodicTransactionsReport } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { formatDisplayDate } from '../utils/dateUtils'
@@ -164,9 +165,9 @@ export default function AdvancedTools() {
     amount1: 0,
     amount2: 0,
     repaymentType: 'single',
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    dueDate: toLocalDateStr(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
     monthlyPayments: 3,
-    startDate: new Date().toISOString().split('T')[0]
+    startDate: toLocalDateStr()
   })
   
   // Payment method stats dialog
@@ -204,7 +205,7 @@ export default function AdvancedTools() {
   const [expenseForm, setExpenseForm] = useState({
     description: '',
     amount: '',
-    expense_date: new Date().toISOString().split('T')[0],
+    expense_date: toLocalDateStr(),
     category: 'fee',
     paid_by: 'gemach' as 'gemach' | 'borrower',
     borrower_id: null as string | null,
@@ -320,7 +321,7 @@ export default function AdvancedTools() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `gemach_backup_${new Date().toISOString().split('T')[0]}.json`
+      a.download = `gemach_backup_${toLocalDateStr()}.json`
       a.click()
       URL.revokeObjectURL(url)
 
@@ -359,7 +360,7 @@ export default function AdvancedTools() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `gemach_export_${new Date().toISOString().split('T')[0]}.xlsx`
+      a.download = `gemach_export_${toLocalDateStr()}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
 
@@ -503,9 +504,9 @@ export default function AdvancedTools() {
       amount1: hasTwo ? Math.ceil(loan.remaining / 2) : loan.remaining,
       amount2: hasTwo ? Math.floor(loan.remaining / 2) : 0,
       repaymentType: 'single',
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      dueDate: toLocalDateStr(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
       monthlyPayments: 3,
-      startDate: new Date().toISOString().split('T')[0]
+      startDate: toLocalDateStr()
     })
     setTransferDialogOpen(true)
   }
@@ -518,7 +519,7 @@ export default function AdvancedTools() {
     setIsTransferring(true)
 
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = toLocalDateStr()
       const loan = transferData.loan
 
       // Create guarantor loan record
@@ -584,8 +585,8 @@ export default function AdvancedTools() {
       if (feesReportType === 'month') {
         const startOfMonth = new Date(feesReportYear, feesReportMonth - 1, 1)
         const endOfMonth = new Date(feesReportYear, feesReportMonth, 0)
-        filter.date_from = startOfMonth.toISOString().split('T')[0]
-        filter.date_to = endOfMonth.toISOString().split('T')[0]
+        filter.date_from = toLocalDateStr(startOfMonth)
+        filter.date_to = toLocalDateStr(endOfMonth)
       } else if (feesReportType === 'year') {
         filter.date_from = `${feesReportYear}-01-01`
         filter.date_to = `${feesReportYear}-12-31`
@@ -723,26 +724,30 @@ export default function AdvancedTools() {
       }).filter(b => b.totalDebt > 0).sort((a, b) => b.totalDebt - a.totalDebt)
 
       const allLoans = await loansService.getAll()
-      const deposits = await db.query("SELECT * FROM deposits WHERE status = 'active'") as any[]
-      const donations = await db.query("SELECT * FROM donations") as any[]
+      // אותה הגדרת "כסף זמין" כמו בדף הבית (statsService.getDashboardStats):
+      // הפקדות שכבר התקבלו (לא מתוכננות/עתידיות) פחות משיכות, בלי הכפלה לפי
+      // recurring_deposit_number (כל שורה מחזורית היא הפקדה עצמאית), בלי רשומות
+      // שנמחקו, ופחות הוצאות הגמ"ח.
+      const todayStr = toLocalDateStr()
+      const realizedDeposits = (await depositsService.getAll())
+        .filter(d => d.status !== 'planned' && d.deposit_date <= todayStr)
+      const donations = await donationsService.getAll()
 
       const totalLoanAmount = activeLoans.reduce((sum, l) => sum + (l.remaining || 0), 0)
       
       // חישוב סך ההפקדות עם ניכוי משיכות
       let totalDepositAmount = 0
-      for (const d of deposits) {
-        let depositAmount = d.amount
-        if (d.is_recurring === 1 && d.recurring_deposit_number) {
-          depositAmount = d.amount * d.recurring_deposit_number
-        }
-        
-        // הפחתת משיכות
+      let depositsWithBalance = 0
+      for (const d of realizedDeposits) {
         const withdrawals = await depositWithdrawalsService.getByDeposit(d.id)
         const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)
-        totalDepositAmount += (depositAmount - totalWithdrawn)
+        const balance = d.amount - totalWithdrawn
+        totalDepositAmount += balance
+        if (balance > 0) depositsWithBalance++
       }
       
       const totalDonationAmount = donations.reduce((sum, d) => sum + d.amount, 0)
+      const gemachExpenses = await statsService.getTotalGemachExpenses()
 
       setBorrowersReportData({
         borrowers: borrowersWithDebt,
@@ -750,11 +755,11 @@ export default function AdvancedTools() {
           totalLoans: allLoans.length,
           activeLoans: activeLoans.length,
           totalLoanAmount,
-          totalDeposits: deposits.length,
+          totalDeposits: depositsWithBalance,
           totalDepositAmount,
           totalDonations: donations.length,
           totalDonationAmount,
-          availableCash: totalDepositAmount + totalDonationAmount - totalLoanAmount
+          availableCash: totalDepositAmount + totalDonationAmount - totalLoanAmount - gemachExpenses
         }
       })
       setBorrowersReportDialogOpen(true)
@@ -915,7 +920,7 @@ export default function AdvancedTools() {
 
   const handleStatisticsReport = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = toLocalDateStr()
       const borrowers = await borrowersService.getAll()
       const existingBorrowerIds = new Set(borrowers.map(b => b.id))
       const allLoans = await loansService.getAll() as any[]
@@ -1393,7 +1398,7 @@ export default function AdvancedTools() {
     setExpenseForm({
       description: '',
       amount: '',
-      expense_date: new Date().toISOString().split('T')[0],
+      expense_date: toLocalDateStr(),
       category: 'fee',
       paid_by: 'gemach',
       borrower_id: null,

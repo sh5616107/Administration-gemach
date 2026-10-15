@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect } from 'react'
 import {
   Dialog,
@@ -155,7 +156,7 @@ export default function AlertsDialog({ open, onClose, onAlertCountChange }: Aler
   const checkAlerts = async () => {
     const newAlerts: Alert[] = []
     const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = toLocalDateStr(today)
     const day = today.getDate()
     
     // Get last day of current month
@@ -575,7 +576,7 @@ export async function getUnreadAlertCount(): Promise<number> {
   console.log('[ALERT COUNT] Read alerts:', [...readAlerts])
   console.log('[ALERT COUNT] Confirmed repayments:', [...confirmedRepayments])
   const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = toLocalDateStr(today)
   const day = today.getDate()
   
   // Get last day of current month

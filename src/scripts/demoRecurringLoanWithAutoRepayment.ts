@@ -10,6 +10,7 @@
  * - מאמת שהמספור נכון (1/N, 2/N, 3/N)
  */
 
+import { toLocalDateStr } from '../utils/localDate'
 import { 
   borrowersService, 
   loansService, 
@@ -84,7 +85,7 @@ export async function runRecurringLoanAutoRepaymentDemo(): Promise<DemoResult> {
     console.log('')
     
     const today = new Date()
-    const loanDate = new Date(today.getFullYear(), today.getMonth(), 5).toISOString().split('T')[0]
+    const loanDate = toLocalDateStr(new Date(today.getFullYear(), today.getMonth(), 5))
     
     const loanResult = await loansService.create({
       borrower_id: borrowerId,
@@ -99,7 +100,7 @@ export async function runRecurringLoanAutoRepaymentDemo(): Promise<DemoResult> {
       auto_repayment: 1,
       repayment_amount: 100,
       repayment_day: 15,
-      repayment_start_date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0]
+      repayment_start_date: toLocalDateStr(new Date(today.getFullYear(), today.getMonth(), 15))
     })
     const originalLoanId = loanResult.lastInsertRowid
     console.log(`   ✅ נוצרה הלוואה #1: ${originalLoanId}`)
@@ -107,7 +108,7 @@ export async function runRecurringLoanAutoRepaymentDemo(): Promise<DemoResult> {
     
     // שלב 3: יצירת פירעון ראשון
     console.log('💵 שלב 3: יצירת פירעון ראשון...')
-    const repaymentDate1 = new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0]
+    const repaymentDate1 = toLocalDateStr(new Date(today.getFullYear(), today.getMonth(), 15))
     
     const { recurringRepaymentNumber: num1, recurringRepaymentCount: count1 } = 
       await calculateNextRepaymentNumber(originalLoanId)
@@ -157,7 +158,7 @@ export async function runRecurringLoanAutoRepaymentDemo(): Promise<DemoResult> {
     
     // שלב 5: יצירת פירעון שני
     console.log('💵 שלב 5: יצירת פירעון שני (להלוואה #2)...')
-    const repaymentDate2 = new Date(today.getFullYear(), today.getMonth() + 1, 15).toISOString().split('T')[0]
+    const repaymentDate2 = toLocalDateStr(new Date(today.getFullYear(), today.getMonth() + 1, 15))
     
     const { recurringRepaymentNumber: num2, recurringRepaymentCount: count2 } = 
       await calculateNextRepaymentNumber(secondLoan.id)
@@ -201,7 +202,7 @@ export async function runRecurringLoanAutoRepaymentDemo(): Promise<DemoResult> {
     
     // שלב 7: יצירת פירעון שלישי
     console.log('💵 שלב 7: יצירת פירעון שלישי (להלוואה #3)...')
-    const repaymentDate3 = new Date(today.getFullYear(), today.getMonth() + 2, 15).toISOString().split('T')[0]
+    const repaymentDate3 = toLocalDateStr(new Date(today.getFullYear(), today.getMonth() + 2, 15))
     
     const { recurringRepaymentNumber: num3, recurringRepaymentCount: count3 } = 
       await calculateNextRepaymentNumber(thirdLoan.id)

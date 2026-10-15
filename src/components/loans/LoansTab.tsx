@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../../utils/localDate'
 import { useState, useEffect } from 'react'
 import {
   Box,
@@ -63,7 +64,7 @@ import FundSelector from '../funds/FundSelector'
 const emptyLoan: Omit<Loan, 'id' | 'loan_number' | 'created_at' | 'status' | 'fund_id'> = {
   borrower_id: '',
   amount: 0,
-  loan_date: new Date().toISOString().split('T')[0],
+  loan_date: toLocalDateStr(),
   loan_type: 'flexible',
   is_recurring: 0,
   auto_repayment: 0,
@@ -189,8 +190,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                 borrower_id: borrower.id,
                 amount: entry.requested_amount,
                 loan_type: entry.loan_type,
-                loan_date: today.toISOString().split('T')[0],
-                due_date: entry.loan_type === 'fixed' ? dueDate.toISOString().split('T')[0] : undefined,
+                loan_date: toLocalDateStr(today),
+                due_date: entry.loan_type === 'fixed' ? toLocalDateStr(dueDate) : undefined,
                 notes: entry.notes || '',
               })
               setSnackbar({ 
@@ -235,7 +236,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         ...emptyLoan, 
         borrower_id: selectedBorrower?.id || '',
         loan_type: defaultLoanType,
-        due_date: defaultLoanType === 'fixed' ? dueDate.toISOString().split('T')[0] : undefined
+        due_date: defaultLoanType === 'fixed' ? toLocalDateStr(dueDate) : undefined
       })
     }
   }, [selectedLoan, settings.default_loan_type])
@@ -362,9 +363,9 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     setFormData({ 
       ...emptyLoan, 
       borrower_id: selectedBorrower?.id || '',
-      loan_date: today.toISOString().split('T')[0],
+      loan_date: toLocalDateStr(today),
       loan_type: defaultLoanType,
-      due_date: defaultLoanType === 'fixed' ? dueDate.toISOString().split('T')[0] : undefined
+      due_date: defaultLoanType === 'fixed' ? toLocalDateStr(dueDate) : undefined
     })
   }
 
@@ -610,7 +611,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           const refundAmount = gl.total_repaid
           await guarantorLoansService.update(gl.id, { 
             status: 'paid',
-            notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע את החוב במלואו. מגיע החזר לערב: ${refundAmount}₪`
+            notes: cleanNotes + `\n[${toLocalDateStr()}] הלווה פרע את החוב במלואו. מגיע החזר לערב: ${refundAmount}₪`
           })
         } else {
           await guarantorLoansService.update(gl.id, { 
@@ -647,7 +648,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
             await guarantorLoansService.update(gl.id, { 
               amount: Math.max(gl.total_repaid || 0, newAmount),
               status: 'paid',
-              notes: cleanNotes + `\n[${new Date().toISOString().split('T')[0]}] הלווה פרע חלק מהחוב. מגיע החזר לערב: ${refund}₪`
+              notes: cleanNotes + `\n[${toLocalDateStr()}] הלווה פרע חלק מהחוב. מגיע החזר לערב: ${refund}₪`
             })
           } else {
             await guarantorLoansService.update(gl.id, { 
@@ -724,7 +725,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       // בדיקה אם הערב שילם יותר מהנדרש
       if ((gl.total_repaid || 0) > newAmount) {
         const refund = (gl.total_repaid || 0) - newAmount
-        const refundNote = `\n[${new Date().toISOString().split('T')[0]}] מגיע החזר לערב: ${refund}₪`
+        const refundNote = `\n[${toLocalDateStr()}] מגיע החזר לערב: ${refund}₪`
         
         console.log('    ✅ Refund due:', refund)
         
@@ -770,7 +771,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       // ✅ שימוש בפעולה אטומית במקום פעולות נפרדות
       const txResult = await addRepaymentAtomic(selectedLoan.id, {
         amount: repaymentAmount,
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: toLocalDateStr(),
         payment_method: repaymentPaymentMethod.payment_method,
         payment_details: JSON.stringify(repaymentPaymentMethod),
         is_recurring: isRecurring,
@@ -835,7 +836,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   const handleMultiRepayment = async () => {
     if (!selectedBorrower || multiRepaymentAmount <= 0) return
     
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     
     // Get only ACTIVE loans (not planned/future loans) that have remaining balance
     const activeLoans = borrowerLoans.filter(loan => 
@@ -1257,7 +1258,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   }
 
   const getLoanStatus = (loan: Loan) => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateStr()
     if (loan.status === 'transferred') {
       return { label: 'הועבר לערב', color: 'warning' as const }
     }
@@ -1274,12 +1275,12 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
   }
 
   const canAddRepayment = selectedLoan && (selectedLoan.remaining || 0) > 0 && 
-    selectedLoan.loan_date <= new Date().toISOString().split('T')[0]
+    selectedLoan.loan_date <= toLocalDateStr()
   
   // פונקציה שמחזירה את הטקסט הנכון לכפתור פירעון
   const getRepaymentButtonText = () => {
     if (!selectedLoan) return 'הוסף פירעון';
-    if (selectedLoan.loan_date > new Date().toISOString().split('T')[0]) {
+    if (selectedLoan.loan_date > toLocalDateStr()) {
       return 'טרם החלה';
     }
     if ((selectedLoan.remaining || 0) <= 0) {
@@ -1358,7 +1359,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
               <Typography variant="h6">
                 הלוואות של {selectedBorrower.first_name} {selectedBorrower.last_name} ({borrowerLoans.length})
               </Typography>
-              {borrowerLoans.some(loan => (loan.remaining || 0) > 0 && loan.loan_date <= new Date().toISOString().split('T')[0]) && (
+              {borrowerLoans.some(loan => (loan.remaining || 0) > 0 && loan.loan_date <= toLocalDateStr()) && (
                 <Button
                   variant="outlined"
                   color="secondary"
@@ -1573,14 +1574,14 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                       const defaultMonths = parseInt(settings.default_loan_months) || 12
                       const dueDate = new Date(newLoanDate)
                       dueDate.setMonth(dueDate.getMonth() + defaultMonths)
-                      setFormData({ ...formData, loan_date: newLoanDate, due_date: dueDate.toISOString().split('T')[0] })
+                      setFormData({ ...formData, loan_date: newLoanDate, due_date: toLocalDateStr(dueDate) })
                     } else {
                       setFormData({ ...formData, loan_date: newLoanDate })
                     }
                   }}
                   InputLabelProps={{ shrink: true }}
                   helperText={
-                    formData.loan_date > new Date().toISOString().split('T')[0] 
+                    formData.loan_date > toLocalDateStr() 
                       ? '⏰ הלוואה מתוכננת' 
                       : (settings.date_format === 'combined' && formData.loan_date ? `📅 ${toHebrewDate(formData.loan_date)}` : '')
                   }
@@ -1599,7 +1600,7 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                         const defaultMonths = parseInt(settings.default_loan_months) || 12
                         const baseDate = formData.loan_date ? new Date(formData.loan_date) : new Date()
                         baseDate.setMonth(baseDate.getMonth() + defaultMonths)
-                        setFormData({ ...formData, loan_type: newType, due_date: baseDate.toISOString().split('T')[0] })
+                        setFormData({ ...formData, loan_type: newType, due_date: toLocalDateStr(baseDate) })
                       } else if (newType === 'flexible') {
                         // ניקוי תאריך פירעון כשמשנים לגמישה
                         setFormData({ ...formData, loan_type: newType, due_date: undefined })
@@ -2021,19 +2022,19 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
         <DialogContent>
           <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>הלוואות פעילות (לא כולל מתוכננות):</Typography>
-            {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date <= new Date().toISOString().split('T')[0]).map(loan => (
+            {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date <= toLocalDateStr()).map(loan => (
               <Typography key={loan.id} variant="body2">
                 הלוואה #{loan.loan_number}: יתרה {formatCurrency(loan.remaining || 0)}
               </Typography>
             ))}
-            {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date > new Date().toISOString().split('T')[0]).length > 0 && (
+            {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date > toLocalDateStr()).length > 0 && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                * יש {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date > new Date().toISOString().split('T')[0]).length} הלוואות מתוכננות שלא ייכללו בפירעון
+                * יש {borrowerLoans.filter(loan => (loan.remaining || 0) > 0 && loan.loan_date > toLocalDateStr()).length} הלוואות מתוכננות שלא ייכללו בפירעון
               </Typography>
             )}
             <Divider sx={{ my: 1 }} />
             <Typography fontWeight="bold" color="primary">
-              סה"כ יתרה פעילה: {formatCurrency(borrowerLoans.filter(loan => loan.loan_date <= new Date().toISOString().split('T')[0]).reduce((sum, loan) => sum + (loan.remaining || 0), 0))}
+              סה"כ יתרה פעילה: {formatCurrency(borrowerLoans.filter(loan => loan.loan_date <= toLocalDateStr()).reduce((sum, loan) => sum + (loan.remaining || 0), 0))}
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

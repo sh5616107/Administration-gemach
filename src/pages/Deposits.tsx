@@ -1,3 +1,4 @@
+import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -217,7 +218,7 @@ export default function Deposits() {
       
       const depositorsWithStats = await Promise.all(deps.map(async dep => {
         const depositorDeposits = deposits.filter(d => d.depositor_id === dep.id);
-        const today = new Date().toISOString().split('T')[0];
+        const today = toLocalDateStr();
         
         let totalDeposited = 0;
         let totalActive = 0;
@@ -485,7 +486,7 @@ export default function Deposits() {
         return;
       }
 
-      const withdrawalDate = new Date().toISOString().split('T')[0];
+      const withdrawalDate = toLocalDateStr();
 
       // יצירת רשומת משיכה חדשה
       await depositWithdrawalsService.create({
