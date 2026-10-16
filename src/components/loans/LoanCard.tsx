@@ -3,6 +3,8 @@ import type { Loan } from '../../services/database';
 
 interface LoanCardProps {
   loan: Loan;
+  fundName?: string;      // מוצג רק כשיש יותר מקופה אחת
+  borrowerName?: string;  // מוצג ברשימות שאינן מסוננות לפי לווה
   onClick?: () => void;
   recurringRepaymentInfo?: {
     number: number;
@@ -25,7 +27,7 @@ function getDueStatus(nextDueDate?: string): DueStatus {
   return 'ok';
 }
 
-export default function LoanCard({ loan, onClick, recurringRepaymentInfo }: LoanCardProps) {
+export default function LoanCard({ loan, fundName, borrowerName, onClick, recurringRepaymentInfo }: LoanCardProps) {
   const balance = loan.amount - (loan.total_repaid ?? 0);
   const isPaid = balance <= 0;
   const dueStatus = getDueStatus(recurringRepaymentInfo?.nextDueDate);
@@ -51,8 +53,10 @@ export default function LoanCard({ loan, onClick, recurringRepaymentInfo }: Loan
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="body2" color="text.secondary">
             הלוואה #{loan.loan_number} • {new Date(loan.loan_date).toLocaleDateString('he-IL')}
+            {borrowerName ? ` • ${borrowerName}` : ''}
           </Typography>
           <Stack direction="row" spacing={0.5}>
+            {fundName ? <Chip label={`קופה: ${fundName}`} variant="outlined" size="small" /> : null}
             {loan.is_recurring ? <Chip label="מחזורית" color="info" size="small" /> : null}
             {recurringRepaymentInfo && (
               <Chip

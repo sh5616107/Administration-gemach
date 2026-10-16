@@ -742,7 +742,10 @@ export default function Dashboard() {
               
               return (
                 <Grid item xs={12} sm={6} md={4} key={fundStats.fund_id}>
-                  <Card sx={{ height: '100%', borderRight: '4px solid', borderColor: 'primary.main' }}>
+                  <Card
+                    onClick={() => navigate(`/loans?tab=0&fund=${fundStats.fund_id}`)}
+                    sx={{ height: '100%', borderRight: '4px solid', borderColor: 'primary.main', cursor: 'pointer', '&:hover': { boxShadow: 4 } }}
+                  >
                     <CardContent>
                       <Typography variant="h6" fontWeight={600} color="primary" sx={{ mb: 2 }}>
                         {fund.name}
@@ -790,7 +793,10 @@ export default function Dashboard() {
             {/* שורת סיכום כוללת - רק אם יש יותר מקופה אחת */}
             {((stats as any).byFund || []).length > 1 && (
               <Grid item xs={12}>
-                <Card sx={{ bgcolor: 'grey.100', borderTop: '3px solid', borderColor: 'primary.main' }}>
+                <Card
+                  onClick={() => navigate('/loans?tab=0&fund=all')}
+                  sx={{ bgcolor: 'grey.100', borderTop: '3px solid', borderColor: 'primary.main', cursor: 'pointer', '&:hover': { boxShadow: 4 } }}
+                >
                   <CardContent>
                     <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
                       סה"כ כל הקופות
@@ -860,7 +866,15 @@ export default function Dashboard() {
                   activeBorrowers.map((borrower) => (
                     <TableRow key={borrower.id} hover>
                       <TableCell>
-                        {borrower.first_name} {borrower.last_name}
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="primary"
+                          sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                          onClick={() => navigate(`/loans?tab=0&borrower=${borrower.id}`)}
+                        >
+                          {borrower.first_name} {borrower.last_name}
+                        </Typography>
                       </TableCell>
                       <TableCell align="center">{borrower.loan_count}</TableCell>
                       <TableCell align="center">{formatCurrency(borrower.total_debt)}</TableCell>

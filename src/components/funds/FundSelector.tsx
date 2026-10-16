@@ -31,7 +31,7 @@ export default function FundSelector({
 
   useEffect(() => {
     loadFunds()
-  }, [includeInactive])
+  }, [includeInactive, value])
 
   const loadFunds = async () => {
     try {
@@ -40,6 +40,12 @@ export default function FundSelector({
         allFunds = await fundsService.getAll()
       } else {
         allFunds = await fundsService.getActive()
+      }
+      // הקופה הנוכחית (למשל בעריכת הלוואה שבקופה מושבתת) חייבת להופיע ברשימה,
+      // אחרת ה-Select מוצג ריק
+      if (value && !allFunds.some(f => f.id === value)) {
+        const current = await fundsService.getById(value)
+        if (current) allFunds = [...allFunds, current]
       }
       setFunds(allFunds)
       

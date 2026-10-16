@@ -41,7 +41,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
-import { borrowersService, loansService, guarantorLoansService, repaymentsService, guarantorsService, type Borrower, type Loan, type Guarantor } from '../services/database';
+import { borrowersService, loansService, guarantorLoansService, repaymentsService, guarantorsService, fundsService, type Borrower, type Loan, type Guarantor, type Fund } from '../services/database';
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../services/documents';
 import { useSettings } from '../hooks/useSettings';
 import { getDocumentLayout } from '../utils/documentLayoutHelper';
@@ -97,9 +97,10 @@ function calculateNextDueDate(repaymentDay?: number): string | undefined {
 interface UnifiedLoansPageProps {
   initialBorrowerId?: string | null
   initialWaitlistId?: string | null
+  initialFundId?: string | null  // מזהה קופה, או 'all' לכל ההלוואות - תצוגה בלי לווה נבחר
 }
 
-export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId }: UnifiedLoansPageProps = {}) {
+export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId, initialFundId }: UnifiedLoansPageProps = {}) {
   const { settings } = useSettings();
   const loanDocumentLayout = getDocumentLayout(settings.document_layouts, 'loan');
   const [borrowers, setBorrowers] = useState<Borrower[]>([]);
@@ -163,6 +164,14 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
   });
   const [selectedFundFilter, setSelectedFundFilter] = useState<string>('all'); // פילטר קופה
   const [activeFunds, setActiveFunds] = useState<any[]>([]); // רשימת קופות פעילות
+  const [allFunds, setAllFunds] = useState<Fund[]>([]); // כל הקופות (כולל מושבתות) - להצגת שם קופה
+  // תצוגת "הלוואות לפי קופה": מזהה קופה או 'all'; פעילה רק כשאין לווה נבחר
+  const [fundView, setFundView] = useState<string | null>(null);
+  const [fundViewLoans, setFundViewLoans] = useState<Loan[]>([]);
+
+  // שם הקופה מוצג בכרטיסים רק כשיש יותר מקופה אחת
+  const fundNameFor = (fundId?: string) =>
+    allFunds.length > 1 ? allFunds.find(f => f.id === fundId)?.name : undefined;
 
   useEffect(() => {
     loadBorrowers();
@@ -174,6 +183,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       const { fundsService } = await import('../services/database');
       const funds = await fundsService.getActive();
       setActiveFunds(funds);
+      setAllFunds(await fundsService.getAll());
     } catch (error) {
       console.error('Error loading funds:', error);
     }
@@ -193,6 +203,36 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
       }
     }
   }, [initialBorrowerId, borrowers]);
+
+  // ניווט מדף הבית לפי קופה (?fund=<id>|all)
+  useEffect(() => {
+    if (initialFundId) {
+      setFundView(initialFundId);
+      setSelectedBorrower(null);
+    }
+  }, [initialFundId]);
+
+  // טעינת ההלוואות לתצוגת הקופה
+  useEffect(() => {
+    if (!fundView || selectedBorrower) return;
+    let cancelled = false;
+    (async () => {
+      const all = (await loansService.getAll()) as Loan[];
+      const filtered = fundView === 'all' ? all : all.filter(l => l.fund_id === fundView);
+      if (!cancelled) setFundViewLoans(filtered);
+    })().catch(err => console.error('Error loading fund loans:', err));
+    return () => { cancelled = true; };
+  }, [fundView, selectedBorrower]);
+
+  // פתיחת הלוואה מתוך תצוגת הקופה: בוחרים את הלווה ופותחים את ההלוואה
+  const handleOpenLoanFromFundView = (loan: Loan) => {
+    const borrower = borrowers.find(b => b.id === loan.borrower_id);
+    if (!borrower) return;
+    setSelectedBorrower(borrower);
+    setAutocompleteOpen(false);
+    setActiveLoan(loan);
+    setLoanPanelOpen(true);
+  };
 
   // Handle initial waitlist entry - open loan panel with pre-filled form
   useEffect(() => {
@@ -993,6 +1033,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                                 >
                                   <LoanCard 
                                     loan={loan} 
+                                    fundName={fundNameFor(loan.fund_id)}
                                     onClick={() => handleOpenLoan(loan)}
                                     recurringRepaymentInfo={
                                       loan.auto_repayment === 1 && loanRecurringRepayments.has(loan.id!)
@@ -1077,6 +1118,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
                       >
                         <LoanCard 
                           loan={loan} 
+                          fundName={fundNameFor(loan.fund_id)}
                           onClick={() => handleOpenLoan(loan)}
                           recurringRepaymentInfo={
                             loan.auto_repayment === 1 && loanRecurringRepayments.has(loan.id!)
@@ -1352,6 +1394,42 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId 
             </Paper>
           </Grid>
         </Grid>
+      ) : fundView ? (
+        <Paper sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="h6">
+              הלוואות {fundView === 'all' ? 'בכל הקופות' : `בקופה: ${allFunds.find(f => f.id === fundView)?.name || ''}`}
+              {` (${fundViewLoans.length})`}
+            </Typography>
+            {allFunds.length > 1 && (
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel>קופה</InputLabel>
+                <Select value={fundView} label="קופה" onChange={(e) => setFundView(e.target.value)}>
+                  <MenuItem value="all">כל הקופות</MenuItem>
+                  {allFunds.map(f => (
+                    <MenuItem key={f.id} value={f.id}>{f.name}{!f.is_active ? ' (מושבת)' : ''}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+          </Box>
+          {fundViewLoans.length === 0 ? (
+            <Typography color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>אין הלוואות להצגה</Typography>
+          ) : (
+            <Grid container spacing={1.5}>
+              {fundViewLoans.map(loan => (
+                <Grid item xs={12} sm={6} md={4} key={loan.id}>
+                  <LoanCard
+                    loan={loan}
+                    fundName={fundNameFor(loan.fund_id)}
+                    borrowerName={loan.borrower_name}
+                    onClick={() => handleOpenLoanFromFundView(loan)}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Paper>
       ) : (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">בחר לווה כדי להציג את ההלוואות שלו</Typography>

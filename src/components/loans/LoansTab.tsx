@@ -223,6 +223,8 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
     if (selectedLoan?.id) {
       loadRepayments(selectedLoan.id)
       setFormData(selectedLoan)
+      // הקופה של ההלוואה הנערכת (גם כשהיא נפתחה דרך initialLoanId ולא דרך handleSelectLoan)
+      if (selectedLoan.fund_id) setSelectedFundId(selectedLoan.fund_id)
     } else {
       setRepayments([])
       // Use default loan type from settings
@@ -256,10 +258,11 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
       try {
         const { fundsService } = await import('../../services/database')
         const defaultFund = await fundsService.getDefault()
-        setSelectedFundId(defaultFund.id)
+        // ברירת מחדל רק אם עדיין לא נבחרה קופה - אחרת אנחנו דורסים את קופת ההלוואה
+        // שנפתחה לעריכה (initialLoanId) ושומרים אותה אחר כך בקופה הלא נכונה.
+        setSelectedFundId(prev => prev || defaultFund.id)
       } catch (error) {
         console.error('Error loading default fund:', error)
-        setSelectedFundId('')
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -488,14 +491,20 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
           }
         }
         
+        // קופה לא נשלחת ב-update הרגיל: שינוי קופה מתבצע רק אם המשתמש שינה אותה
+        // במפורש, דרך changeFund (עם ולידציה ורישום ביומן). כך עריכה רגילה
+        // לעולם לא מעבירה הלוואה לקופה אחרת.
+        const { fund_id: _keepFund, ...formWithoutFund } = formData as any
         await loansService.update(selectedLoan.id, {
-          ...formData,
-          fund_id: selectedFundId || undefined,
+          ...formWithoutFund,
           recurring_loan_number: recurringLoanNumber,
           recurring_loan_count: recurringLoanCount,
           payment_method: loanPaymentMethod.payment_method,
           payment_details: JSON.stringify(loanPaymentMethod),
         })
+        if (selectedFundId && selectedLoan.fund_id && selectedFundId !== selectedLoan.fund_id) {
+          await loansService.changeFund(selectedLoan.id, selectedFundId, 'שונתה קופה בעריכת הלוואה')
+        }
         setSnackbar({ open: true, message: 'ההלוואה עודכנה בהצלחה', severity: 'success' })
         onSaved?.() // Call callback to refresh parent
       } else {

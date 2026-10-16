@@ -32,6 +32,7 @@ export default function LoansManagement() {
   const [tabValue, setTabValue] = useState(0)
   const [selectedBorrowerId, setSelectedBorrowerId] = useState<string | null>(null)
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null)
+  const [selectedFundView, setSelectedFundView] = useState<string | null>(null) // מזהה קופה או 'all'
   const [selectedWaitlistId, setSelectedWaitlistId] = useState<string | null>(null)
   const [waitlistEntryForLoan, setWaitlistEntryForLoan] = useState<string | null>(null)
   
@@ -43,7 +44,15 @@ export default function LoansManagement() {
     const borrowerId = searchParams.get('borrower')
     const loanId = searchParams.get('loanId')
     const waitlistId = searchParams.get('waitlist')
+    const fundView = searchParams.get('fund')
     
+    if (fundView) {
+      // תצוגת הלוואות לפי קופה (או 'all' לכל ההלוואות) - בלי לווה נבחר
+      setSelectedFundView(fundView)
+      setSelectedBorrowerId(null)
+      setTabValue(0)
+    }
+
     if (tab !== null) {
       setTabValue(parseInt(tab))
     }
@@ -73,7 +82,7 @@ export default function LoansManagement() {
     }
     
     // Clear URL params after reading
-    if (tab || borrowerId || loanId || waitlistId) {
+    if (tab || borrowerId || loanId || waitlistId || fundView) {
       setSearchParams({})
     }
   }, [searchParams, setSearchParams])
@@ -108,6 +117,7 @@ export default function LoansManagement() {
       <TabPanel value={tabValue} index={0}>
         <UnifiedLoansPage 
           initialBorrowerId={selectedBorrowerId} 
+          initialFundId={selectedFundView}
           initialWaitlistId={waitlistEntryForLoan}
         />
       </TabPanel>
