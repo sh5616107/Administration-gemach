@@ -209,6 +209,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
     if (initialFundId) {
       setFundView(initialFundId);
       setSelectedBorrower(null);
+      // autoFocus + openOnFocus could pop the borrower list over the fund view
+      setAutocompleteOpen(false);
     }
   }, [initialFundId]);
 
@@ -707,7 +709,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                   // with a borrower already selected (from the home page search,
                   // or a waitlist entry), autoFocus + openOnFocus would pop the
                   // full borrower list open on top of the already-chosen borrower.
-                  autoFocus={!initialBorrowerId && !initialWaitlistId}
+                  autoFocus={!initialBorrowerId && !initialWaitlistId && !initialFundId}
                 />
               )}
             />
@@ -1404,7 +1406,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
             {allFunds.length > 1 && (
               <FormControl size="small" sx={{ minWidth: 200 }}>
                 <InputLabel>קופה</InputLabel>
-                <Select value={fundView} label="קופה" onChange={(e) => setFundView(e.target.value)}>
+                <Select value={fundView === 'all' || allFunds.some(f => f.id === fundView) ? fundView : ''} label="קופה" onChange={(e) => setFundView(e.target.value)}>
                   <MenuItem value="all">כל הקופות</MenuItem>
                   {allFunds.map(f => (
                     <MenuItem key={f.id} value={f.id}>{f.name}{!f.is_active ? ' (מושבת)' : ''}</MenuItem>
@@ -1414,7 +1416,9 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
             )}
           </Box>
           {fundViewLoans.length === 0 ? (
-            <Typography color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>אין הלוואות להצגה</Typography>
+            <Typography color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+              {fundView === 'all' ? 'אין הלוואות להצגה' : 'אין הלוואות בקופה זו'}
+            </Typography>
           ) : (
             <Grid container spacing={1.5}>
               {fundViewLoans.map(loan => (
