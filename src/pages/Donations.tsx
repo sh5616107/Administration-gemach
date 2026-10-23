@@ -508,10 +508,10 @@ export default function Donations() {
       // באג אמיתי שנמצא בבדיקה ידנית: בלי המשוב הזה, הפקת קבלה עם מסגרת
       // הייתה יכולה להיכשל בשקט (downloadPdf בולעת שגיאות פנימיות) בלי
       // שום סימן למשתמש — "הכפתור לא עובד" בלי שום שגיאה גלויה.
-      setSnackbar({ open: true, message: 'הקבלה הופקה בהצלחה', severity: 'success' });
+      setSnackbar({ open: true, message: 'האישור הופק בהצלחה', severity: 'success' });
     } catch (error) {
       console.error('Error generating donation receipt:', error);
-      setSnackbar({ open: true, message: 'שגיאה בהפקת הקבלה — נסה שוב, ואם זה חוזר בדוק את תמונת המסגרת בפאנל העיצוב', severity: 'error' });
+      setSnackbar({ open: true, message: 'שגיאה בהפקת האישור — נסה שוב, ואם זה חוזר בדוק את תמונת המסגרת בפאנל העיצוב', severity: 'error' });
     }
   };
 
@@ -870,7 +870,7 @@ export default function Donations() {
                             boxShadow: 2,
                           }}
                         >
-                          <Tooltip title={donationReceiptLayout?.frame ? 'הפק והורד קבלה (PDF עם מסגרת)' : 'הדפס קבלה'}>
+                          <Tooltip title={donationReceiptLayout?.frame ? 'הפק והורד אישור (PDF עם מסגרת)' : 'הדפס אישור'}>
                             <IconButton
                               size="small"
                               color="primary"
@@ -885,7 +885,7 @@ export default function Donations() {
                           </Tooltip>
 
                           {selectedDonor.email && (
-                            <Tooltip title="שלח קבלה במייל">
+                            <Tooltip title="שלח אישור במייל">
                               <IconButton
                                 size="small"
                                 color="secondary"

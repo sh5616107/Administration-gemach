@@ -4,6 +4,7 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { DocumentLayoutConfig } from '../types/documentLayout'
 import { requestEmailCompose, isEmailContentEmpty } from './emailComposeBridge'
+import { DONATION_DOC_TITLE, DEPOSIT_DOC_TITLE, renderNonTaxDisclaimer } from './documentConstants'
 
 // Debug log function
 const debugLog = (message: string, data?: unknown) => {
@@ -794,13 +795,13 @@ export function buildDonationReceiptHtml(data: {
   return `
     <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
       ${renderCustomBlocks('header', layout)}
-      <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">קבלה על תרומה</h1>
+      <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">${DONATION_DOC_TITLE}</h1>
       <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
       
       <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>${label('donation.receiptNumber', 'מספר קבלה:', layout)} <strong>${data.receiptNumber}</strong></p>
+        <p>${label('donation.receiptNumber', 'מספר אישור:', layout)} <strong>${data.receiptNumber}</strong></p>
         ${renderCustomBlocks('afterReceiptNumber', layout)}
         <p>${label('donation.receivedFrom', 'התקבל מאת:', layout)} <strong>${data.donorName}</strong></p>
         ${renderCustomBlocks('afterDonorName', layout)}
@@ -824,6 +825,7 @@ export function buildDonationReceiptHtml(data: {
       <div style="text-align: right; font-size: 14px;">
         <p>חתימת הגמ"ח: _______________________</p>
       </div>
+      ${renderNonTaxDisclaimer()}
     </div>
   `
 }
@@ -859,14 +861,14 @@ export async function generateDonationReceipt(data: {
   const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   
   if (branding.gemachDocumentFrame) {
-    const result = await downloadPdf(finalContent, `קבלה-${data.receiptNumber}`, branding.gemachDocumentFrame, {
+    const result = await downloadPdf(finalContent, `אישור-תרומה-${data.receiptNumber}`, branding.gemachDocumentFrame, {
       top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
       right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
     })
-    if (!result) throw new Error('שגיאה ביצירת קובץ ה-PDF של הקבלה')
+    if (!result) throw new Error('שגיאה ביצירת קובץ ה-PDF של האישור')
     return
   }
-  printHtml(finalContent, `קבלה ${data.receiptNumber}`)
+  printHtml(finalContent, `אישור תרומה ${data.receiptNumber}`)
 }
 
 /**
@@ -946,7 +948,7 @@ export function buildDepositDocumentHtml(data: {
   return `
     <div style="text-align: center; padding: 20px;">
       ${renderCustomBlocks('header', layout)}
-      <h1 style="font-size: 28px; margin: 10px 0; color: var(--doc-accent, inherit);">שטר הפקדה</h1>
+      <h1 style="font-size: 28px; margin: 10px 0; color: var(--doc-accent, inherit);">${DEPOSIT_DOC_TITLE}</h1>
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
@@ -983,8 +985,9 @@ export function buildDepositDocumentHtml(data: {
       
       ${renderCustomBlocks('footer', layout)}
       <div style="text-align: right; font-size: 12px; color: #666;">
-        תאריך הפקת השטר: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
+        תאריך הפקת המסמך: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
       </div>
+      ${renderNonTaxDisclaimer()}
     </div>
   `
 }
@@ -1029,13 +1032,13 @@ export async function generateDepositDocument(data: {
   }, layout)
   const finalContent = applyDocumentBranding(htmlContent, branding, logoHtml, layout)
   if (branding.gemachDocumentFrame) {
-    await downloadPdf(finalContent, `שטר-הפקדה-${data.depositorName}`, branding.gemachDocumentFrame, {
+    await downloadPdf(finalContent, `אישור-קבלת-הפקדה-${data.depositorName}`, branding.gemachDocumentFrame, {
       top: branding.frameMarginTop ?? 35, bottom: branding.frameMarginBottom ?? 48,
       right: branding.frameMarginRight ?? 20, left: branding.frameMarginLeft ?? 20,
     })
     return
   }
-  printHtml(finalContent, `שטר הפקדה - ${data.depositorName}`)
+  printHtml(finalContent, `אישור קבלת הפקדה - ${data.depositorName}`)
 }
 
 
@@ -2144,10 +2147,10 @@ export function createDepositEmailData(params: {
   
   return {
     to: params.depositorEmail,
-    subject: `שטר הפקדה - ${params.gemachName}`,
+    subject: `אישור קבלת הפקדה - ${params.gemachName}`,
     body: `שלום ${params.depositorName},
 
-מצורף שטר הפקדה מגמ"ח "${params.gemachName}".
+מצורף אישור קבלת הפקדה מגמ"ח "${params.gemachName}".
 
 פרטי ההפקדה:
 - סכום: ${formattedAmount}
@@ -2159,7 +2162,7 @@ export function createDepositEmailData(params: {
 ${params.gemachName}`,
     documentType: 'deposit',
     htmlContent: finalHtmlContent,
-    filename: `שטר-הפקדה-${params.depositorName}`,
+    filename: `אישור-קבלת-הפקדה-${params.depositorName}`,
     frameImageBase64: branding.gemachDocumentFrame,
     frameMargins: branding.gemachDocumentFrame ? {
       top: branding.frameMarginTop ?? 35,
@@ -2219,13 +2222,13 @@ export function createDonationEmailData(params: {
   
   return {
     to: params.donorEmail,
-    subject: `קבלה על תרומה #${params.receiptNumber} - ${params.gemachName}`,
+    subject: `אישור קבלת תרומה #${params.receiptNumber} - ${params.gemachName}`,
     body: `שלום ${params.donorName},
 
-מצורפת קבלה על תרומתך לגמ"ח "${params.gemachName}".
+מצורף אישור קבלת תרומתך לגמ"ח "${params.gemachName}".
 
 פרטי התרומה:
-- מספר קבלה: ${params.receiptNumber}
+- מספר אישור: ${params.receiptNumber}
 - סכום: ${formattedAmount}
 - תאריך: ${formattedDate}
 
@@ -2236,7 +2239,7 @@ export function createDonationEmailData(params: {
 ${params.gemachName}`,
     documentType: 'donation',
     htmlContent: finalHtmlContent,
-    filename: `קבלה-${params.receiptNumber}-${params.donorName}`,
+    filename: `אישור-תרומה-${params.receiptNumber}-${params.donorName}`,
     frameImageBase64: branding.gemachDocumentFrame,
     frameMargins: branding.gemachDocumentFrame ? {
       top: branding.frameMarginTop ?? 35,

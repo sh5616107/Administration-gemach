@@ -379,7 +379,7 @@ export default function Settings() {
           <Box>
             <Typography variant="h6">פאנל עיצוב שטרות ודוחות</Typography>
             <Typography variant="body2" color="text.secondary">
-              עריכה מתקדמת ל-4 המסמכים (שטר הלוואה, דו"ח לווה, קבלה על תרומה, קבלה על הפקדה) — בלוקים, יישור, גופן, מסגרת ותצוגה מקדימה חיה.
+              עריכה מתקדמת ל-4 המסמכים (שטר הלוואה, דו"ח לווה, אישור קבלת תרומה, אישור קבלת הפקדה) — בלוקים, יישור, גופן, מסגרת ותצוגה מקדימה חיה.
             </Typography>
           </Box>
           <Button variant="contained" onClick={() => navigate('/settings/document-designer')}>

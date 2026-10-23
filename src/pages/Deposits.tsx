@@ -584,10 +584,10 @@ export default function Deposits() {
         withdrawals: withdrawals.map(w => ({ amount: w.amount, withdrawal_date: w.withdrawal_date })),
       }, depositReceiptLayout);
 
-      setSnackbar({ open: true, message: 'הקבלה הופקה בהצלחה', severity: 'success' });
+      setSnackbar({ open: true, message: 'האישור הופק בהצלחה', severity: 'success' });
     } catch (error) {
       console.error('Error generating deposit receipt:', error);
-      setSnackbar({ open: true, message: 'שגיאה בהפקת הקבלה', severity: 'error' });
+      setSnackbar({ open: true, message: 'שגיאה בהפקת האישור', severity: 'error' });
     }
   };
 
@@ -1079,7 +1079,7 @@ export default function Deposits() {
                               </IconButton>
                             </Tooltip>
 
-                            <Tooltip title={depositReceiptLayout?.frame ? 'הפק והורד שטר (PDF עם מסגרת)' : 'הדפס קבלה'}>
+                            <Tooltip title={depositReceiptLayout?.frame ? 'הפק והורד אישור (PDF עם מסגרת)' : 'הדפס אישור'}>
                               <IconButton
                                 size="small"
                                 color="primary"

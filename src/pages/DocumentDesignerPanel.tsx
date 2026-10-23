@@ -35,8 +35,8 @@ const uiSettingsStore = localforage.createInstance({ name: 'gemach', storeName: 
 const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   loan: 'שטר הלוואה',
   borrowerReport: 'דו"ח לווה',
-  donationReceipt: 'קבלה על תרומה',
-  depositReceipt: 'קבלה על הפקדה',
+  donationReceipt: 'אישור קבלת תרומה',
+  depositReceipt: 'אישור קבלת הפקדה',
   depositorReport: 'דו"ח מפקיד',
   feeReceipt: 'קבלה על עמלה',
 }
@@ -53,7 +53,7 @@ const LABEL_KEYS: Record<DocumentType, Array<{ key: string; fallback: string }>>
     { key: 'borrowerReport.borrowerNameLabel', fallback: 'שם הלווה:' },
   ],
   donationReceipt: [
-    { key: 'donation.receiptNumber', fallback: 'מספר קבלה:' },
+    { key: 'donation.receiptNumber', fallback: 'מספר אישור:' },
     { key: 'donation.receivedFrom', fallback: 'התקבל מאת:' },
     { key: 'donation.amount', fallback: 'סכום:' },
   ],

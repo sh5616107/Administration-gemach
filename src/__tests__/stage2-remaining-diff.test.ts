@@ -33,13 +33,13 @@ function oldBuildDonationReceiptHtml(data: any): string {
 
   const htmlContent = `
     <div style="text-align: center; padding: 20px; max-width: 400px; margin: 0 auto;">
-      <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">קבלה על תרומה</h1>
+      <h1 style="font-size: 24px; margin: 10px 0; color: var(--doc-accent, inherit);">אישור קבלת תרומה</h1>
       <h2 style="font-size: 16px; color: #666; margin-bottom: 20px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 15px 0;" />
       
       <div style="text-align: right; font-size: 16px; line-height: 2;">
-        <p>מספר קבלה: <strong>${data.receiptNumber}</strong></p>
+        <p>מספר אישור: <strong>${data.receiptNumber}</strong></p>
         <p>התקבל מאת: <strong>${data.donorName}</strong></p>
         <p style="font-size: 20px; margin: 15px 0;">
           סכום: <strong>${formatCurrency(data.amount)}</strong>
@@ -57,6 +57,7 @@ function oldBuildDonationReceiptHtml(data: any): string {
       <div style="text-align: right; font-size: 14px;">
         <p>חתימת הגמ"ח: _______________________</p>
       </div>
+      <div data-doc-disclaimer="non-tax" style="margin: 20px 0 0 0; padding: 8px 10px; border: 1px solid #888; text-align: center; direction: rtl; font-size: 12px; color: #333;">מסמך זה אינו קבלה או חשבונית לצורכי מס ואינו מזכה בהטבת מס</div>
     </div>
   `
 
@@ -132,7 +133,7 @@ function oldBuildDepositDocumentHtml(data: any): string {
 
   const htmlContent = `
     <div style="text-align: center; padding: 20px;">
-      <h1 style="font-size: 28px; margin: 10px 0; color: var(--doc-accent, inherit);">שטר הפקדה</h1>
+      <h1 style="font-size: 28px; margin: 10px 0; color: var(--doc-accent, inherit);">אישור קבלת הפקדה</h1>
       <h2 style="font-size: 18px; color: #666; margin-bottom: 30px;">${data.gemachName}</h2>
       
       <hr style="border: none; border-top: 2px solid #333; margin: 20px 0;" />
@@ -165,8 +166,9 @@ function oldBuildDepositDocumentHtml(data: any): string {
       <hr style="border: none; border-top: 1px solid #ccc; margin: 30px 0;" />
       
       <div style="text-align: right; font-size: 12px; color: #666;">
-        תאריך הפקת השטר: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
+        תאריך הפקת המסמך: ${today}${showHebrew ? ` (${todayHebrew})` : ''}
       </div>
+      <div data-doc-disclaimer="non-tax" style="margin: 20px 0 0 0; padding: 8px 10px; border: 1px solid #888; text-align: center; direction: rtl; font-size: 12px; color: #333;">מסמך זה אינו קבלה או חשבונית לצורכי מס ואינו מזכה בהטבת מס</div>
     </div>
   `
 
