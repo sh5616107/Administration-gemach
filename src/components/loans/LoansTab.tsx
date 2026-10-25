@@ -32,6 +32,7 @@ import {
   DialogActions,
   Divider,
   IconButton,
+  Tooltip,
 } from '@mui/material'
 import {
   Save as SaveIcon,
@@ -1658,15 +1659,19 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
               {/* Recurring Loan Section - לפני הערבים */}
               {settings.show_recurring_options !== 'no' && (
                 <>
+                  {/* כשהתיבות לא מסומנות התצוגה מצומצמת לשורה אחת קטנה; הכותרת והתיאור מופיעים רק כשמסמנים */}
                   <Grid item xs={12}>
                     <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" color="primary" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <AutorenewIcon sx={{ fontSize: 18 }} /> הלוואה מחזורית
-                    </Typography>
+                    {formData.is_recurring === 1 && (
+                      <Typography variant="subtitle2" color="primary" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <AutorenewIcon sx={{ fontSize: 18 }} /> הלוואה מחזורית
+                      </Typography>
+                    )}
                   </Grid>
                   
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={formData.is_recurring === 1 ? 12 : 'auto'} md={formData.is_recurring === 1 ? 3 : 'auto'}>
                     <Box>
+                      <Tooltip title={formData.is_recurring === 1 ? '' : 'כל חודש תיווצר הלוואה חדשה ונפרדת'} placement="top">
                       <FormControlLabel
                         control={
                           <Checkbox
@@ -1686,10 +1691,14 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                           />
                         }
                         label="הלוואה מחזורית"
+                        sx={formData.is_recurring === 1 ? undefined : { whiteSpace: 'nowrap', mr: 0 }}
                       />
-                      <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
-                        כל חודש תיווצר הלוואה חדשה ונפרדת
-                      </FormHelperText>
+                      </Tooltip>
+                      {formData.is_recurring === 1 && (
+                        <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
+                          כל חודש תיווצר הלוואה חדשה ונפרדת
+                        </FormHelperText>
+                      )}
                     </Box>
                   </Grid>
                   
@@ -1760,15 +1769,18 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                   )}
 
                   {/* Auto Repayment Section */}
-                  <Grid item xs={12}>
-                    <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" color="success.main" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <PaymentIcon /> פירעון מחזורי
-                    </Typography>
-                  </Grid>
+                  {formData.auto_repayment === 1 && (
+                    <Grid item xs={12}>
+                      <Divider sx={{ my: 1 }} />
+                      <Typography variant="subtitle2" color="success.main" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <PaymentIcon /> פירעון מחזורי
+                      </Typography>
+                    </Grid>
+                  )}
                   
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={formData.auto_repayment === 1 ? 12 : 'auto'} md={formData.auto_repayment === 1 ? 3 : 'auto'}>
                     <Box>
+                      <Tooltip title={formData.auto_repayment === 1 ? '' : 'הלוואה אחת שמוחזרת בכמה תשלומים חודשיים'} placement="top">
                       <FormControlLabel
                         control={
                           <Checkbox
@@ -1785,10 +1797,14 @@ export default function LoansTab({ initialBorrowerId, initialLoanId, initialWait
                           />
                         }
                         label="פירעון מחזורי"
+                        sx={formData.auto_repayment === 1 ? undefined : { whiteSpace: 'nowrap', mr: 0 }}
                       />
-                      <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
-                        הלוואה אחת שמוחזרת בכמה תשלומים חודשיים
-                      </FormHelperText>
+                      </Tooltip>
+                      {formData.auto_repayment === 1 && (
+                        <FormHelperText sx={{ mt: -0.5, mr: 4 }}>
+                          הלוואה אחת שמוחזרת בכמה תשלומים חודשיים
+                        </FormHelperText>
+                      )}
                     </Box>
                   </Grid>
                   
