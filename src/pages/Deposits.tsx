@@ -1,4 +1,6 @@
 import { toLocalDateStr } from '../utils/localDate'
+import { toHebrewDate } from '../utils/dateUtils';
+import { validateEventDate } from '../utils/dateValidation';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -131,6 +133,7 @@ export default function Deposits() {
   const [withdrawingDeposit, setWithdrawingDeposit] = useState<Deposit | null>(null);
   const [withdrawPaymentMethod, setWithdrawPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
   const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [withdrawDate, setWithdrawDate] = useState(toLocalDateStr());
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // Withdrawal history dialog state
@@ -460,6 +463,7 @@ export default function Deposits() {
     setWithdrawingDeposit({ ...deposit, amount: depositAmount, withdrawn_amount: alreadyWithdrawn });
     setWithdrawPaymentMethod({ payment_method: '' });
     setWithdrawAmount(availableToWithdraw); // ברירת מחדל: כל היתרה
+    setWithdrawDate(toLocalDateStr());
     setWithdrawDialogOpen(true);
   };
 
@@ -486,7 +490,14 @@ export default function Deposits() {
         return;
       }
 
-      const withdrawalDate = toLocalDateStr();
+      const depositMinDate = (withdrawingDeposit.deposit_date || '').split('T')[0];
+      const dateError = validateEventDate(withdrawDate, depositMinDate, 'תאריך ההפקדה');
+      if (dateError) {
+        setSnackbar({ open: true, message: dateError, severity: 'error' });
+        return;
+      }
+
+      const withdrawalDate = withdrawDate;
 
       // יצירת רשומת משיכה חדשה
       await depositWithdrawalsService.create({
@@ -502,9 +513,16 @@ export default function Deposits() {
       const totalWithdrawn = alreadyWithdrawn + withdrawAmount;
       const newStatus = totalWithdrawn >= withdrawingDeposit.amount ? 'withdrawn' : 'active';
 
+      // תאריך המשיכה שנשמר בהפקדה עצמה הוא תאריך המשיכה המאוחר ביותר, גם אם
+      // המשיכה שנרשמה עכשיו היא בדיעבד ומוקדמת ממשיכה קיימת.
+      const latestWithdrawalDate = [
+        ...withdrawals.map(w => (w.withdrawal_date || '').split('T')[0]),
+        withdrawalDate,
+      ].filter(Boolean).sort().pop() as string;
+
       await db.run(
         'UPDATE deposits SET status = ?, withdrawal_date = ?, withdrawn_amount = ?, withdrawal_payment_method = ?, withdrawal_payment_details = ? WHERE id = ?',
-        [newStatus, withdrawalDate, totalWithdrawn, withdrawPaymentMethod.payment_method, JSON.stringify(withdrawPaymentMethod), withdrawingDeposit.id]
+        [newStatus, latestWithdrawalDate, totalWithdrawn, withdrawPaymentMethod.payment_method, JSON.stringify(withdrawPaymentMethod), withdrawingDeposit.id]
       );
 
       const message = newStatus === 'withdrawn'
@@ -1468,6 +1486,28 @@ export default function Deposits() {
                   sx={{ mb: 2 }}
                 />
 
+                {(() => {
+                  const depositMinDate = (withdrawingDeposit.deposit_date || '').split('T')[0];
+                  const dateError = validateEventDate(withdrawDate, depositMinDate, 'תאריך ההפקדה');
+                  return (
+                    <TextField
+                      fullWidth
+                      type="date"
+                      label="תאריך המשיכה"
+                      value={withdrawDate}
+                      onChange={(e) => setWithdrawDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      inputProps={{ min: depositMinDate || undefined, max: toLocalDateStr() }}
+                      error={!!dateError}
+                      helperText={
+                        dateError ||
+                        (settings.date_format === 'combined' && withdrawDate ? `📅 ${toHebrewDate(withdrawDate)}` : '')
+                      }
+                      sx={{ mb: 2 }}
+                    />
+                  );
+                })()}
+
                 {settings.show_payment_method === 'yes' && (
                   <PaymentMethodSelect
                     value={withdrawPaymentMethod}
@@ -1481,7 +1521,15 @@ export default function Deposits() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWithdrawDialogOpen(false)} disabled={isWithdrawing}>ביטול</Button>
-          <Button variant="contained" color="warning" onClick={handleConfirmWithdraw} disabled={isWithdrawing}>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleConfirmWithdraw}
+            disabled={
+              isWithdrawing ||
+              !!validateEventDate(withdrawDate, ((withdrawingDeposit?.deposit_date) || '').split('T')[0], 'תאריך ההפקדה')
+            }
+          >
             {isWithdrawing ? 'מבצע משיכה...' : 'בצע משיכה'}
           </Button>
         </DialogActions>

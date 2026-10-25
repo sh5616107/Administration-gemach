@@ -1,4 +1,6 @@
 import { toLocalDateStr } from '../utils/localDate'
+import { toHebrewDate } from '../utils/dateUtils';
+import { validateEventDate } from '../utils/dateValidation';
 import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
@@ -129,6 +131,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
   // Multi-repayment dialog state
   const [multiRepaymentDialogOpen, setMultiRepaymentDialogOpen] = useState(false);
   const [multiRepaymentAmount, setMultiRepaymentAmount] = useState(0);
+  const [multiRepaymentDate, setMultiRepaymentDate] = useState(toLocalDateStr());
   const [multiRepaymentPaymentMethod, setMultiRepaymentPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
   const [isSubmittingMultiRepayment, setIsSubmittingMultiRepayment] = useState(false);
 
@@ -142,6 +145,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
   const [repaymentDialogOpen, setRepaymentDialogOpen] = useState(false);
   const [repaymentLoanId, setRepaymentLoanId] = useState<string | null>(null);
   const [repaymentAmount, setRepaymentAmount] = useState(0);
+  const [repaymentDate, setRepaymentDate] = useState(toLocalDateStr());
   const [repaymentPaymentMethod, setRepaymentPaymentMethod] = useState<PaymentMethodData>({ payment_method: '' });
   const [isSubmittingRepayment, setIsSubmittingRepayment] = useState(false);
 
@@ -571,13 +575,19 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
 
   const handleMultiRepayment = async () => {
     if (!selectedBorrower || multiRepaymentAmount <= 0) return;
+
+    const multiDateError = validateEventDate(multiRepaymentDate);
+    if (multiDateError) {
+      setSnackbar({ open: true, message: multiDateError, severity: 'error' });
+      return;
+    }
     
     // מניעת הגשה כפולה
     if (isSubmittingMultiRepayment) return;
     setIsSubmittingMultiRepayment(true);
     
     try {
-      const activeLoans = loans.filter(l => (l.remaining || 0) > 0 && l.loan_date <= toLocalDateStr());
+      const activeLoans = loans.filter(l => (l.remaining || 0) > 0 && l.loan_date <= multiRepaymentDate);
       
       if (activeLoans.length === 0) {
         setSnackbar({ open: true, message: 'אין הלוואות פעילות', severity: 'error' });
@@ -585,7 +595,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
       }
       
       let remainingAmount = multiRepaymentAmount;
-      const today = toLocalDateStr();
+      const paymentDate = multiRepaymentDate;
       
       // Sort by oldest first
       activeLoans.sort((a, b) => a.loan_date.localeCompare(b.loan_date));
@@ -602,7 +612,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
         await repaymentsService.create({
           loan_id: loan.id,
           amount: paymentAmount,
-          payment_date: today,
+          payment_date: paymentDate,
           payment_method: multiRepaymentPaymentMethod.payment_method,
           payment_details: JSON.stringify(multiRepaymentPaymentMethod),
           is_recurring: numberInfo.recurringRepaymentNumber > 1 || numberInfo.recurringRepaymentCount ? 1 : 0,
@@ -640,6 +650,12 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
       setSnackbar({ open: true, message: 'סכום הפירעון גבוה מהיתרה', severity: 'error' });
       return;
     }
+
+    const dateError = validateEventDate(repaymentDate, (loan.loan_date || '').split('T')[0], 'תאריך ההלוואה');
+    if (dateError) {
+      setSnackbar({ open: true, message: dateError, severity: 'error' });
+      return;
+    }
     
     if (isSubmittingRepayment) return;
     setIsSubmittingRepayment(true);
@@ -648,6 +664,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
       await createRepaymentWithNumbering({
         loanId: repaymentLoanId,
         amount: repaymentAmount,
+        paymentDate: repaymentDate,
         paymentMethod: repaymentPaymentMethod.payment_method,
         paymentDetails: JSON.stringify(repaymentPaymentMethod),
       });
@@ -769,7 +786,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                       variant="outlined"
                       color="secondary"
                       startIcon={<PaymentIcon />}
-                      onClick={() => setMultiRepaymentDialogOpen(true)}
+                      onClick={() => { setMultiRepaymentDate(toLocalDateStr()); setMultiRepaymentDialogOpen(true); }}
                     >
                       פירעון מרובה
                     </Button>
@@ -1076,6 +1093,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                                             setRepaymentLoanId(loan.id!);
                                             setRepaymentAmount(0);
                                             setRepaymentPaymentMethod({ payment_method: '' });
+                                            setRepaymentDate(toLocalDateStr());
                                             setRepaymentDialogOpen(true);
                                           }}
                                           sx={{ '&:hover': { bgcolor: 'grey.200' } }}
@@ -1206,6 +1224,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                                   setRepaymentLoanId(loan.id!);
                                   setRepaymentAmount(0);
                                   setRepaymentPaymentMethod({ payment_method: '' });
+                                  setRepaymentDate(toLocalDateStr());
                                   setRepaymentDialogOpen(true);
                                 }}
                                 sx={{ '&:hover': { bgcolor: 'grey.200' } }}
@@ -1471,6 +1490,21 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
             fullWidth
             autoFocus
           />
+          <TextField
+            fullWidth
+            type="date"
+            label="תאריך הפירעון"
+            value={multiRepaymentDate}
+            onChange={(e) => setMultiRepaymentDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ max: toLocalDateStr() }}
+            error={!!validateEventDate(multiRepaymentDate)}
+            helperText={
+              validateEventDate(multiRepaymentDate) ||
+              (settings.date_format === 'combined' && multiRepaymentDate ? `📅 ${toHebrewDate(multiRepaymentDate)}` : '')
+            }
+            sx={{ mt: 2 }}
+          />
           {settings.show_payment_method === 'yes' && (
             <Box sx={{ mt: 2 }}>
               <PaymentMethodSelect
@@ -1481,7 +1515,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
           )}
           {multiRepaymentAmount > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              הסכום יחולק על {loans.filter(l => (l.remaining || 0) > 0).length} הלוואות פעילות
+              הסכום יחולק על {loans.filter(l => (l.remaining || 0) > 0 && l.loan_date <= multiRepaymentDate).length} הלוואות פעילות
             </Typography>
           )}
         </DialogContent>
@@ -1490,7 +1524,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
           <Button
             variant="contained"
             onClick={handleMultiRepayment}
-            disabled={multiRepaymentAmount <= 0 || (settings.show_payment_method === 'yes' && !multiRepaymentPaymentMethod.payment_method) || isSubmittingMultiRepayment}
+            disabled={multiRepaymentAmount <= 0 || !!validateEventDate(multiRepaymentDate) || (settings.show_payment_method === 'yes' && !multiRepaymentPaymentMethod.payment_method) || isSubmittingMultiRepayment}
           >
             {isSubmittingMultiRepayment ? 'מבצע פירעון...' : 'בצע פירעון'}
           </Button>
@@ -1555,6 +1589,27 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                   onChange={setRepaymentAmount}
                   autoFocus
                 />
+                {(() => {
+                  const loanMinDate = (loan.loan_date || '').split('T')[0];
+                  const dateError = validateEventDate(repaymentDate, loanMinDate, 'תאריך ההלוואה');
+                  return (
+                    <TextField
+                      fullWidth
+                      type="date"
+                      label="תאריך הפירעון"
+                      value={repaymentDate}
+                      onChange={(e) => setRepaymentDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      inputProps={{ min: loanMinDate || undefined, max: toLocalDateStr() }}
+                      error={!!dateError}
+                      helperText={
+                        dateError ||
+                        (settings.date_format === 'combined' && repaymentDate ? `📅 ${toHebrewDate(repaymentDate)}` : '')
+                      }
+                      sx={{ mt: 2 }}
+                    />
+                  );
+                })()}
                 {settings.show_payment_method === 'yes' && (
                   <Box sx={{ mt: 2 }}>
                     <PaymentMethodSelect
@@ -1576,6 +1631,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
             disabled={
               repaymentAmount <= 0 || 
               repaymentAmount > (loans.find(l => l.id === repaymentLoanId)?.amount ?? 0) - (loans.find(l => l.id === repaymentLoanId)?.total_repaid ?? 0) ||
+              !!validateEventDate(repaymentDate, (loans.find(l => l.id === repaymentLoanId)?.loan_date || '').split('T')[0], 'תאריך ההלוואה') ||
               (settings.show_payment_method === 'yes' && !repaymentPaymentMethod.payment_method) ||
               isSubmittingRepayment
             }

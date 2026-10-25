@@ -2634,9 +2634,17 @@ export const depositWithdrawalsService = {
         deposit.withdrawal_payment_method = null
         deposit.withdrawal_payment_details = null
       } else {
-        // יש עדיין withdrawals - עדכן רק סכום וסטטוס
+        // יש עדיין withdrawals - עדכן סכום, סטטוס ותאריך משיכה אחרון
         deposit.status = newStatus
         deposit.withdrawn_amount = newTotalWithdrawn
+        // withdrawal_date בהפקדה = תאריך המשיכה המאוחר ביותר מבין הנותרות
+        // (משיכות יכולות להירשם בדיעבד, ולכן הסדר לא בהכרח לפי זמן היצירה)
+        const latestDate = remainingWithdrawals
+          .map(w => (w.withdrawal_date || '').split('T')[0])
+          .filter(Boolean)
+          .sort()
+          .pop()
+        if (latestDate) deposit.withdrawal_date = latestDate
       }
       
       setItem('deposits', depositId, deposit)
