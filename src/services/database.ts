@@ -858,13 +858,17 @@ export const db = {
           d.notes = params[9]
         }
         // 7 פרמטרים: 6 שדות + status + id (מ-DepositSidePanel)
-        else if (params.length === 7) {
+        // 8 params: same as above plus fund_id right before the id (fund selected)
+        else if (params.length === 7 || params.length === 8) {
           d.amount = params[0]
           d.deposit_date = params[1]
           d.period_type = params[2]
           d.due_date = params[3]
           d.notes = params[4]
           d.status = params[5]
+          if (params.length === 8) {
+            d.fund_id = params[6]
+          }
         }
         // תאימות לאחור - 6 פרמטרים (בלי שדות מחזוריים)
         else if (params.length === 6) {
@@ -900,6 +904,26 @@ export const db = {
       await attachmentsService.softDeleteByEntity('deposit', String(params[0]))
       return { lastInsertRowid: 0, changes: 1 } 
     }
+    if (normalizedSql.includes('UPDATE donations SET bank_verified') && params) {
+      const d = getItem<any>('donations', String(params[params.length - 1]));
+      if (d) {
+        d.bank_verified = params[0]
+        d.bank_transaction_id = params[1]
+        d.verified_at = params[2]
+        setItem('donations', String(params[params.length - 1]), d)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
+    if (normalizedSql.includes('UPDATE deposits SET bank_verified') && params) {
+      const d = getItem<any>('deposits', String(params[params.length - 1]));
+      if (d) {
+        d.bank_verified = params[0]
+        d.bank_transaction_id = params[1]
+        d.verified_at = params[2]
+        setItem('deposits', String(params[params.length - 1]), d)
+      }
+      return { lastInsertRowid: 0, changes: 1 }
+    }
     if (normalizedSql.includes('UPDATE donations SET') && params) {
       const d = getItem<any>('donations', String(params[params.length - 1]));
       if (d) {
@@ -908,6 +932,10 @@ export const db = {
         d.notes = params[2]
         d.payment_method = params[3]
         d.payment_details = params[4]
+        // 6 params: 5 fields + id; 7 params: 5 fields + fund_id + id
+        if (params.length === 7) {
+          d.fund_id = params[5]
+        }
         setItem('donations', String(params[params.length - 1]), d)
       }
       return { lastInsertRowid: 0, changes: 1 }
