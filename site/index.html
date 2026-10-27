@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מינהל הגמ"ח – מערכת מודרנית לניהול גמ"ח כספים</title>
+<meta name="description" content="מינהל הגמ"ח: ניהול לווים, ערבים, הלוואות, תרומות והפקדות, הפקת שטרות וקבלות, לוח עברי וגיבויים – הכל במקום אחד על מחשב Windows. קוד פתוח.">
+<meta property="og:title" content="מינהל הגמ"ח">
+<meta property="og:description" content="מערכת מודרנית לניהול גמ"ח כספים, למחשבי Windows.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#14213d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#14213d; --navy-2:#1d2f55; --gold:#c8963e; --gold-soft:#f3e6cc;
+  --cream:#faf7f0; --ink:#1c2233; --muted:#5d6577; --line:#e6e0d2; --white:#fff;
+  --radius:16px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:'Heebo',system-ui,-apple-system,'Segoe UI',Arial,sans-serif;background:var(--cream);color:var(--ink);line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.wrap{width:min(1120px,100% - 40px);margin-inline:auto}
+
+/* nav */
+header.nav{position:sticky;top:0;z-index:20;background:rgba(250,247,240,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px}
+.brand{font-weight:800;font-size:1.2rem;color:var(--navy);display:flex;align-items:center;gap:10px}
+.brand .logo{width:34px;height:34px;border-radius:10px;background:var(--navy);color:var(--gold);display:grid;place-items:center;font-weight:800}
+.nav nav{display:flex;gap:22px;font-weight:500;color:var(--muted)}
+.nav nav a:hover{color:var(--navy)}
+@media(max-width:760px){.nav nav{display:none}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:12px;font-weight:700;border:2px solid transparent;transition:.15s;cursor:pointer;font-family:inherit;font-size:1rem}
+.btn-primary{background:var(--gold);color:var(--navy)}
+.btn-primary:hover{background:#d9a64d;transform:translateY(-1px)}
+.btn-ghost{border-color:rgba(255,255,255,.35);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.1)}
+.btn-dark{background:var(--navy);color:#fff}
+.btn-dark:hover{background:var(--navy-2)}
+
+/* hero */
+.hero{background:radial-gradient(1200px 500px at 80% -10%,#2a427a 0%,transparent 60%),var(--navy);color:#fff;padding:72px 0 0;overflow:hidden}
+.hero .grid{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
+.pill{display:inline-block;background:rgba(200,150,62,.18);color:var(--gold-soft);border:1px solid rgba(200,150,62,.4);padding:4px 14px;border-radius:999px;font-size:.9rem;font-weight:500}
+.hero h1{font-size:clamp(2.2rem,5vw,3.6rem);line-height:1.15;margin:18px 0 14px;font-weight:800}
+.hero h1 span{color:var(--gold)}
+.hero p.lead{font-size:1.2rem;color:#d3daea;max-width:34ch;margin:0 0 28px}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.badges{display:flex;flex-wrap:wrap;gap:10px;margin:26px 0 56px;color:#b8c2da;font-size:.92rem}
+.badges span{border:1px solid rgba(255,255,255,.18);padding:3px 12px;border-radius:999px}
+
+/* app mock */
+.mock{background:#f4f1ea;border-radius:18px 18px 0 0;box-shadow:0 30px 80px rgba(0,0,0,.45);overflow:hidden;color:var(--ink);border:1px solid rgba(255,255,255,.2);border-bottom:0}
+.mock .bar{background:#e8e3d6;padding:10px 14px;display:flex;gap:7px;align-items:center}
+.mock .bar i{width:11px;height:11px;border-radius:50%;background:#c9c2ae;display:block}
+.mock .bar b{margin-inline-start:10px;font-size:.8rem;color:var(--muted);font-weight:500}
+.mock .body{display:grid;grid-template-columns:150px 1fr;min-height:330px}
+.side{background:var(--navy-2);color:#cfd8ee;padding:14px 10px;display:flex;flex-direction:column;gap:4px;font-size:.88rem}
+.side div{padding:8px 12px;border-radius:8px}
+.side .on{background:rgba(200,150,62,.2);color:#fff;font-weight:700}
+.main{padding:18px}
+.main h4{margin:0 0 12px;font-size:1rem;color:var(--navy)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat small{color:var(--muted);font-size:.74rem;display:block}
+.stat strong{font-size:1.25rem;color:var(--navy)}
+.rows{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.row{display:flex;justify-content:space-between;padding:10px 14px;font-size:.84rem;border-bottom:1px solid var(--line)}
+.row:last-child{border:0}
+.tag{background:var(--gold-soft);color:#8a5d12;border-radius:999px;padding:0 10px;font-size:.74rem;font-weight:700}
+.tag.ok{background:#dcefe0;color:#1d6b35}
+.mock-note{font-size:.72rem;color:#9aa1b2;text-align:center;padding:6px;background:#f4f1ea}
+@media(max-width:900px){.hero .grid{grid-template-columns:1fr}.hero p.lead{max-width:none}.mock .body{grid-template-columns:110px 1fr}}
+
+/* sections */
+section{padding:84px 0}
+.eyebrow{color:var(--gold);font-weight:700;letter-spacing:.02em;font-size:.95rem}
+h2{font-size:clamp(1.7rem,3.4vw,2.4rem);line-height:1.2;margin:6px 0 12px;color:var(--navy);font-weight:800}
+.sub{color:var(--muted);font-size:1.1rem;max-width:56ch;margin:0 0 40px}
+
+.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pillar{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+.pillar .ic{font-size:1.8rem}
+.pillar h3{margin:10px 0 6px;color:var(--navy)}
+.pillar p{margin:0;color:var(--muted)}
+
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.feat{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:22px;transition:.15s}
+.feat:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(20,33,61,.1);border-color:var(--gold)}
+.feat .ic{width:46px;height:46px;border-radius:12px;background:var(--gold-soft);display:grid;place-items:center;font-size:1.4rem}
+.feat h3{margin:14px 0 6px;font-size:1.1rem;color:var(--navy)}
+.feat p{margin:0;color:var(--muted);font-size:.97rem}
+
+.band{background:var(--navy);color:#fff}
+.band h2{color:#fff}
+.band .sub{color:#c3cce2}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.checks li{display:flex;gap:12px;align-items:flex-start}
+.checks li::before{content:"✓";flex:none;width:26px;height:26px;border-radius:50%;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-weight:800;font-size:.9rem;margin-top:2px}
+.tech{display:flex;flex-wrap:wrap;gap:10px}
+.tech span{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);padding:6px 16px;border-radius:999px;font-size:.95rem}
+
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;counter-reset:s}
+.step{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:26px;position:relative}
+.step::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--navy);color:var(--gold);font-weight:800;margin-bottom:12px}
+.step h3{margin:0 0 6px;color:var(--navy)}
+.step p{margin:0;color:var(--muted)}
+
+.soon{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.soon div{border:2px dashed var(--line);border-radius:var(--radius);padding:22px;background:rgba(255,255,255,.5)}
+.soon h3{margin:0 0 6px;color:var(--navy)}
+.soon p{margin:0;color:var(--muted)}
+
+details{background:var(--white);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:12px}
+summary{cursor:pointer;font-weight:700;color:var(--navy)}
+details p{margin:10px 0 0;color:var(--muted)}
+
+.final{text-align:center;background:linear-gradient(135deg,var(--navy),var(--navy-2));color:#fff;border-radius:24px;padding:56px 24px}
+.final h2{color:#fff}
+.final p{color:#c3cce2;margin:0 auto 24px;max-width:46ch}
+.final .cta{justify-content:center}
+
+footer{padding:36px 0;color:var(--muted);font-size:.93rem;text-align:center}
+footer a{color:var(--navy);font-weight:500;text-decoration:underline}
+
+@media(max-width:900px){
+  .pillars,.features,.steps{grid-template-columns:1fr 1fr}
+  .split{grid-template-columns:1fr}
+  .soon{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  section{padding:56px 0}
+  .pillars,.features,.steps{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="logo">ג</span> מינהל הגמ"ח</a>
+    <nav>
+      <a href="#features">יכולות</a>
+      <a href="#why">למה אצלנו</a>
+      <a href="#start">התחלה מהירה</a>
+      <a href="#faq">שאלות נפוצות</a>
+    </nav>
+    <a class="btn btn-dark" href="https://github.com/sh5616107/Administration-gemach/releases/latest">הורדה</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- HERO -->
+<div class="hero">
+  <div class="wrap grid">
+    <div>
+      <span class="pill">גרסה 4.7.0 · קוד פתוח</span>
+      <h1>ניהול גמ"ח כספים,<br><span>פשוט ומסודר</span></h1>
+      <p class="lead">לווים, ערבים, הלוואות, תרומות והפקדות – הכל במקום אחד, על המחשב שלכם.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/sh5616107/Administration-gemach/releases/latest">⬇ הורדה ל-Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/sh5616107/Administration-gemach">הקוד ב-GitHub</a>
+      </div>
+      <div class="badges">
+        <span>Windows</span><span>עברית ואנגלית</span><span>ללא שרת חיצוני</span><span>רישיון MIT</span>
+      </div>
+    </div>
+
+    <div class="mock" aria-hidden="true">
+      <div class="bar"><i></i><i></i><i></i><b>מינהל הגמ"ח</b></div>
+      <div class="body">
+        <div class="side">
+          <div class="on">🏠 דף הבית</div>
+          <div>👤 לווים</div>
+          <div>🤝 ערבים</div>
+          <div>💰 הלוואות</div>
+          <div>🎁 תרומות</div>
+          <div>📥 הפקדות</div>
+          <div>📅 לוח שנה</div>
+        </div>
+        <div class="main">
+          <h4>סקירה כללית</h4>
+          <div class="stats">
+            <div class="stat"><small>כסף זמין</small><strong>₪ 48,500</strong></div>
+            <div class="stat"><small>לווים פעילים</small><strong>12</strong></div>
+            <div class="stat"><small>התראות</small><strong>3</strong></div>
+          </div>
+          <div class="rows">
+            <div class="row"><span>הלוואה – פירעון קרוב</span><span class="tag">השבוע</span></div>
+            <div class="row"><span>הפקדה מחזורית</span><span class="tag ok">התקבלה</span></div>
+            <div class="row"><span>תרומה חדשה</span><span class="tag ok">נרשמה</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-note">הדגמה להמחשה בלבד · נתוני דוגמה</div>
+    </div>
+  </div>
+</div>
+
+<!-- PILLARS -->
+<section id="why">
+  <div class="wrap">
+    <div class="eyebrow">למה מינהל הגמ"ח</div>
+    <h2>כל מה שגמ"ח צריך, בלי הסיבוכים</h2>
+    <p class="sub">מערכת שנבנתה סביב העבודה היומיומית של מנהלי גמ"ח – מהרישום ועד המסמכים.</p>
+    <div class="pillars">
+      <div class="pillar"><div class="ic">🗂️</div><h3>הכל במקום אחד</h3><p>אנשי קשר מאוחדים, הלוואות, ערבויות, תרומות והפקדות – עם חיפוש אחד שמוצא את הכל.</p></div>
+      <div class="pillar"><div class="ic">💻</div><h3>הנתונים אצלכם</h3><p>אחסון מקומי על המחשב, ללא שרת או מסד נתונים חיצוני. יש גיבוי ושחזור בלחיצה.</p></div>
+      <div class="pillar"><div class="ic">🔒</div><h3>מוגן בסיסמה</h3><p>אפשר לנעול את המערכת בסיסמה, והיא נשמרת כ-hash מסוג SHA-256 עם salt.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" style="padding-top:0">
+  <div class="wrap">
+    <div class="eyebrow">יכולות</div>
+    <h2>תמונה מלאה של הגמ"ח</h2>
+    <p class="sub">כלים לניהול שוטף, להפקת מסמכים ולמעקב אחרי כל מה שקורה.</p>
+    <div class="features">
+      <div class="feat"><div class="ic">📊</div><h3>דף הבית</h3><p>סטטיסטיקות, כסף זמין, לווים פעילים והתראות חכמות במבט אחד.</p></div>
+      <div class="feat"><div class="ic">👤</div><h3>ניהול לווים</h3><p>הוספה, עריכה וחיפוש, וכל היסטוריית ההלוואות של כל לווה.</p></div>
+      <div class="feat"><div class="ic">🤝</div><h3>ניהול ערבים</h3><p>מעקב ערבויות וסטטוסים, כולל הלוואות לערבים.</p></div>
+      <div class="feat"><div class="ic">💰</div><h3>ניהול הלוואות</h3><p>הלוואות קבועות וגמישות, הלוואות מחזוריות ופירעון אוטומטי.</p></div>
+      <div class="feat"><div class="ic">✏️</div><h3>פריטים מחזוריים</h3><p>עריכה מאוחדת של הלוואות, פירעונות והפקדות מחזוריות.</p></div>
+      <div class="feat"><div class="ic">👥</div><h3>אנשי קשר מאוחדים</h3><p>חיפוש ותצוגה אחידים של לווים, ערבים, תורמים ומפקידים.</p></div>
+      <div class="feat"><div class="ic">🎁</div><h3>תרומות</h3><p>רישום תורמים ותרומות בצורה מסודרת וברורה.</p></div>
+      <div class="feat"><div class="ic">📥</div><h3>הפקדות</h3><p>ניהול מפקידים והפקדות, כולל הפקדות מחזוריות.</p></div>
+      <div class="feat"><div class="ic">📅</div><h3>לוח שנה</h3><p>אירועים בתצוגה עברית ולועזית, עם חיפוש מתקדם.</p></div>
+      <div class="feat"><div class="ic">📄</div><h3>הפקת מסמכים</h3><p>שטרי הלוואה, קבלות ודוחות כ-PDF, מוכנים להדפסה.</p></div>
+      <div class="feat"><div class="ic">🛠️</div><h3>כלים מתקדמים</h3><p>גיבוי ושחזור, יבוא ויצוא אקסל, רשימה שחורה, הוצאות ודוחות תקופתיים.</p></div>
+      <div class="feat"><div class="ic">🌐</div><h3>עברית ואנגלית</h3><p>ממשק בעברית כברירת מחדל, עם אפשרות מעבר לאנגלית.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- BAND: trust / tech -->
+<section class="band">
+  <div class="wrap split">
+    <div>
+      <div class="eyebrow">שקט נפשי</div>
+      <h2>בנוי להיות יציב, מעודכן ושקוף</h2>
+      <p class="sub">פרויקט פתוח עם היסטוריית פיתוח מתועדת, בדיקות אוטומטיות ועדכוני גרסאות סדירים.</p>
+      <div class="tech">
+        <span>React 18</span><span>TypeScript</span><span>Tauri 2</span><span>Material-UI</span><span>i18next</span><span>@hebcal/core</span>
+      </div>
+    </div>
+    <ul class="checks">
+      <li><div><strong>עדכונים אוטומטיים</strong><br>בדיקת גרסה חדשה מול GitHub Releases והתקנה בלחיצה.</div></li>
+      <li><div><strong>לוח עברי מובנה</strong><br>חישובי תאריכים עבריים מבוססי Hebcal.</div></li>
+      <li><div><strong>קוד פתוח ברישיון MIT</strong><br>אפשר לראות בדיוק מה התוכנה עושה.</div></li>
+      <li><div><strong>יבוא ויצוא אקסל</strong><br>מעבר נוח מנתונים קיימים, והוצאת דוחות החוצה.</div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- START -->
+<section id="start">
+  <div class="wrap">
+    <div class="eyebrow">התחלה מהירה</div>
+    <h2>שלושה צעדים ומתחילים</h2>
+    <p class="sub">ההתקנה מיועדת למחשבי Windows.</p>
+    <div class="steps">
+      <div class="step"><h3>מורידים</h3><p>נכנסים לעמוד ה-Releases ב-GitHub ומורידים את קובץ ההתקנה העדכני.</p></div>
+      <div class="step"><h3>מתקינים</h3><p>מריצים את קובץ ההתקנה ופותחים את התוכנה מתפריט התחל.</p></div>
+      <div class="step"><h3>מנהלים</h3><p>מוסיפים לווים והלוואות, ואפשר גם להגדיר סיסמה לנעילת המערכת.</p></div>
+    </div>
+    <p style="margin-top:28px"><a class="btn btn-dark" href="https://github.com/sh5616107/Administration-gemach/releases/latest">למעבר לעמוד ההורדות</a></p>
+  </div>
+</section>
+
+<!-- COMING -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="eyebrow">בפיתוח</div>
+    <h2>מה בדרך</h2>
+    <p class="sub">יכולות שהקוד שלהן קיים, ועדיין לא זמינות למשתמש הקצה.</p>
+    <div class="soon">
+      <div><h3>סנכרון בנקים</h3><p>חיבור לנתוני בנק דרך רכיב נלווה נפרד. כרגע מוסתר עד השלמת הפיתוח.</p></div>
+      <div><h3>מסגרת מסמך מותאמת אישית</h3><p>העלאת מסגרת או לוגו קבוע לכל המסמכים. תחזור לאחר פתרון מקיף של מנגנון ה-PDF.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="padding-top:0">
+  <div class="wrap" style="max-width:820px">
+    <div class="eyebrow">שאלות נפוצות</div>
+    <h2>כמה תשובות קצרות</h2>
+    <br>
+    <details><summary>על אילו מערכות הפעלה התוכנה עובדת?</summary><p>התוכנה מיועדת למחשבי Windows, וקובץ ההתקנה נבנה בפורמט NSIS.</p></details>
+    <details><summary>איפה נשמרים הנתונים?</summary><p>באחסון מקומי על המחשב שלכם (JSON ו-localforage), ללא שרת או מסד נתונים חיצוני. מומלץ להשתמש באפשרות הגיבוי בקביעות.</p></details>
+    <details><summary>אפשר להעביר נתונים מאקסל?</summary><p>כן, יש יבוא ויצוא של קבצי אקסל במסגרת הכלים המתקדמים.</p></details>
+    <details><summary>איך מקבלים עדכונים?</summary><p>התוכנה בודקת אם יש גרסה חדשה ב-GitHub Releases, ומאפשרת להתקין אותה בלחיצה.</p></details>
+    <details><summary>האם התוכנה בתשלום?</summary><p>התוכנה היא קוד פתוח ברישיון MIT.</p></details>
+    <details><summary>נתקלתי בבעיה או יש לי הצעה</summary><p>אפשר לפתוח פנייה בעמוד ה-Issues של הפרויקט ב-GitHub.</p></details>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="final">
+      <h2>מוכנים לסדר את הגמ"ח?</h2>
+      <p>הורידו את הגרסה האחרונה והתחילו לנהל בצורה נוחה ומסודרת.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/sh5616107/Administration-gemach/releases/latest">⬇ הורדה ל-Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/sh5616107/Administration-gemach/issues">דיווח או הצעה</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    מינהל הגמ"ח · גרסה 4.7.0 · רישיון MIT ·
+    <a href="https://github.com/sh5616107/Administration-gemach">GitHub</a> ·
+    <a href="https://github.com/sh5616107/Administration-gemach/blob/main/CHANGELOG.md">היסטוריית גרסאות</a>
+  </div>
+</footer>
+
+</body>
+</html>
