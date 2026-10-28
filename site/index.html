@@ -9,12 +9,15 @@
 <meta property="og:description" content="מערכת מודרנית לניהול גמ"ח כספים, למחשבי Windows.">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#14213d">
+<meta property="og:locale" content="he_IL">
+<meta property="og:url" content="https://sh5616107.github.io/Administration-gemach/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%2314213d%27/%3E%3Ctext x=%2732%27 y=%2745%27 font-size=%2738%27 font-weight=%27bold%27 font-family=%27Arial,sans-serif%27 text-anchor=%27middle%27 fill=%27%23c8963e%27%3E%26%231490%3B%3C/text%3E%3C/svg%3E">
 <style>
 :root{
-  --navy:#14213d; --navy-2:#1d2f55; --gold:#c8963e; --gold-soft:#f3e6cc;
+  --navy:#14213d; --navy-2:#1d2f55; --gold:#c8963e; --gold-dark:#8a5d12; --gold-soft:#f3e6cc;
   --cream:#faf7f0; --ink:#1c2233; --muted:#5d6577; --line:#e6e0d2; --white:#fff;
   --radius:16px;
 }
@@ -73,12 +76,12 @@ header.nav{position:sticky;top:0;z-index:20;background:rgba(250,247,240,.92);bac
 .row:last-child{border:0}
 .tag{background:var(--gold-soft);color:#8a5d12;border-radius:999px;padding:0 10px;font-size:.74rem;font-weight:700}
 .tag.ok{background:#dcefe0;color:#1d6b35}
-.mock-note{font-size:.72rem;color:#9aa1b2;text-align:center;padding:6px;background:#f4f1ea}
+.mock-note{font-size:.72rem;color:var(--muted);text-align:center;padding:6px;background:#f4f1ea}
 @media(max-width:900px){.hero .grid{grid-template-columns:1fr}.hero p.lead{max-width:none}.mock .body{grid-template-columns:110px 1fr}}
 
 /* sections */
 section{padding:84px 0}
-.eyebrow{color:var(--gold);font-weight:700;letter-spacing:.02em;font-size:.95rem}
+.eyebrow{color:var(--gold-dark);font-weight:700;font-size:.95rem}
 h2{font-size:clamp(1.7rem,3.4vw,2.4rem);line-height:1.2;margin:6px 0 12px;color:var(--navy);font-weight:800}
 .sub{color:var(--muted);font-size:1.1rem;max-width:56ch;margin:0 0 40px}
 
@@ -89,8 +92,7 @@ h2{font-size:clamp(1.7rem,3.4vw,2.4rem);line-height:1.2;margin:6px 0 12px;color:
 .pillar p{margin:0;color:var(--muted)}
 
 .features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.feat{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:22px;transition:.15s}
-.feat:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(20,33,61,.1);border-color:var(--gold)}
+.feat{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
 .feat .ic{width:46px;height:46px;border-radius:12px;background:var(--gold-soft);display:grid;place-items:center;font-size:1.4rem}
 .feat h3{margin:14px 0 6px;font-size:1.1rem;color:var(--navy)}
 .feat p{margin:0;color:var(--muted);font-size:.97rem}
@@ -117,7 +119,10 @@ h2{font-size:clamp(1.7rem,3.4vw,2.4rem);line-height:1.2;margin:6px 0 12px;color:
 .soon p{margin:0;color:var(--muted)}
 
 details{background:var(--white);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:12px}
-summary{cursor:pointer;font-weight:700;color:var(--navy)}
+summary{cursor:pointer;font-weight:700;color:var(--navy);display:flex;justify-content:space-between;align-items:center;gap:12px;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";flex:none;width:28px;height:28px;border-radius:50%;background:var(--gold-soft);color:var(--gold-dark);display:grid;place-items:center;font-size:1.2rem;line-height:1}
+details[open] summary::after{content:"\2212"}
 details p{margin:10px 0 0;color:var(--muted)}
 
 .final{text-align:center;background:linear-gradient(135deg,var(--navy),var(--navy-2));color:#fff;border-radius:24px;padding:56px 24px}
@@ -133,7 +138,10 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
   .split{grid-template-columns:1fr}
   .soon{grid-template-columns:1fr}
 }
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px;border-radius:6px}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
 @media(max-width:600px){
+  .cta .btn{width:100%;justify-content:center}
   section{padding:56px 0}
   .pillars,.features,.steps{grid-template-columns:1fr}
   .stats{grid-template-columns:1fr 1fr}
