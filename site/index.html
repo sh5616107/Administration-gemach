@@ -49,7 +49,11 @@ header.nav{position:sticky;top:0;z-index:20;background:rgba(250,247,240,.92);bac
  
 /* hero */
 .hero{background:radial-gradient(1200px 500px at 80% -10%,#2a427a 0%,transparent 60%),var(--navy);color:#fff;padding:72px 0 0;overflow:hidden}
-.hero .grid{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
+.hero .hero-stack{text-align:center}
+.hero .hero-stack p.lead{margin-inline:auto;max-width:40ch}
+.hero-stack .cta,.hero-stack .badges{justify-content:center}
+.mock.hero-shot{display:block;max-width:1000px;margin-inline:auto}
+.hero-shot img{display:block;width:100%;height:auto}
 .pill{display:inline-block;background:rgba(200,150,62,.18);color:var(--gold-soft);border:1px solid rgba(200,150,62,.4);padding:4px 14px;border-radius:999px;font-size:.9rem;font-weight:500}
 .hero h1{font-size:clamp(2.2rem,5vw,3.6rem);line-height:1.15;margin:18px 0 14px;font-weight:800}
 .hero h1 span{color:var(--gold)}
@@ -63,23 +67,6 @@ header.nav{position:sticky;top:0;z-index:20;background:rgba(250,247,240,.92);bac
 .mock .bar{background:#e8e3d6;padding:10px 14px;display:flex;gap:7px;align-items:center}
 .mock .bar i{width:11px;height:11px;border-radius:50%;background:#c9c2ae;display:block}
 .mock .bar b{margin-inline-start:10px;font-size:.8rem;color:var(--muted);font-weight:500}
-.mock .body{display:grid;grid-template-columns:150px 1fr;min-height:330px}
-.side{background:var(--navy-2);color:#cfd8ee;padding:14px 10px;display:flex;flex-direction:column;gap:4px;font-size:.88rem}
-.side div{padding:8px 12px;border-radius:8px;display:flex;align-items:center;gap:8px}
-.side .on{background:rgba(200,150,62,.2);color:#fff;font-weight:700}
-.main{padding:18px}
-.main h4{margin:0 0 12px;font-size:1rem;color:var(--navy)}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
-.stat small{color:var(--muted);font-size:.74rem;display:block}
-.stat strong{font-size:1.25rem;color:var(--navy)}
-.rows{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.row{display:flex;justify-content:space-between;padding:10px 14px;font-size:.84rem;border-bottom:1px solid var(--line)}
-.row:last-child{border:0}
-.tag{background:var(--gold-soft);color:#8a5d12;border-radius:999px;padding:0 10px;font-size:.74rem;font-weight:700}
-.tag.ok{background:#dcefe0;color:#1d6b35}
-.mock-note{font-size:.72rem;color:var(--muted);text-align:center;padding:6px;background:#f4f1ea}
-@media(max-width:900px){.hero .grid{grid-template-columns:1fr}.hero p.lead{max-width:none}.mock .body{grid-template-columns:110px 1fr}}
  
 /* sections */
 section{padding:84px 0}
@@ -117,6 +104,16 @@ h2{font-size:clamp(1.7rem,3.4vw,2.4rem);line-height:1.2;margin:6px 0 12px;color:
 .step h3{margin:0 0 6px;color:var(--navy)}
 .step p{margin:0;color:var(--muted)}
  
+.ver{white-space:nowrap}
+.note{margin:28px 0 0;padding:14px 18px;background:var(--gold-soft);border-radius:12px;border-inline-start:4px solid var(--gold);font-size:.97rem}
+.shot-tabs{display:none;flex-wrap:wrap;gap:8px;margin:0 0 20px}
+.js .shot-tabs{display:flex}
+.shot-tabs button{font:inherit;font-weight:600;cursor:pointer;padding:8px 18px;border-radius:999px;border:1.5px solid var(--line);background:var(--white);color:var(--navy)}
+.shot-tabs button:hover{border-color:var(--gold)}
+.shot-tabs button[aria-selected="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.shots-stack{display:grid;gap:28px}
+.js .shots-stack .shot{display:none}
+.js .shots-stack .shot.on{display:block}
 .soon{display:grid;grid-template-columns:minmax(0,640px);gap:18px}
 .soon div{border:2px dashed var(--line);border-radius:var(--radius);padding:22px;background:rgba(255,255,255,.5)}
 .soon h3{margin:0 0 6px;color:var(--navy)}
@@ -138,11 +135,14 @@ summary::-webkit-details-marker{display:none}
 summary::after{content:"+";flex:none;width:28px;height:28px;border-radius:50%;background:var(--gold-soft);color:var(--gold-dark);display:grid;place-items:center;font-size:1.2rem;line-height:1}
 details[open] summary::after{content:"\2212"}
 details p{margin:10px 0 0;color:var(--muted)}
+details p a{color:var(--navy);text-decoration:underline}
  
 .final{text-align:center;background:linear-gradient(135deg,var(--navy),var(--navy-2));color:#fff;border-radius:24px;padding:56px 24px}
 .final h2{color:#fff}
 .final p{color:#c3cce2;margin:0 auto 24px;max-width:46ch}
 .final .cta{justify-content:center}
+.final .final-mail{margin:22px auto 0;font-size:.95rem}
+.final-mail a{color:#fff;text-decoration:underline}
  
 footer{padding:36px 0;color:var(--muted);font-size:.93rem;text-align:center}
 footer a{color:var(--navy);font-weight:500;text-decoration:underline}
@@ -158,9 +158,9 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
   .cta .btn{width:100%;justify-content:center}
   section{padding:56px 0}
   .pillars,.features,.steps{grid-template-columns:1fr}
-  .stats{grid-template-columns:1fr 1fr}
 }
 </style>
+<script>document.documentElement.className+=' js'</script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -203,9 +203,9 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
  
 <!-- HERO -->
 <div class="hero">
-  <div class="wrap grid">
+  <div class="wrap hero-stack">
     <div>
-      <span class="pill">גרסה 4.8.2 · קוד פתוח</span>
+      <span class="pill"><span class="ver" hidden>גרסה <bdi data-version></bdi> · </span>קוד פתוח</span>
       <h1>ניהול גמ"ח כספים,<br><span>פשוט ומסודר</span></h1>
       <p class="lead">לווים, ערבים, הלוואות, תרומות והפקדות – הכל במקום אחד, על המחשב שלכם.</p>
       <div class="cta">
@@ -217,34 +217,10 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
       </div>
     </div>
  
-    <div class="mock" aria-hidden="true">
-      <div class="bar"><i></i><i></i><i></i><b>מינהל הגמ"ח</b></div>
-      <div class="body">
-        <div class="side">
-          <div class="on"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg>דף הבית</div>
-          <div><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>לווים</div>
-          <div><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>ערבים</div>
-          <div><svg class="i" aria-hidden="true"><use href="#i-banknote"/></svg>הלוואות</div>
-          <div><svg class="i" aria-hidden="true"><use href="#i-gift"/></svg>תרומות</div>
-          <div><svg class="i" aria-hidden="true"><use href="#i-inbox"/></svg>הפקדות</div>
-          <div><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg>לוח שנה</div>
-        </div>
-        <div class="main">
-          <h4>סקירה כללית</h4>
-          <div class="stats">
-            <div class="stat"><small>כסף זמין</small><strong>₪ 48,500</strong></div>
-            <div class="stat"><small>לווים פעילים</small><strong>12</strong></div>
-            <div class="stat"><small>התראות</small><strong>3</strong></div>
-          </div>
-          <div class="rows">
-            <div class="row"><span>הלוואה – פירעון קרוב</span><span class="tag">השבוע</span></div>
-            <div class="row"><span>הפקדה מחזורית</span><span class="tag ok">התקבלה</span></div>
-            <div class="row"><span>תרומה חדשה</span><span class="tag ok">נרשמה</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="mock-note">הדגמה להמחשה בלבד · נתוני דוגמה</div>
-    </div>
+    <a class="mock hero-shot" href="screenshots/dashboard.png" target="_blank" rel="noopener" aria-label="צילום מסך של דף הבית של התוכנה. לחיצה פותחת אותו בגודל מלא">
+      <div class="bar" aria-hidden="true"><i></i><i></i><i></i><b>מינהל הגמ"ח</b></div>
+      <img src="screenshots/dashboard.png" alt="דף הבית של התוכנה: כסף זמין, לווים פעילים והתראות" width="1903" height="829" fetchpriority="high">
+    </a>
   </div>
 </div>
  
@@ -282,6 +258,7 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
       <div class="feat"><div class="ic"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg></div><h3>כלים מתקדמים</h3><p>גיבוי ושחזור, יבוא ויצוא אקסל, רשימה שחורה, הוצאות ודוחות תקופתיים.</p></div>
       <div class="feat"><div class="ic"><svg class="i" aria-hidden="true"><use href="#i-globe"/></svg></div><h3>עברית ואנגלית</h3><p>ממשק בעברית כברירת מחדל, עם אפשרות מעבר לאנגלית.</p></div>
     </div>
+    <p class="note"><strong>הבהרה:</strong> התוכנה היא כלי ניהול ומעקב פנימי לגמ"ח, ואינה מערכת הנהלת חשבונות. המסמכים שהיא מפיקה לתרומות ולהפקדות נקראים "אישור קבלת תרומה" ו"אישור קבלת הפקדה", ואינם קבלה או חשבונית לצורכי מס ואינם מזכים בהטבת מס.</p>
   </div>
 </section>
  
@@ -290,26 +267,28 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
     <div class="eyebrow">צילומי מסך</div>
     <h2>כך זה נראה בפועל</h2>
     <p class="sub">מסכים מהתוכנה, עם נתוני דוגמה.</p>
-    <div class="shots">
-      <figure class="shot wide">
-        <a href="screenshots/dashboard.png" target="_blank" rel="noopener"><img src="screenshots/dashboard.png" alt="דף הבית של התוכנה: כסף זמין, לווים פעילים והתראות" width="1600" height="1000" loading="lazy"></a>
-        <figcaption><strong>דף הבית.</strong> כסף זמין, לווים פעילים והתראות במבט אחד.</figcaption>
+    <div class="shot-tabs" role="tablist" aria-label="מסכי התוכנה">
+      <button type="button" role="tab" id="tab-loans" aria-controls="panel-loans" aria-selected="true" tabindex="0">ניהול הלוואות</button>
+      <button type="button" role="tab" id="tab-documents" aria-controls="panel-documents" aria-selected="false" tabindex="-1">עיצוב מסמכים</button>
+      <button type="button" role="tab" id="tab-calendar" aria-controls="panel-calendar" aria-selected="false" tabindex="-1">לוח שנה</button>
+      <button type="button" role="tab" id="tab-contacts" aria-controls="panel-contacts" aria-selected="false" tabindex="-1">אנשי קשר</button>
+    </div>
+    <div class="shots-stack">
+      <figure class="shot on" role="tabpanel" id="panel-loans" aria-labelledby="tab-loans">
+        <a href="screenshots/loans.png" target="_blank" rel="noopener"><img src="screenshots/loans.png" alt="מסך ניהול ההלוואות" width="1891" height="823" loading="eager"></a>
+        <figcaption><strong>ניהול הלוואות.</strong> הלוואות קבועות וגמישות, פירעונות ומעקב אחרי כל לווה. לחיצה על התמונה פותחת אותה בגודל מלא.</figcaption>
       </figure>
-      <figure class="shot">
-        <a href="screenshots/loans.png" target="_blank" rel="noopener"><img src="screenshots/loans.png" alt="מסך ניהול ההלוואות" width="1600" height="1000" loading="lazy"></a>
-        <figcaption><strong>ניהול הלוואות.</strong> הלוואות קבועות וגמישות, פירעונות ומעקב אחרי כל לווה.</figcaption>
+      <figure class="shot" role="tabpanel" id="panel-documents" aria-labelledby="tab-documents">
+        <a href="screenshots/documents.png" target="_blank" rel="noopener"><img src="screenshots/documents.png" alt="פאנל עיצוב השטרות והדוחות עם תצוגה מקדימה" width="1888" height="828" loading="lazy"></a>
+        <figcaption><strong>עיצוב מסמכים.</strong> עריכת טקסט, מסגרת וצבעים, עם תצוגה מקדימה חיה. לחיצה על התמונה פותחת אותה בגודל מלא.</figcaption>
       </figure>
-      <figure class="shot">
-        <a href="screenshots/documents.png" target="_blank" rel="noopener"><img src="screenshots/documents.png" alt="פאנל עיצוב השטרות והדוחות עם תצוגה מקדימה" width="1600" height="1000" loading="lazy"></a>
-        <figcaption><strong>פאנל עיצוב המסמכים.</strong> עריכת טקסט, מסגרת וצבעים, עם תצוגה מקדימה חיה.</figcaption>
+      <figure class="shot" role="tabpanel" id="panel-calendar" aria-labelledby="tab-calendar">
+        <a href="screenshots/calendar.png" target="_blank" rel="noopener"><img src="screenshots/calendar.png" alt="לוח השנה בתצוגה עברית ולועזית" width="1885" height="832" loading="lazy"></a>
+        <figcaption><strong>לוח שנה.</strong> אירועים בתצוגה עברית ולועזית, עם חיפוש. לחיצה על התמונה פותחת אותה בגודל מלא.</figcaption>
       </figure>
-      <figure class="shot">
-        <a href="screenshots/calendar.png" target="_blank" rel="noopener"><img src="screenshots/calendar.png" alt="לוח השנה בתצוגה עברית ולועזית" width="1600" height="1000" loading="lazy"></a>
-        <figcaption><strong>לוח שנה.</strong> אירועים בתצוגה עברית ולועזית, עם חיפוש.</figcaption>
-      </figure>
-      <figure class="shot">
-        <a href="screenshots/contacts.png" target="_blank" rel="noopener"><img src="screenshots/contacts.png" alt="מסך אנשי הקשר המאוחד" width="1600" height="1000" loading="lazy"></a>
-        <figcaption><strong>אנשי קשר מאוחדים.</strong> לווים, ערבים, תורמים ומפקידים בחיפוש אחד.</figcaption>
+      <figure class="shot" role="tabpanel" id="panel-contacts" aria-labelledby="tab-contacts">
+        <a href="screenshots/contacts.png" target="_blank" rel="noopener"><img src="screenshots/contacts.png" alt="מסך אנשי הקשר המאוחד" width="1893" height="825" loading="lazy"></a>
+        <figcaption><strong>אנשי קשר.</strong> לווים, ערבים, תורמים ומפקידים בחיפוש אחד. לחיצה על התמונה פותחת אותה בגודל מלא.</figcaption>
       </figure>
     </div>
   </div>
@@ -374,7 +353,8 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
     <details><summary>אפשר להעביר נתונים מאקסל?</summary><p>כן, יש יבוא ויצוא של קבצי אקסל במסגרת הכלים המתקדמים.</p></details>
     <details><summary>איך מקבלים עדכונים?</summary><p>התוכנה בודקת אם יש גרסה חדשה ב-GitHub Releases, ומאפשרת להתקין אותה בלחיצה.</p></details>
     <details><summary>האם התוכנה בתשלום?</summary><p>התוכנה היא קוד פתוח ברישיון MIT.</p></details>
-    <details><summary>נתקלתי בבעיה או יש לי הצעה</summary><p>אפשר לפתוח פנייה בעמוד ה-Issues של הפרויקט ב-GitHub.</p></details>
+    <details><summary>האם המסמכים הם קבלות לצורכי מס?</summary><p>לא. התוכנה אינה מערכת הנהלת חשבונות ואינה מפיקה חשבוניות מס או קבלות לצורכי מס. כל מסמך תרומה והפקדה כולל את ההבהרה "מסמך זה אינו קבלה או חשבונית לצורכי מס ואינו מזכה בהטבת מס". חובות דיווח וניהול ספרים, אם קיימות, חלות על מפעיל הגמ"ח, ומומלץ להתייעץ עם רואה חשבון.</p></details>
+    <details><summary>נתקלתי בבעיה או יש לי הצעה</summary><p>אפשר לפתוח פנייה בעמוד ה-Issues של הפרויקט ב-GitHub, או לכתוב למפתח במייל <a href="mailto:sh5616107@gmail.com"><bdi dir="ltr">sh5616107@gmail.com</bdi></a>.</p></details>
   </div>
 </section>
  
@@ -388,6 +368,7 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
         <a class="btn btn-primary" href="https://github.com/sh5616107/Administration-gemach/releases/latest"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>הורדה ל-Windows</a>
         <a class="btn btn-ghost" href="https://github.com/sh5616107/Administration-gemach/issues">דיווח או הצעה</a>
       </div>
+      <p class="final-mail">שאלה? כתבו למפתח: <a href="mailto:sh5616107@gmail.com"><bdi dir="ltr">sh5616107@gmail.com</bdi></a></p>
     </div>
   </div>
 </section>
@@ -396,11 +377,65 @@ footer a{color:var(--navy);font-weight:500;text-decoration:underline}
  
 <footer>
   <div class="wrap">
-    מינהל הגמ"ח · גרסה 4.8.2 · רישיון MIT ·
+    מינהל הגמ"ח<span class="ver" hidden> · גרסה <bdi data-version></bdi></span> · רישיון MIT ·
     <a href="https://github.com/sh5616107/Administration-gemach">GitHub</a> ·
-    <a href="https://github.com/sh5616107/Administration-gemach/blob/main/CHANGELOG.md">היסטוריית גרסאות</a>
+    <a href="https://github.com/sh5616107/Administration-gemach/blob/main/CHANGELOG.md">היסטוריית גרסאות</a> ·
+    <a href="https://www.lev-pinchas.co.il/privacy-policy" target="_blank" rel="noopener">מדיניות פרטיות</a> ·
+    <a href="mailto:sh5616107@gmail.com">יצירת קשר</a>
   </div>
 </footer>
  
+<script>
+/* גרסה אחרונה: נשלפת מ-GitHub Releases. אם השליפה נכשלת, מספר הגרסה פשוט לא מוצג */
+(function(){
+  var KEY='gemach-latest-version', TTL=3600000;
+  var nodes=[].slice.call(document.querySelectorAll('[data-version]'));
+  function valid(v){return /^\d+(\.\d+){1,3}$/.test(v);}
+  function show(v){
+    if(!valid(v)) return;
+    nodes.forEach(function(n){n.textContent=v; if(n.parentNode.hidden) n.parentNode.hidden=false;});
+  }
+  try{
+    var c=JSON.parse(sessionStorage.getItem(KEY)||'null');
+    if(c&&valid(c.v)&&Date.now()-c.t<TTL){show(c.v);return;}
+  }catch(e){}
+  if(!window.fetch) return;
+  fetch('https://api.github.com/repos/sh5616107/Administration-gemach/releases/latest',{headers:{Accept:'application/vnd.github+json'}})
+    .then(function(r){if(!r.ok) throw new Error(r.status); return r.json();})
+    .then(function(j){
+      var v=String(j.tag_name||'').replace(/^v/i,'');
+      if(!valid(v)) return;
+      show(v);
+      try{sessionStorage.setItem(KEY,JSON.stringify({v:v,t:Date.now()}));}catch(e){}
+    })
+    .catch(function(){});
+})();
+ 
+/* לשוניות צילומי המסך (ב-RTL החץ שמאלה מקדם לצילום הבא) */
+(function(){
+  var tabs=[].slice.call(document.querySelectorAll('.shot-tabs [role=tab]'));
+  if(!tabs.length) return;
+  function select(t,focus){
+    tabs.forEach(function(x){
+      var on=(x===t);
+      x.setAttribute('aria-selected',on?'true':'false');
+      x.tabIndex=on?0:-1;
+      document.getElementById(x.getAttribute('aria-controls')).classList.toggle('on',on);
+    });
+    if(focus) t.focus();
+  }
+  tabs.forEach(function(t,i){
+    t.addEventListener('click',function(){select(t);});
+    t.addEventListener('keydown',function(e){
+      var n=null;
+      if(e.key==='ArrowLeft') n=tabs[(i+1)%tabs.length];
+      else if(e.key==='ArrowRight') n=tabs[(i-1+tabs.length)%tabs.length];
+      else if(e.key==='Home') n=tabs[0];
+      else if(e.key==='End') n=tabs[tabs.length-1];
+      if(n){e.preventDefault();select(n,true);}
+    });
+  });
+})();
+</script>
 </body>
 </html>
