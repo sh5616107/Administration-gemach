@@ -1,4 +1,5 @@
 import { getTint } from '../theme';
+import { alpha } from '@mui/material/styles';
 import { toLocalDateStr } from '../utils/localDate'
 import { toHebrewDate } from '../utils/dateUtils';
 import { validateEventDate } from '../utils/dateValidation';
@@ -927,7 +928,7 @@ export default function Deposits() {
                               p: 2,
                               cursor: 'pointer',
                               transition: 'all 0.2s',
-                              borderLeft: balance <= 0 ? '4px solid #9e9e9e' : '4px solid #2196f3',
+                              borderLeft: (theme) => balance <= 0 ? `4px solid ${theme.palette.grey[500]}` : `4px solid ${theme.palette.primary.main}`,
                               opacity: balance <= 0 ? 0.7 : 1,
                               '&:hover': {
                                 transform: 'translateY(-2px)',
@@ -1045,7 +1046,7 @@ export default function Deposits() {
                               zIndex: 10,
                               opacity: 0,
                               transition: 'opacity 0.2s',
-                              bgcolor: 'rgba(255, 255, 255, 0.95)',
+                              bgcolor: (theme) => alpha(theme.palette.background.paper, 0.95),
                               borderRadius: 1,
                               padding: 0.5,
                               boxShadow: 2,

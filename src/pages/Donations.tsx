@@ -1,4 +1,5 @@
 import { getTint } from '../theme';
+import { alpha } from '@mui/material/styles';
 import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -807,7 +808,7 @@ export default function Donations() {
                             p: 2,
                             cursor: 'pointer',
                             transition: 'all 0.2s',
-                            borderLeft: '4px solid #4caf50',
+                            borderLeft: (theme) => `4px solid ${theme.palette.success.main}`,
                             '&:hover': {
                               transform: 'translateY(-2px)',
                               boxShadow: 4,
@@ -865,7 +866,7 @@ export default function Donations() {
                             zIndex: 10,
                             opacity: 0,
                             transition: 'opacity 0.2s',
-                            bgcolor: 'rgba(255, 255, 255, 0.95)',
+                            bgcolor: (theme) => alpha(theme.palette.background.paper, 0.95),
                             borderRadius: 1,
                             padding: 0.5,
                             boxShadow: 2,
