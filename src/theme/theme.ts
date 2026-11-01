@@ -1,17 +1,29 @@
 import { createTheme, ThemeOptions } from '@mui/material/styles';
 import { sidebarTokens, calendarTokens, confidenceTokens } from './tokens';
 
+// טיפוס sidebar
+interface SidebarTokens {
+  bg: string;
+  text: string;
+  textInactive: string;
+  textActive: string;
+  selected: string;
+  selectedHover: string;
+  hover: string;
+  divider: string;
+}
+
 // הרחבת טיפוסים של MUI
 declare module '@mui/material/styles' {
   interface Palette {
     accent: string;
-    sidebar: typeof sidebarTokens;
+    sidebar: SidebarTokens;
     calendar: typeof calendarTokens;
     confidence: typeof confidenceTokens;
   }
   interface PaletteOptions {
     accent?: string;
-    sidebar?: typeof sidebarTokens;
+    sidebar?: SidebarTokens;
     calendar?: typeof calendarTokens;
     confidence?: typeof confidenceTokens;
   }
@@ -32,6 +44,7 @@ interface PaletteSpec {
   divider: string;
   grey: { 50: string; 100: string; 200: string };
   accent: string;
+  sidebar: SidebarTokens;
 }
 
 /**
@@ -89,6 +102,16 @@ const tealGoldPalette: PaletteSpec = {
     200: '#E6E1D5',
   },
   accent: '#B8892D', // זהב - לקישוטים בלבד, לא לטקסט
+  sidebar: {
+    bg: '#0F4A4A',
+    text: '#E6EFEC',
+    textInactive: '#D3E2DE',
+    textActive: '#FFFFFF',
+    selected: 'rgba(255, 255, 255, 0.14)',
+    selectedHover: 'rgba(255, 255, 255, 0.20)',
+    hover: 'rgba(230, 239, 236, 0.08)',
+    divider: 'rgba(255, 255, 255, 0.14)',
+  },
 };
 
 /**
@@ -101,8 +124,18 @@ export function createAppTheme(paletteSpec: PaletteSpec) {
       fontFamily: '"Heebo", "Roboto", "Arial", sans-serif',
     },
     palette: {
-      ...paletteSpec,
-      sidebar: sidebarTokens,
+      primary: paletteSpec.primary,
+      secondary: paletteSpec.secondary,
+      success: paletteSpec.success,
+      warning: paletteSpec.warning,
+      error: paletteSpec.error,
+      info: paletteSpec.info,
+      background: paletteSpec.background,
+      text: paletteSpec.text,
+      divider: paletteSpec.divider,
+      grey: paletteSpec.grey,
+      accent: paletteSpec.accent,
+      sidebar: paletteSpec.sidebar,
       calendar: calendarTokens,
       confidence: confidenceTokens,
     },
