@@ -27,7 +27,7 @@ const eventConfig: Record<EventType, { color: string; label: string }> = {
  * פונקציה לקבלת צבע לפי סוג אירוע
  */
 export function getEventColor(type: EventType): string {
-  return eventConfig[type]?.color || calendarTokens.regularLoan
+  return eventConfig[type]?.color || calendarTokens.unknown
 }
 
 /**

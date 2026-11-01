@@ -1,3 +1,4 @@
+import { getTint } from '../../theme';
 import {
   Dialog,
   DialogTitle,
@@ -132,7 +133,7 @@ export default function ExpectedFundsDialog({
             <TableContainer component={Paper} variant="outlined" sx={{ mb: 1 }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'success.50' }}>
+                  <TableRow sx={{ bgcolor: getTint('success', 0.08) }}>
                     <TableCell>לווה</TableCell>
                     <TableCell align="center">תאריך פירעון</TableCell>
                     <TableCell align="center">סכום</TableCell>
@@ -148,7 +149,7 @@ export default function ExpectedFundsDialog({
                       <TableCell align="center">{formatCurrency(loan.amount)}</TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: 'success.100' }}>
+                  <TableRow sx={{ bgcolor: getTint('success', 0.16) }}>
                     <TableCell colSpan={2}>
                       <strong>סה"כ</strong>
                     </TableCell>
@@ -173,7 +174,7 @@ export default function ExpectedFundsDialog({
             <TableContainer component={Paper} variant="outlined" sx={{ mb: 1 }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'info.50' }}>
+                  <TableRow sx={{ bgcolor: getTint('info', 0.08) }}>
                     <TableCell>לווה</TableCell>
                     <TableCell align="center">פירעון חודשי</TableCell>
                     <TableCell align="center">צפי</TableCell>
@@ -191,7 +192,7 @@ export default function ExpectedFundsDialog({
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: 'info.100' }}>
+                  <TableRow sx={{ bgcolor: getTint('info', 0.16) }}>
                     <TableCell colSpan={2}>
                       <strong>סה"כ</strong>
                     </TableCell>
@@ -218,7 +219,7 @@ export default function ExpectedFundsDialog({
             <TableContainer component={Paper} variant="outlined" sx={{ mb: 1 }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'primary.50' }}>
+                  <TableRow sx={{ bgcolor: getTint('primary', 0.08) }}>
                     <TableCell>מפקיד</TableCell>
                     <TableCell align="center">תאריכים</TableCell>
                     <TableCell align="center">סה"כ</TableCell>
@@ -236,7 +237,7 @@ export default function ExpectedFundsDialog({
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: 'primary.100' }}>
+                  <TableRow sx={{ bgcolor: getTint('primary', 0.16) }}>
                     <TableCell colSpan={2}>
                       <strong>סה"כ</strong>
                     </TableCell>
@@ -261,7 +262,7 @@ export default function ExpectedFundsDialog({
             <TableContainer component={Paper} variant="outlined" sx={{ mb: 1 }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'error.50' }}>
+                  <TableRow sx={{ bgcolor: getTint('error', 0.08) }}>
                     <TableCell>לווה</TableCell>
                     <TableCell align="center">תאריכים עתידיים</TableCell>
                     <TableCell align="center">גריעה</TableCell>
@@ -281,7 +282,7 @@ export default function ExpectedFundsDialog({
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: 'error.100' }}>
+                  <TableRow sx={{ bgcolor: getTint('error', 0.16) }}>
                     <TableCell colSpan={2}>
                       <strong>סה"כ גריעה</strong>
                     </TableCell>

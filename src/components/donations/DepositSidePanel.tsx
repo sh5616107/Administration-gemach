@@ -1,3 +1,4 @@
+import { getTint } from '../../theme';
 import { toLocalDateStr } from '../../utils/localDate'
 import { useState, useEffect } from 'react';
 import { 
@@ -258,7 +259,7 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
         <Divider sx={{ mb: 3 }} />
         
         {depositor && (
-          <Box sx={{ mb: 3, p: 2, bgcolor: 'primary.50', borderRadius: 1 }}>
+          <Box sx={{ mb: 3, p: 2, bgcolor: getTint('primary', 0.08), borderRadius: 1 }}>
             <Typography variant="subtitle2" color="primary">
               מפקיד: {depositor.first_name} {depositor.last_name}
             </Typography>

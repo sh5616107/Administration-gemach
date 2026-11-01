@@ -1,3 +1,4 @@
+import { getTint } from '../../theme';
 import { toLocalDateStr } from '../../utils/localDate'
 import { useState, useEffect } from 'react'
 import {
@@ -868,7 +869,7 @@ export default function GuarantorsTab() {
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ textAlign: 'center', bgcolor: 'warning.50', px: 2, py: 1, borderRadius: 1 }}>
+                <Box sx={{ textAlign: 'center', bgcolor: getTint('warning', 0.08), px: 2, py: 1, borderRadius: 1 }}>
                   <Typography variant="caption" color="text.secondary">סה״כ ערבויות</Typography>
                   <Typography variant="h6" color="warning.dark">{formatCurrency((selectedGuarantor as any).total_guarantees || 0)}</Typography>
                 </Box>

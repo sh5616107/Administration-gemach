@@ -24,6 +24,7 @@ export const calendarTokens = {
   plannedLoan: '#2C6E8A',       // כחול - הלוואה מתוכננת
   depositDue: '#9A6A00',        // ענבר כהה - הפקדה להחזרה
   regularLoan: '#7B4B8A',       // שזיף - הלוואה רגילה
+  unknown: '#5B6B68',           // אפור-teal ניטרלי - אירוע לא ידוע
 } as const;
 
 // צבעי רמת ביטחון (bank matching)

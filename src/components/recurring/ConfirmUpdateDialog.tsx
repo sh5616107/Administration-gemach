@@ -86,13 +86,13 @@ export function ConfirmUpdateDialog({
             <Box key={index} sx={{ mb: 1 }}>
               <Typography variant="body2">
                 <strong>{change.field}:</strong>{' '}
-                <span style={{ textDecoration: 'line-through', color: 'text.secondary' }}>
+                <Typography component="span" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
                   {change.oldValue}
-                </span>
+                </Typography>
                 {' → '}
-                <span style={{ fontWeight: 'bold' }}>
+                <Typography component="span" sx={{ color: 'success.dark', fontWeight: 'bold' }}>
                   {change.newValue}
-                </span>
+                </Typography>
               </Typography>
             </Box>
           ))}
