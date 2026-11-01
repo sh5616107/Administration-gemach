@@ -215,12 +215,24 @@ export default function Layout({ children }: LayoutProps) {
                 sx={{
                   borderRadius: 2,
                   color: 'sidebar.text',
+                  position: 'relative',
                   '&.Mui-selected': {
                     bgcolor: 'sidebar.selected',
                     color: 'sidebar.textActive',
                     fontWeight: 600,
                     '& .MuiListItemIcon-root': { color: 'sidebar.textActive' },
                     '&:hover': { bgcolor: 'sidebar.selectedHover' },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      insetInlineStart: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: '3px',
+                      bgcolor: 'accent',
+                      borderStartStartRadius: 2,
+                      borderEndStartRadius: 2,
+                    },
                   },
                   '&:hover': { bgcolor: 'sidebar.hover' },
                 }}
