@@ -4,6 +4,7 @@
  * Page for reviewing and approving matches between bank transactions and records.
  */
 
+import { getTint } from '../../theme';
 import { toLocalDateStr } from '../../utils/localDate'
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTheme } from '@mui/material/styles';
@@ -630,10 +631,10 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
             <Box
               sx={{
                 p: 2,
-                bgcolor: 'primary.50',
+                bgcolor: getTint('primary', 0.08),
                 borderRadius: 1,
                 border: '1px solid',
-                borderColor: 'primary.200',
+                borderColor: getTint('primary', 0.30),
               }}
             >
               <Typography variant="caption" color="text.secondary">
@@ -704,10 +705,10 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
             <Box
               sx={{
                 p: 2,
-                bgcolor: 'success.50',
+                bgcolor: getTint('success', 0.08),
                 borderRadius: 1,
                 border: '1px solid',
-                borderColor: 'success.200',
+                borderColor: getTint('success', 0.30),
               }}
             >
               <Typography variant="caption" color="text.secondary">

@@ -39,9 +39,18 @@ export const confidenceTokens = {
 type PaletteColorKey = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
 
 /**
- * Helper: יצירת רקע בהיר מצבע palette
- * משמש במקום X.50 שלא קיים ב-MUI
+ * Helper: יצירת גוון בהיר מצבע palette עם alpha מותאם
+ * @param paletteColor - צבע מה-palette
+ * @param amount - עוצמת השקיפות (0.08 = .50, 0.16 = .100, 0.30 = .200)
+ * @returns פונקציה שמקבלת theme ומחזירה צבע עם alpha
+ */
+export function getTint(paletteColor: PaletteColorKey, amount: number = 0.08) {
+  return (theme: Theme) => alpha(theme.palette[paletteColor].main, amount);
+}
+
+/**
+ * Alias: רקע בהיר (0.08 alpha) - משמש במקום X.50
  */
 export function getLightBg(paletteColor: PaletteColorKey) {
-  return (theme: Theme) => alpha(theme.palette[paletteColor].main, 0.08);
+  return getTint(paletteColor, 0.08);
 }

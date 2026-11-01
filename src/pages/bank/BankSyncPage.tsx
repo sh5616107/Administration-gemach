@@ -4,6 +4,7 @@
  * Page for initiating and monitoring bank synchronization.
  */
 
+import { getTint } from '../../theme';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -328,7 +329,7 @@ const BankSyncPage: React.FC = () => {
 
         {/* Summary after sync */}
         {allDone && (
-          <Card sx={{ mb: 3, bgcolor: anyError ? 'error.50' : 'success.50' }}>
+          <Card sx={{ mb: 3, bgcolor: anyError ? getTint('error', 0.08) : getTint('success', 0.08) }}>
             <CardContent>
               <Typography variant="h6">
                 {anyError ? '⚠️ סנכרון הסתיים עם שגיאות' : '✓ סנכרון הושלם!'}
