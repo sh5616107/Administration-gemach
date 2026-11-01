@@ -1,3 +1,4 @@
+import { alpha } from '@mui/material/styles';
 import { toLocalDateStr } from '../utils/localDate'
 import { toHebrewDate } from '../utils/dateUtils';
 import { validateEventDate } from '../utils/dateValidation';
@@ -1076,7 +1077,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                                       zIndex: 10,
                                       opacity: 0,
                                       transition: 'opacity 0.2s',
-                                      bgcolor: 'rgba(255, 255, 255, 0.95)',
+                                      bgcolor: (theme) => alpha(theme.palette.background.paper, 0.95),
                                       borderRadius: 1,
                                       padding: 0.5,
                                       boxShadow: 2,
@@ -1162,7 +1163,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                             zIndex: 10,
                             opacity: 0,
                             transition: 'opacity 0.2s',
-                            bgcolor: 'rgba(255, 255, 255, 0.95)',
+                            bgcolor: (theme) => alpha(theme.palette.background.paper, 0.95),
                             borderRadius: 1,
                             padding: 0.5,
                             boxShadow: 2,

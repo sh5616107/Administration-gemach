@@ -105,7 +105,7 @@ function SortableRow({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    backgroundColor: isDragging ? '#f5f5f5' : 'inherit',
+    backgroundColor: isDragging ? 'grey.100' : 'inherit',
   }
 
   const getStatusColor = (status: string) => {

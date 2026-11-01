@@ -1,3 +1,4 @@
+import { getTint } from '../theme';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import localforage from 'localforage'
@@ -205,11 +206,13 @@ function buildPreviewHtml(docType: DocumentType, layout: DocumentLayoutConfig, w
   // "נייר לבן" קבוע — לא var(--surface-*)/var(--text-*), גם אם האפליקציה במצב כהה
   // (ר' עקרונות עיצוב בשלב 3). מוזרק ל-iframe srcDoc, לא dangerouslySetInnerHTML
   // בעץ הראשי — בידוד סגנונות/סקריפטים מהטקסט החופשי.
+  // @allow-colors-start
   return `<!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head><meta charset="UTF-8"><style>body{background:#e0e0e0;color:#000000;margin:0;font-family:Arial,sans-serif;}${reportStyles}</style>${buildStyleOverrides(layout)}</head>
 <body>${pageContent}</body>
 </html>`
+  // @allow-colors-end
 }
 
 interface AnchorEditorProps {
@@ -282,7 +285,7 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
   }
 
   return (
-    <Box sx={{ border: '1px solid #ddd', borderRadius: 1, p: 1.5, mb: 1.5 }}>
+    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5, mb: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="subtitle2">
           {anchorLabel}
@@ -299,9 +302,10 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
         <Box
           key={b.id}
           sx={{
-            mt: 1, p: 1, bgcolor: editingId === b.id ? '#fff3e0' : '#f7f7f7', borderRadius: 1,
+            mt: 1, p: 1, bgcolor: editingId === b.id ? getTint('warning', 0.08) : 'grey.100', borderRadius: 1,
             display: 'flex', alignItems: 'center', gap: 1,
-            outline: editingId === b.id ? '1px solid #ffb74d' : 'none',
+            outline: editingId === b.id ? '1px solid' : 'none',
+            outlineColor: editingId === b.id ? 'warning.light' : undefined,
           }}
         >
           <Typography variant="body2" sx={{ flex: 1, direction: b.align === 'left' ? 'ltr' : 'rtl', fontWeight: b.bold ? 'bold' : 'normal', textDecoration: b.underline ? 'underline' : 'none' }}>
@@ -315,19 +319,19 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
       ))}
 
       {adding && (
-        <Box sx={{ mt: 1.5, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, bgcolor: '#fafafa' }}>
+        <Box sx={{ mt: 1.5, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'grey.50' }}>
           {/* סרגל כלים עליון */}
           <Box sx={{ 
             display: 'flex', 
             gap: 0.5, 
             mb: 1.5, 
             pb: 1, 
-            borderBottom: '1px solid #e0e0e0',
+            borderBottom: '1px solid', borderBottomColor: 'divider',
             flexWrap: 'wrap',
             alignItems: 'center'
           }}>
             {/* יישור */}
-            <Box sx={{ display: 'flex', gap: 0.5, borderRight: '1px solid #e0e0e0', pr: 1, mr: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 0.5, borderRight: '1px solid', borderRightColor: 'divider', pr: 1, mr: 0.5 }}>
               <Tooltip title="יישור ימין">
                 <IconButton 
                   size="small" 
@@ -379,7 +383,7 @@ function AnchorEditor({ anchorId, anchorLabel, conditional, blocks, onChange }: 
             </Box>
 
             {/* עיצוב טקסט */}
-            <Box sx={{ display: 'flex', gap: 0.5, borderRight: '1px solid #e0e0e0', pr: 1, mr: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 0.5, borderRight: '1px solid', borderRightColor: 'divider', pr: 1, mr: 0.5 }}>
               <Tooltip title="בולד">
                 <IconButton 
                   size="small" 
@@ -684,9 +688,9 @@ export default function DocumentDesignerPanel() {
                           width: 100, 
                           height: 140, 
                           objectFit: 'contain', 
-                          border: '1px solid #ddd',
+                          border: '1px solid', borderColor: 'divider',
                           borderRadius: 1,
-                          bgcolor: '#f5f5f5'
+                          bgcolor: 'grey.100'
                         }}
                         alt="תצוגה מקדימה של המסגרת"
                       />
@@ -804,8 +808,10 @@ export default function DocumentDesignerPanel() {
                     opacity: (activeLayout.hideDividers || activeLayout.blackAndWhite) ? 0.35 : 1,
                     transition: 'opacity 0.15s',
                   }}
+                  // @allow-colors-start - ברירות מחדל לצבעי מסמך
                   value={activeLayout.dividerColor || '#333333'}
                   onChange={e => updateActiveLayout({ dividerColor: e.target.value })}
+                  // @allow-colors-end
                   InputLabelProps={{ shrink: true }}
                 />
                 {activeLayout.dividerColor && (
@@ -826,8 +832,10 @@ export default function DocumentDesignerPanel() {
                     opacity: activeLayout.blackAndWhite ? 0.35 : 1,
                     transition: 'opacity 0.15s',
                   }}
+                  // @allow-colors-start - ברירות מחדל לצבעי מסמך
                   value={activeLayout.accentColor || '#1976d2'}
                   onChange={e => updateActiveLayout({ accentColor: e.target.value })}
+                  // @allow-colors-end
                   InputLabelProps={{ shrink: true }}
                 />
                 {activeLayout.accentColor && (
@@ -871,11 +879,11 @@ export default function DocumentDesignerPanel() {
                 )}
               </Box>
               <Tooltip title="תצוגה זו מדמה נייר לבן — נשארת קבועה גם במצב כהה באפליקציה">
-                <Box sx={{ border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden', bgcolor: '#fff' }}>
+                <Box sx={{ border: '1px solid', borderColor: 'grey.300', borderRadius: 1, overflow: 'hidden', bgcolor: 'background.paper' }}>
                   <iframe
                     title="document-preview"
                     srcDoc={previewHtml}
-                    style={{ width: '100%', height: 600, border: 'none', background: '#fff' }}
+                    style={{ width: '100%', height: 600, border: 'none', background: 'white' }}
                   />
                 </Box>
               </Tooltip>
