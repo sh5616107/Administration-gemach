@@ -505,7 +505,7 @@ export default function Dashboard() {
           <Card 
             sx={{ 
               bgcolor: 'primary.main', 
-              color: 'white',
+              color: 'primary.contrastText',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
               '&:hover': {
@@ -534,7 +534,7 @@ export default function Dashboard() {
           <Card 
             sx={{ 
               bgcolor: 'info.main', 
-              color: 'white',
+              color: 'info.contrastText',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
               '&:hover': {
@@ -564,7 +564,7 @@ export default function Dashboard() {
             <Card 
               sx={{ 
                 bgcolor: 'warning.main', 
-                color: 'white', 
+                color: 'warning.contrastText', 
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
                 '&:hover': {
@@ -589,7 +589,7 @@ export default function Dashboard() {
                   <Chip 
                     label={`${waitlistStats?.urgent} ${t('dashboard.urgent')}`} 
                     size="small" 
-                    sx={{ mt: 1, bgcolor: 'error.main', color: 'white' }}
+                    sx={{ mt: 1, bgcolor: 'error.main', color: 'error.contrastText' }}
                   />
                 )}
               </CardContent>
@@ -601,7 +601,7 @@ export default function Dashboard() {
           <Card 
             sx={{ 
               bgcolor: 'success.main', 
-              color: 'white',
+              color: 'success.contrastText',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
               '&:hover': {
@@ -630,7 +630,7 @@ export default function Dashboard() {
           <Card 
             sx={{ 
               bgcolor: 'secondary.main', 
-              color: 'white',
+              color: 'secondary.contrastText',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
               '&:hover': {
@@ -795,7 +795,7 @@ export default function Dashboard() {
               <Grid item xs={12}>
                 <Card
                   onClick={() => navigate('/loans?tab=0&fund=all')}
-                  sx={{ bgcolor: 'grey.100', borderTop: '3px solid', borderColor: 'primary.main', cursor: 'pointer', '&:hover': { boxShadow: 4 } }}
+                  sx={{ bgcolor: 'grey.100', borderTop: 3, borderColor: 'primary.main', cursor: 'pointer', '&:hover': { boxShadow: 4 } }}
                 >
                   <CardContent>
                     <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
@@ -960,7 +960,8 @@ export default function Dashboard() {
                   key={result.id}
                   sx={{
                     p: 2,
-                    border: '1px solid #e0e0e0',
+                    border: 1,
+                    borderColor: 'divider',
                     borderRadius: 1,
                     mb: 1,
                     cursor: 'pointer',

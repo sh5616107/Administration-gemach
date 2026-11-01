@@ -21,6 +21,7 @@ import {
   DialogContent,
   Chip,
   Divider,
+  useTheme,
 } from '@mui/material'
 import {
   Home as HomeIcon,
@@ -70,6 +71,7 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { settings } = useSettings()
+  const theme = useTheme()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
   const [alertCount, setAlertCount] = useState(0)
@@ -178,8 +180,8 @@ export default function Layout({ children }: LayoutProps) {
     searchResults.donors.length + searchResults.depositors.length
 
   const drawer = (
-    <Box sx={{ height: '100%', bgcolor: '#fafafa' }}>
-      <Box sx={{ p: 2, textAlign: 'center', borderBottom: '1px solid #eee' }}>
+    <Box sx={{ height: '100%', bgcolor: 'sidebar.bg' }}>
+      <Box sx={{ p: 2, textAlign: 'center', borderBottom: 1, borderColor: 'divider' }}>
         <Avatar
           src={settings.gemach_logo || undefined}
           sx={{ 
@@ -187,13 +189,14 @@ export default function Layout({ children }: LayoutProps) {
             height: 56, 
             mx: 'auto', 
             mb: 1, 
-            bgcolor: '#1976d2',
-            fontSize: '1.5rem'
+            bgcolor: 'accent',
+            fontSize: '1.5rem',
+            color: 'sidebar.textActive',
           }}
         >
           {!settings.gemach_logo && 'ג'}
         </Avatar>
-        <Typography variant="subtitle1" fontWeight={600} color="text.primary">
+        <Typography variant="subtitle1" fontWeight={600} color="sidebar.textActive">
           {settings.gemach_name || 'גמ"ח שלי'}
         </Typography>
       </Box>
@@ -213,16 +216,18 @@ export default function Layout({ children }: LayoutProps) {
                 }}
                 sx={{
                   borderRadius: 2,
+                  color: 'sidebar.text',
                   '&.Mui-selected': {
-                    bgcolor: '#e3f2fd',
-                    color: '#1976d2',
-                    '& .MuiListItemIcon-root': { color: '#1976d2' },
-                    '&:hover': { bgcolor: '#bbdefb' },
+                    bgcolor: 'sidebar.selected',
+                    color: 'sidebar.textActive',
+                    fontWeight: 600,
+                    '& .MuiListItemIcon-root': { color: 'sidebar.textActive' },
+                    '&:hover': { bgcolor: theme => `rgba(255, 255, 255, 0.20)` },
                   },
-                  '&:hover': { bgcolor: '#f5f5f5' },
+                  '&:hover': { bgcolor: theme => `rgba(230, 239, 236, 0.08)` },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36, color: isSelected ? '#1976d2' : '#666' }}>
+                <ListItemIcon sx={{ minWidth: 36, color: isSelected ? 'sidebar.textActive' : 'sidebar.text' }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText 
@@ -254,7 +259,8 @@ export default function Layout({ children }: LayoutProps) {
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
               width: drawerWidth,
-              borderRight: '1px solid #eee',
+              borderRight: 1,
+              borderColor: 'divider',
               borderLeft: 'none',
             },
           }}
@@ -269,7 +275,8 @@ export default function Layout({ children }: LayoutProps) {
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
               width: drawerWidth,
-              borderRight: '1px solid #eee',
+              borderRight: 1,
+              borderColor: 'divider',
               borderLeft: 'none',
             },
           }}
@@ -287,7 +294,7 @@ export default function Layout({ children }: LayoutProps) {
           flexGrow: 1,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
-          bgcolor: '#fff',
+          bgcolor: 'background.paper',
         }}
       >
         {/* Top bar */}
@@ -295,9 +302,10 @@ export default function Layout({ children }: LayoutProps) {
           position="sticky"
           elevation={0}
           sx={{
-            bgcolor: '#fff',
+            bgcolor: 'background.paper',
             color: 'text.primary',
-            borderBottom: '1px solid #eee',
+            borderBottom: 1,
+            borderColor: 'divider',
           }}
         >
           <Toolbar>
