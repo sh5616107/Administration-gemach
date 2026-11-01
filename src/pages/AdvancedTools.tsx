@@ -2299,7 +2299,7 @@ export default function AdvancedTools() {
             {fullStats && (
               <>
                 {/* Financial Summary */}
-                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, borderBottom: 2, borderColor: 'primary.main', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <MoneyIcon /> סיכום כספי כללי
                 </Typography>
                 <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
@@ -2340,7 +2340,7 @@ export default function AdvancedTools() {
                 </TableContainer>
 
                 {/* Payment Method Summary */}
-                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, borderBottom: 2, borderColor: 'primary.main', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <PaymentIcon /> סיכום לפי אמצעי תשלום
                 </Typography>
                 <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
@@ -2380,7 +2380,7 @@ export default function AdvancedTools() {
                 </TableContainer>
 
                 {/* Detailed by Type */}
-                <Typography variant="h6" sx={{ mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, borderBottom: 2, borderColor: 'primary.main', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <AssignmentIcon /> פירוט מפורט לפי סוג פעולה
                 </Typography>
                 
@@ -2515,7 +2515,7 @@ export default function AdvancedTools() {
                 </Grid>
 
                 {/* Guarantor Loans Summary */}
-                <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '2px solid #1976d2', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: 2, borderColor: 'primary.main', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <HandshakeIcon /> הלוואות מועברות לערבים
                 </Typography>
                 <Paper sx={{ p: 2 }}>
@@ -2730,7 +2730,7 @@ export default function AdvancedTools() {
             {periodicReportData && (
               <Box sx={{ mt: 2 }}>
                 {/* סיכום */}
-                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
+                <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.100' }}>
                   <Typography variant="h6" gutterBottom>סיכום</Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={6} sm={3}>
@@ -2883,7 +2883,7 @@ export default function AdvancedTools() {
           {feesReportData && (
             <Box sx={{ mt: 3 }}>
               {/* סיכום */}
-              <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
+              <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.100' }}>
                 <Typography variant="h6" gutterBottom>סיכום עמלות</Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={6} sm={3}>

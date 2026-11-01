@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { KOFI_COLOR, KOFI_COLOR_HOVER } from '../theme/constants'
+import { alpha } from '@mui/material/styles'
 import {
   Box,
   Card,
@@ -672,7 +674,9 @@ export default function Settings() {
               <Box
                 sx={{
                   p: 3,
-                  border: '2px dashed #e0e0e0',
+                  border: 2,
+                  borderStyle: 'dashed',
+                  borderColor: 'divider',
                   borderRadius: 2,
                   textAlign: 'center',
                 }}
@@ -836,9 +840,9 @@ export default function Settings() {
                 startIcon={<span style={{ fontSize: 16 }}>☕</span>}
                 sx={{
                   mt: 1,
-                  borderColor: '#72a4f2',
-                  color: '#72a4f2',
-                  '&:hover': { borderColor: '#5b8ee0', bgcolor: 'rgba(114,164,242,0.08)' },
+                  borderColor: KOFI_COLOR,
+                  color: KOFI_COLOR,
+                  '&:hover': { borderColor: KOFI_COLOR_HOVER, bgcolor: theme => alpha(KOFI_COLOR, 0.08) },
                 }}
               >
                 תמכו בהמשך הפיתוח
