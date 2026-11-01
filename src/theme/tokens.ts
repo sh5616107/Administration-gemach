@@ -1,4 +1,4 @@
-import { alpha } from '@mui/material/styles';
+import { alpha, Theme } from '@mui/material/styles';
 
 /**
  * טוקני צבע מותאמים לפרויקט
@@ -13,29 +13,32 @@ export const sidebarTokens = {
   selected: 'rgba(255, 255, 255, 0.14)',
 } as const;
 
-// צבעי קלנדר (אירועים)
+// צבעי קלנדר (אירועים) - כל צבע שונה בגוון ובהירות
 export const calendarTokens = {
-  loanDue: '#d32f2f',          // אדום - פירעון הלוואה
-  repayment: '#795548',         // חום - פירעון שבוצע
-  recurringDeposit: '#2e7d32',  // ירוק - הפקדה מחזורית
-  plannedLoan: '#0288d1',       // כחול - הלוואה מתוכננת
-  depositDue: '#ed6c02',        // ענבר - הפקדה להחזרה
-  regularLoan: '#9c27b0',       // שזיף - הלוואה רגילה
+  loanDue: '#A63A2B',          // אדום כהה - פירעון הלוואה
+  repayment: '#7A5C3E',         // חום - פירעון שבוצע
+  recurringDeposit: '#2F7D57',  // ירוק - הפקדה מחזורית
+  plannedLoan: '#2C6E8A',       // כחול - הלוואה מתוכננת
+  depositDue: '#9A6A00',        // ענבר כהה - הפקדה להחזרה
+  regularLoan: '#7B4B8A',       // שזיף - הלוואה רגילה
 } as const;
 
 // צבעי רמת ביטחון (bank matching)
 export const confidenceTokens = {
-  excellent: '#2e7d32',  // ירוק
-  high: '#1565c0',       // כחול
-  medium: '#f57f17',     // כתום
-  low: '#e65100',        // כתום כהה
-  suspect: '#b71c1c',    // אדום כהה
+  excellent: '#2F7D57',  // ירוק
+  high: '#2C6E8A',       // כחול
+  medium: '#9A6A00',     // ענבר
+  low: '#B4530A',        // כתום כהה
+  suspect: '#8E2A1F',    // אדום כהה
 } as const;
+
+// מפתחות צבע מותרים ב-palette
+type PaletteColorKey = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
 
 /**
  * Helper: יצירת רקע בהיר מצבע palette
  * משמש במקום X.50 שלא קיים ב-MUI
  */
-export function getLightBg(paletteColor: string) {
-  return (theme: any) => alpha(theme.palette[paletteColor]?.main || paletteColor, 0.08);
+export function getLightBg(paletteColor: PaletteColorKey) {
+  return (theme: Theme) => alpha(theme.palette[paletteColor].main, 0.08);
 }
