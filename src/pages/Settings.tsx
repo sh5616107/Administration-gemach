@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { KOFI_COLOR, KOFI_COLOR_HOVER } from '../theme/constants'
 import { alpha } from '@mui/material/styles'
+import { getLightBg } from '../theme/tokens'
 import {
   Box,
   Card,
@@ -376,7 +377,7 @@ export default function Settings() {
 
   return (
     <Box>
-      <Card sx={{ mb: 3, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.light' }}>
+      <Card sx={{ mb: 3, bgcolor: getLightBg('primary'), border: 1, borderColor: 'primary.light' }}>
         <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Box>
             <Typography variant="h6">פאנל עיצוב שטרות ודוחות</Typography>
@@ -842,7 +843,7 @@ export default function Settings() {
                   mt: 1,
                   borderColor: KOFI_COLOR,
                   color: KOFI_COLOR,
-                  '&:hover': { borderColor: KOFI_COLOR_HOVER, bgcolor: theme => alpha(KOFI_COLOR, 0.08) },
+                  '&:hover': { borderColor: KOFI_COLOR_HOVER, bgcolor: alpha(KOFI_COLOR, 0.08) },
                 }}
               >
                 תמכו בהמשך הפיתוח

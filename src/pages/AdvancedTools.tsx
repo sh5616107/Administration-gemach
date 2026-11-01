@@ -782,6 +782,7 @@ export default function AdvancedTools() {
         <head>
           <title>דו"ח לווים</title>
           <style>
+            /* @allow-colors-start */
             body { font-family: Arial, sans-serif; padding: 20px; }
             h1, h2 { text-align: center; margin: 10px 0; }
             h2 { font-size: 18px; color: #666; }
@@ -791,6 +792,7 @@ export default function AdvancedTools() {
             .summary { margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 8px; }
             svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+            /* @allow-colors-end */
           </style>
         </head>
         <body>
@@ -877,6 +879,7 @@ export default function AdvancedTools() {
         <head>
           <title>דו"ח מפקידים</title>
           <style>
+            /* @allow-colors-start */
             body { font-family: Arial, sans-serif; padding: 20px; }
             h1, h2 { text-align: center; margin: 10px 0; }
             h2 { font-size: 18px; color: #666; }
@@ -886,6 +889,7 @@ export default function AdvancedTools() {
             .summary { font-size: 18px; margin: 15px 0; }
             svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+            /* @allow-colors-end */
           </style>
         </head>
         <body>
@@ -1198,6 +1202,7 @@ export default function AdvancedTools() {
         <head>
           <title>דו"ח סטטיסטיקות מורחב</title>
           <style>
+            /* @allow-colors-start */
             body { font-family: Arial, sans-serif; padding: 20px; }
             h1, h2, h3 { text-align: center; margin: 10px 0; }
             h2 { font-size: 18px; color: #666; }
@@ -1210,6 +1215,7 @@ export default function AdvancedTools() {
             .section { margin: 25px 0; page-break-inside: avoid; }
             svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+            /* @allow-colors-end */
           </style>
         </head>
         <body>
@@ -1266,6 +1272,7 @@ export default function AdvancedTools() {
         <head>
           <title>סטטיסטיקות אמצעי תשלום</title>
           <style>
+            /* @allow-colors-start */
             body { font-family: Arial, sans-serif; padding: 20px; }
             h1 { text-align: center; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -1275,6 +1282,7 @@ export default function AdvancedTools() {
             .in { color: #388e3c; }
             svg { width: 20px !important; height: 20px !important; vertical-align: middle; margin: 0 6px; flex-shrink: 0; }
             @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+            /* @allow-colors-end */
           </style>
         </head>
         <body>

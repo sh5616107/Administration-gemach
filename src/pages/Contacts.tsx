@@ -434,6 +434,7 @@ function generateContactReport(contact: UnifiedContact, t: any): string {
   <meta charset="UTF-8">
   <title>דוח אישי - ${contact.first_name} ${contact.last_name}</title>
   <style>
+    /* @allow-colors-start */
     * {
       margin: 0;
       padding: 0;
@@ -608,6 +609,7 @@ function generateContactReport(contact: UnifiedContact, t: any): string {
         page-break-inside: avoid;
       }
     }
+    /* @allow-colors-end */
   </style>
 </head>
 <body>
