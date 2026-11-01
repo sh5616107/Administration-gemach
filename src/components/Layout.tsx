@@ -21,7 +21,6 @@ import {
   DialogContent,
   Chip,
   Divider,
-  useTheme,
 } from '@mui/material'
 import {
   Home as HomeIcon,
@@ -71,7 +70,6 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { settings } = useSettings()
-  const theme = useTheme()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
   const [alertCount, setAlertCount] = useState(0)
@@ -181,7 +179,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const drawer = (
     <Box sx={{ height: '100%', bgcolor: 'sidebar.bg' }}>
-      <Box sx={{ p: 2, textAlign: 'center', borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: 2, textAlign: 'center', borderBottom: 1, borderColor: 'sidebar.divider' }}>
         <Avatar
           src={settings.gemach_logo || undefined}
           sx={{ 
@@ -222,9 +220,9 @@ export default function Layout({ children }: LayoutProps) {
                     color: 'sidebar.textActive',
                     fontWeight: 600,
                     '& .MuiListItemIcon-root': { color: 'sidebar.textActive' },
-                    '&:hover': { bgcolor: theme => `rgba(255, 255, 255, 0.20)` },
+                    '&:hover': { bgcolor: 'sidebar.selectedHover' },
                   },
-                  '&:hover': { bgcolor: theme => `rgba(230, 239, 236, 0.08)` },
+                  '&:hover': { bgcolor: 'sidebar.hover' },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 36, color: isSelected ? 'sidebar.textActive' : 'sidebar.text' }}>

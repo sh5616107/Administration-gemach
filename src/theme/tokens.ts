@@ -11,6 +11,9 @@ export const sidebarTokens = {
   textInactive: '#D3E2DE',
   textActive: '#FFFFFF',
   selected: 'rgba(255, 255, 255, 0.14)',
+  selectedHover: 'rgba(255, 255, 255, 0.20)',
+  hover: 'rgba(230, 239, 236, 0.08)',
+  divider: 'rgba(255, 255, 255, 0.14)',
 } as const;
 
 // צבעי קלנדר (אירועים) - כל צבע שונה בגוון ובהירות
