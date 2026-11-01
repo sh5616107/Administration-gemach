@@ -1,3 +1,4 @@
+import { getTint } from '../theme';
 import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -1027,7 +1028,7 @@ export default function Donations() {
                 <Divider />
 
                 {/* Statistics */}
-                <Box sx={{ bgcolor: 'success.50', p: 2, borderRadius: 1 }}>
+                <Box sx={{ bgcolor: getTint('success', 0.08), p: 2, borderRadius: 1 }}>
                   <Typography variant="subtitle2" color="success.dark" gutterBottom>
                     סטטיסטיקות
                   </Typography>
@@ -1096,7 +1097,7 @@ export default function Donations() {
         <Divider sx={{ mb: 3 }} />
 
         {selectedDonor && (
-          <Box sx={{ mb: 3, p: 2, bgcolor: 'success.50', borderRadius: 1 }}>
+          <Box sx={{ mb: 3, p: 2, bgcolor: getTint('success', 0.08), borderRadius: 1 }}>
             <Typography variant="subtitle2" color="success.dark">
               תורם: {selectedDonor.first_name} {selectedDonor.last_name}
             </Typography>

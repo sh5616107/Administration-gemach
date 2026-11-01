@@ -1,3 +1,4 @@
+import { getTint } from '../theme';
 import { toLocalDateStr } from '../utils/localDate'
 import { toHebrewDate } from '../utils/dateUtils';
 import { validateEventDate } from '../utils/dateValidation';
@@ -1235,7 +1236,7 @@ export default function Deposits() {
                   </Typography>
                   <Grid container spacing={1}>
                     <Grid item xs={6}>
-                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: 'success.50' }}>
+                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: getTint('success', 0.08) }}>
                         <Typography variant="body2" color="text.secondary">
                           הפקדות פעילות
                         </Typography>
@@ -1255,7 +1256,7 @@ export default function Deposits() {
                       </Paper>
                     </Grid>
                     <Grid item xs={12}>
-                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: 'info.50' }}>
+                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: getTint('info', 0.08) }}>
                         <Typography variant="body2" color="text.secondary">
                           סה"כ הופקד
                         </Typography>
@@ -1265,7 +1266,7 @@ export default function Deposits() {
                       </Paper>
                     </Grid>
                     <Grid item xs={12}>
-                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: 'error.50' }}>
+                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: getTint('error', 0.08) }}>
                         <Typography variant="body2" color="text.secondary">
                           נמשך
                         </Typography>
@@ -1275,7 +1276,7 @@ export default function Deposits() {
                       </Paper>
                     </Grid>
                     <Grid item xs={12}>
-                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: 'primary.50' }}>
+                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: getTint('primary', 0.08) }}>
                         <Typography variant="body2" color="text.secondary">
                           יתרה פעילה
                         </Typography>

@@ -3,6 +3,7 @@
  * ממשק מלא לייבוא נתונים מקבצי Excel
  */
 
+import { getTint } from '../theme';
 import React, { useState, useCallback } from 'react'
 import {
   Dialog,
@@ -243,7 +244,7 @@ const ExcelImportDialog: React.FC<ExcelImportDialogProps> = ({
         {activeStep === 0 && (
           <Box>
             {/* אפשרות ייבוא מלא */}
-            <Box sx={{ mb: 3, p: 2, bgcolor: 'primary.50', borderRadius: 2, border: '2px solid', borderColor: 'primary.main' }}>
+            <Box sx={{ mb: 3, p: 2, bgcolor: getTint('primary', 0.08), borderRadius: 2, border: '2px solid', borderColor: 'primary.main' }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'primary.main' }}>
                 🚀 ייבוא מלא - כל הנתונים בפעם אחת
               </Typography>
