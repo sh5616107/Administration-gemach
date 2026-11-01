@@ -749,7 +749,7 @@ export default function Deposits() {
                 <Stack direction="row" spacing={1}>
                   <Button
                     variant={hasActiveFilters ? 'contained' : 'outlined'}
-                    color={hasActiveFilters ? 'secondary' : 'inherit'}
+                    color={hasActiveFilters ? 'secondary' : 'primary'}
                     startIcon={filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                     onClick={() => setFiltersOpen(!filtersOpen)}
                     size="small"
