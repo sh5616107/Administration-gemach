@@ -3,6 +3,7 @@
  * מיפוי סוג אירוע לצבע לפי הדרישות
  */
 
+import { calendarTokens } from '../../theme';
 import React from 'react'
 import { Box, Tooltip } from '@mui/material'
 import { EventType } from '../../services/calendarService'
@@ -14,19 +15,19 @@ interface EventIndicatorProps {
 
 // מיפוי סוג אירוע לצבע ותיאור
 const eventConfig: Record<EventType, { color: string; label: string }> = {
-  loan_due: { color: '#d32f2f', label: 'פירעון הלוואה (יעד)' },   // 🔴 אדום
-  repayment: { color: '#795548', label: 'פירעון שבוצע' },         // 🟤 חום
-  recurring_deposit: { color: '#2e7d32', label: 'הפקדה מחזורית' }, // 🟢 ירוק
-  planned_loan: { color: '#0288d1', label: 'הלוואה מתוכננת' },    // 🔵 כחול
-  deposit_due: { color: '#ed6c02', label: 'הפקדה להחזרה' },       // 🟠 כתום
-  regular_loan: { color: '#9c27b0', label: 'הלוואה' }             // 🟣 סגול
+  loan_due: { color: calendarTokens.loanDue, label: 'פירעון הלוואה (יעד)' },
+  repayment: { color: calendarTokens.repayment, label: 'פירעון שבוצע' },
+  recurring_deposit: { color: calendarTokens.recurringDeposit, label: 'הפקדה מחזורית' },
+  planned_loan: { color: calendarTokens.plannedLoan, label: 'הלוואה מתוכננת' },
+  deposit_due: { color: calendarTokens.depositDue, label: 'הפקדה להחזרה' },
+  regular_loan: { color: calendarTokens.regularLoan, label: 'הלוואה' }
 }
 
 /**
  * פונקציה לקבלת צבע לפי סוג אירוע
  */
 export function getEventColor(type: EventType): string {
-  return eventConfig[type]?.color || '#757575'
+  return eventConfig[type]?.color || calendarTokens.regularLoan
 }
 
 /**

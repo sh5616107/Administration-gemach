@@ -9,6 +9,7 @@
  * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 10.3
  */
 
+import { getTint } from '../../theme';
 import React, { useState, useEffect } from 'react'
 import {
   Dialog,
@@ -174,9 +175,9 @@ export function RecurringHistoryDialog({
                   <TableRow 
                     key={item.id}
                     sx={{
-                      backgroundColor: item.isPast ? '#f5f5f5' : '#e3f2fd',
+                      backgroundColor: item.isPast ? 'grey.100' : getTint('info', 0.08),
                       '&:hover': {
-                        backgroundColor: item.isPast ? '#eeeeee' : '#bbdefb'
+                        backgroundColor: item.isPast ? 'grey.200' : getTint('info', 0.16)
                       }
                     }}
                   >

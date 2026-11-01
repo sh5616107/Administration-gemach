@@ -10,6 +10,8 @@
  * Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 5.1, 5.2, 10.1, 10.2, 10.4, 10.6, 14.1, 14.2, 14.3
  */
 
+import { getTint } from '../../theme';
+import { alpha } from '@mui/material/styles';
 import React, { useState, useEffect } from 'react'
 import {
   Dialog,
@@ -346,7 +348,7 @@ export function EditRecurringDialog({
             <Box>
               {/* Progress Bar */}
               {!isAutoRepayment && (
-                <Card variant="outlined" sx={{ mb: 3, bgcolor: '#f5f5f5' }}>
+                <Card variant="outlined" sx={{ mb: 3, bgcolor: 'grey.100' }}>
                   <CardContent>
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                       <Typography variant="subtitle2" fontWeight="bold">
@@ -376,7 +378,7 @@ export function EditRecurringDialog({
               {/* Status Cards */}
               <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} sm={4}>
-                  <Card variant="outlined" sx={{ bgcolor: '#e3f2fd' }}>
+                  <Card variant="outlined" sx={{ bgcolor: getTint('info', 0.08) }}>
                     <CardContent>
                       <Typography variant="caption" color="text.secondary">
                         {t('recurring.totalCreated', 'נוצרו עד כה')}
@@ -393,7 +395,7 @@ export function EditRecurringDialog({
                 {!isAutoRepayment && (
                   <>
                     <Grid item xs={12} sm={4}>
-                      <Card variant="outlined" sx={{ bgcolor: '#fff3e0' }}>
+                      <Card variant="outlined" sx={{ bgcolor: getTint('warning', 0.08) }}>
                         <CardContent>
                           <Typography variant="caption" color="text.secondary">
                             {t('recurring.monthsRemaining', 'חודשים נותרים')}
@@ -408,7 +410,7 @@ export function EditRecurringDialog({
                       </Card>
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                      <Card variant="outlined" sx={{ bgcolor: '#f3e5f5' }}>
+                      <Card variant="outlined" sx={{ bgcolor: (theme) => alpha(theme.palette.accent, 0.12) }}>
                         <CardContent>
                           <Typography variant="caption" color="text.secondary">
                             {t('recurring.totalPlanned', 'סה"כ מתוכנן')}
@@ -446,7 +448,7 @@ export function EditRecurringDialog({
                   {editMode ? 'עריכת פרמטרים' : 'פרמטרים נוכחיים'}
                 </Typography>
                 
-                <Box sx={{ bgcolor: editMode ? '#fff9c4' : 'transparent', p: editMode ? 2 : 0, borderRadius: 1 }}>
+                <Box sx={{ bgcolor: editMode ? getTint('warning', 0.12) : 'transparent', p: editMode ? 2 : 0, borderRadius: 1 }}>
                   {editMode && !isAutoRepayment && (
                     <Alert severity="info" sx={{ mb: 2 }}>
                       ✅ {t('recurring.editWarning', 'שינויים ישפיעו רק על פריטים עתידיים. פריטים שכבר נוצרו לא ישתנו.')}
@@ -583,9 +585,9 @@ export function EditRecurringDialog({
                           <TableRow 
                             key={item.id}
                             sx={{
-                              backgroundColor: item.isPast ? '#f5f5f5' : '#e3f2fd',
+                              backgroundColor: item.isPast ? 'grey.100' : getTint('info', 0.08),
                               '&:hover': {
-                                backgroundColor: item.isPast ? '#eeeeee' : '#bbdefb'
+                                backgroundColor: item.isPast ? 'grey.200' : getTint('info', 0.16)
                               }
                             }}
                           >
