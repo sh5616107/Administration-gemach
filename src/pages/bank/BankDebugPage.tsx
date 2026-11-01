@@ -492,7 +492,7 @@ const BankDebugPage: React.FC = () => {
                 </Alert>
 
                 {result.data && Object.keys(result.data).length > 0 && (
-                  <Paper sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+                  <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
                     <Typography variant="subtitle2" gutterBottom>
                       פרטים:
                     </Typography>

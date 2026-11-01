@@ -6,6 +6,7 @@
 
 import { toLocalDateStr } from '../../utils/localDate'
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTheme } from '@mui/material/styles';
 import {
   Alert,
   Box,
@@ -43,14 +44,6 @@ import MasterPasswordDialog from '../../components/bank/MasterPasswordDialog';
 // ============================================================================
 
 type FilterTab = 'all' | 'pending' | 'approved' | 'rejected' | 'skipped';
-
-const confidenceColor: Record<string, string> = {
-  excellent: '#2e7d32',
-  high: '#1565c0',
-  medium: '#f57f17',
-  low: '#e65100',
-  suspect: '#b71c1c',
-};
 
 const confidenceLabel: Record<string, string> = {
   excellent: 'מצוין',
@@ -616,6 +609,8 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
   onManualMatch,
   isProcessing = false,
 }) => {
+  const theme = useTheme();
+  
   const matchTypeLabel: Record<string, string> = {
     repayment: 'פירעון',
     donation: 'תרומה',
@@ -690,14 +685,14 @@ const TransactionMatchCard: React.FC<TransactionMatchCardProps> = ({
                 variant="h4"
                 sx={{
                   fontWeight: 'bold',
-                  color: confidenceColor[suggestion.confidence_level] ?? '#666',
+                  color: theme.palette.confidence[suggestion.confidence_level as keyof typeof theme.palette.confidence] ?? theme.palette.text.secondary,
                 }}
               >
                 {Math.round(suggestion.confidence_score)}%
               </Typography>
               <Typography
                 variant="caption"
-                sx={{ color: confidenceColor[suggestion.confidence_level] ?? '#666' }}
+                sx={{ color: theme.palette.confidence[suggestion.confidence_level as keyof typeof theme.palette.confidence] ?? theme.palette.text.secondary }}
               >
                 {confidenceLabel[suggestion.confidence_level] ?? ''}
               </Typography>
