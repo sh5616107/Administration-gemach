@@ -31,13 +31,15 @@
 ## טכנולוגיות
 
 - React 18 + TypeScript
-- Material-UI v5
+- Material-UI v5 + ערכת נושא מרוכזת (theme tokens, פלטת teal+זהב)
 - Tauri 2 (Rust)
 - אחסון מקומי - JSON + localforage (ללא שרת/DB חיצוני)
 - jsPDF + html2canvas - הפקת PDF
 - xlsx - יבוא/יצוא אקסל
-- i18next - ריבוי שפות (עברית/אנגלית)
+- i18next - ריבוי שת/אנגלית)
 - @hebcal/core - חישובי לוח עברי
+
+**עיצוב וצבעים:** כל הצבעים בפרויקט מגיעים מ-`theme.palette` או מ-`getTint()`. שימוש בצבעים hardcoded אסור (למעט תבניות מסמכים להדפסה). ראה `.kiro/steering/colors.md` לפרטים.
 
 ## דרישות מוקדמות
 
