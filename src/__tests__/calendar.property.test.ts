@@ -6,6 +6,7 @@
 import { describe, expect, vi } from 'vitest'
 import { fc, test } from '@fast-check/vitest'
 import { EventType, getEventsForMonth } from '../services/calendarService'
+import { calendarTokens } from '../theme/tokens'
 
 // ========================================
 // Property 3: Event Data Loading Completeness
@@ -283,12 +284,12 @@ describe('Property 2: Event-to-Indicator Mapping', () => {
    */
   
   const expectedColors: Record<EventType, string> = {
-    loan_due: '#d32f2f',        // אדום
-    repayment: '#795548',       // חום
-    recurring_deposit: '#2e7d32', // ירוק
-    planned_loan: '#0288d1',    // כחול
-    deposit_due: '#ed6c02',     // כתום
-    regular_loan: '#9c27b0'     // סגול
+    loan_due: calendarTokens.loanDue,            // אדום כהה
+    repayment: calendarTokens.repayment,         // חום
+    recurring_deposit: calendarTokens.recurringDeposit, // ירוק
+    planned_loan: calendarTokens.plannedLoan,    // כחול
+    deposit_due: calendarTokens.depositDue,      // ענבר כהה
+    regular_loan: calendarTokens.regularLoan     // שזיף
   }
   
   test.prop([

@@ -89,8 +89,6 @@ sx={{ backgroundColor: getTint('error', 0.16) }}
 - `#hex` (למעט ברשימת היתר/טווחי @allow-colors)
 - `rgb(` או `rgba(` (למעט ברשימת היתר/טווחי @allow-colors)
 
-הבדיקה רצה אוטומטית ב-CI ומונעת merge של קוד עם צבעים hardcoded.
-
 ## תיקון קוד קיים
 אם נמצאו צבעים hardcoded:
 1. חפש את הטוקן המתאים ב-`theme.palette`
