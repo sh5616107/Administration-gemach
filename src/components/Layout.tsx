@@ -195,7 +195,7 @@ export default function Layout({ children }: LayoutProps) {
             borderColor: (theme) => alpha(theme.palette.common.white, 0.2),
           }}
         >
-          {!settings.gemach_logo && 'ג'}
+          ג
         </Avatar>
         <Typography variant="subtitle1" fontWeight={600} color="sidebar.textActive">
           {settings.gemach_name || 'גמ"ח שלי'}
