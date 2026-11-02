@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { Theme } from '@mui/material/styles';
 import { ThemeId, DEFAULT_THEME_ID, THEMES, createThemeById } from '../theme/themes';
+import { loadThemeId, saveThemeId } from '../theme/themeStorage';
 
 interface ThemeContextValue {
   themeId: ThemeId;
@@ -10,40 +11,6 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
-
-const STORAGE_KEY = 'gemach_theme_id';
-
-/**
- * קריאת מזהה ערכה מ-localStorage (סינכרונית)
- * @returns מזהה ערכה או ברירת מחדל
- */
-function loadThemeId(): ThemeId {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      // ודא שהערכה קיימת
-      const isValid = THEMES.some(t => t.id === stored);
-      if (isValid) {
-        return stored as ThemeId;
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to load theme from localStorage:', error);
-  }
-  return DEFAULT_THEME_ID;
-}
-
-/**
- * שמירת מזהה ערכה ב-localStorage
- * @param id מזהה ערכה
- */
-function saveThemeId(id: ThemeId): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, id);
-  } catch (error) {
-    console.error('Failed to save theme to localStorage:', error);
-  }
-}
 
 interface AppThemeProviderProps {
   children: React.ReactNode;
@@ -57,7 +24,17 @@ interface AppThemeProviderProps {
  */
 export function AppThemeProvider({ children }: AppThemeProviderProps) {
   // טעינה סינכרונית לפני הרינדור הראשון
-  const [themeId, setThemeIdState] = useState<ThemeId>(() => loadThemeId());
+  const [themeId, setThemeIdState] = useState<ThemeId>(() => {
+    const stored = loadThemeId();
+    if (stored) {
+      // ודא שהערכה קיימת
+      const isValid = THEMES.some(t => t.id === stored);
+      if (isValid) {
+        return stored as ThemeId;
+      }
+    }
+    return DEFAULT_THEME_ID;
+  });
 
   // יצירת theme (רק כאשר themeId משתנה)
   const theme = useMemo(() => {
@@ -65,17 +42,17 @@ export function AppThemeProvider({ children }: AppThemeProviderProps) {
   }, [themeId]);
 
   // פונקציה לשינוי ערכה (עם שמירה אוטומטית)
-  const setThemeId = (id: ThemeId) => {
+  const setThemeId = useCallback((id: ThemeId) => {
     setThemeIdState(id);
     saveThemeId(id);
-  };
+  }, []);
 
-  const contextValue: ThemeContextValue = {
+  const contextValue: ThemeContextValue = useMemo(() => ({
     themeId,
     setThemeId,
     theme,
     availableThemes: THEMES,
-  };
+  }), [themeId, setThemeId, theme]);
 
   return (
     <ThemeContext.Provider value={contextValue}>
