@@ -38,11 +38,22 @@ function ReleaseNotes({ text }: { text: string }) {
           return <Box key={key} sx={{ height: 6 }} />
         }
 
+        // כותרות עם 1-3 סולמיות (H1-H3)
         const headerMatch = line.match(/^#{1,3}\s+(.*)$/)
         if (headerMatch) {
           return (
             <Typography key={key} variant="subtitle1" sx={{ fontWeight: 700, mt: 1 }}>
               {renderInlineBold(headerMatch[1], key)}
+            </Typography>
+          )
+        }
+
+        // כותרות עם 4-6 סולמיות (H4-H6) - להציג כטקסט מודגש
+        const subHeaderMatch = line.match(/^#{4,6}\s+(.*)$/)
+        if (subHeaderMatch) {
+          return (
+            <Typography key={key} variant="subtitle2" sx={{ fontWeight: 600, mt: 0.5 }}>
+              {renderInlineBold(subHeaderMatch[1], key)}
             </Typography>
           )
         }
@@ -73,7 +84,7 @@ function ReleaseNotes({ text }: { text: string }) {
 // גוף העדכון (updateInfo.body) מגיע מ-CHANGELOG.md ומיועד גם לעמוד ה-Release ב-GitHub,
 // שם קיים סעיף "הורדה והתקנה" רלוונטי. בתוך האפליקציה זה מיותר (העדכון כבר מותקן דרך הדיאלוג הזה) - מסירים אותו
 export function stripInstallFooter(body: string) {
-  return body.split(/\n#{1,3}\s+הורדה והתקנה/)[0].trim()
+  return body.split(/\n#{1,6}\s+הורדה והתקנה/)[0].trim()
 }
 
 export default function UpdateChecker() {

@@ -21,6 +21,7 @@ import {
   DialogContent,
   Chip,
   Divider,
+  alpha,
 } from '@mui/material'
 import {
   Home as HomeIcon,
@@ -191,7 +192,7 @@ export default function Layout({ children }: LayoutProps) {
             fontSize: '1.5rem',
             color: 'white',
             border: 2,
-            borderColor: 'rgba(255, 255, 255, 0.2)',
+            borderColor: (theme) => alpha(theme.palette.common.white, 0.2),
           }}
         >
           {!settings.gemach_logo && 'ג'}

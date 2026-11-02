@@ -431,7 +431,7 @@ export default function Settings() {
                     display: 'none',
                   },
                   '& .MuiAccordionSummary-root': {
-                    bgcolor: alpha('#000', 0.02),
+                    bgcolor: (theme) => alpha(theme.palette.common.black, 0.02),
                   },
                 }}
               >
