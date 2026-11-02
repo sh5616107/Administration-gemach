@@ -1,22 +1,10 @@
 import { alpha, Theme } from '@mui/material/styles';
 
 /**
- * טוקני צבע מותאמים לפרויקט
+ * טוקני צבע קבועים (לא משתנים בין ערכות)
  */
 
-// צבעי תפריט צד (sidebar)
-export const sidebarTokens = {
-  bg: '#0F4A4A',
-  text: '#E6EFEC',
-  textInactive: '#D3E2DE',
-  textActive: '#FFFFFF',
-  selected: 'rgba(255, 255, 255, 0.14)',
-  selectedHover: 'rgba(255, 255, 255, 0.20)',
-  hover: 'rgba(230, 239, 236, 0.08)',
-  divider: 'rgba(255, 255, 255, 0.14)',
-} as const;
-
-// צבעי קלנדר (אירועים) - כל צבע שונה בגוון ובהירות
+// צבעי לוח שנה (אירועים) - כל צבע שונה בגוון ובהירות
 export const calendarTokens = {
   loanDue: '#A63A2B',          // אדום כהה - פירעון הלוואה
   repayment: '#7A5C3E',         // חום - פירעון שבוצע

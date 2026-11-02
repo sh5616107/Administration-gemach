@@ -1,17 +1,6 @@
 import { createTheme, ThemeOptions } from '@mui/material/styles';
-import { sidebarTokens, calendarTokens, confidenceTokens } from './tokens';
-
-// טיפוס sidebar
-interface SidebarTokens {
-  bg: string;
-  text: string;
-  textInactive: string;
-  textActive: string;
-  selected: string;
-  selectedHover: string;
-  hover: string;
-  divider: string;
-}
+import { calendarTokens, confidenceTokens } from './tokens';
+import { PaletteSpec, SidebarTokens, tealGoldPalette } from './palettes';
 
 // הרחבת טיפוסים של MUI
 declare module '@mui/material/styles' {
@@ -29,90 +18,7 @@ declare module '@mui/material/styles' {
   }
 }
 
-/**
- * מפרט פלטת צבעים
- */
-interface PaletteSpec {
-  primary: { main: string; light: string; dark: string; contrastText: string };
-  secondary: { main: string; light: string; dark: string; contrastText: string };
-  success: { main: string; light: string; dark: string; contrastText: string };
-  warning: { main: string; light: string; dark: string; contrastText: string };
-  error: { main: string; light: string; dark: string; contrastText: string };
-  info: { main: string; light: string; dark: string; contrastText: string };
-  background: { default: string; paper: string };
-  text: { primary: string; secondary: string };
-  divider: string;
-  grey: { 50: string; 100: string; 200: string };
-  accent: string;
-  sidebar: SidebarTokens;
-}
-
-/**
- * פלטת Teal + זהב
- */
-const tealGoldPalette: PaletteSpec = {
-  primary: {
-    main: '#0F5C5C',
-    light: '#3F8A87',
-    dark: '#0A4242',
-    contrastText: '#FFFFFF',
-  },
-  secondary: {
-    main: '#4A5D5A',
-    light: '#7A8D8A',
-    dark: '#33423F',
-    contrastText: '#FFFFFF',
-  },
-  success: {
-    main: '#2F7D57',
-    light: '#DDEEE6',
-    dark: '#1F5E3E',
-    contrastText: '#FFFFFF',
-  },
-  warning: {
-    main: '#9A6A00',
-    light: '#F6E7C8',
-    dark: '#7A5200',
-    contrastText: '#FFFFFF',
-  },
-  error: {
-    main: '#A63A2B',
-    light: '#F5DAD6',
-    dark: '#8E2A1F',
-    contrastText: '#FFFFFF',
-  },
-  info: {
-    main: '#2C6E8A',
-    light: '#D9E8EF',
-    dark: '#1E5068',
-    contrastText: '#FFFFFF',
-  },
-  background: {
-    default: '#F7F5F0',
-    paper: '#FFFFFF',
-  },
-  text: {
-    primary: '#1E2B29',
-    secondary: '#5B6B68',
-  },
-  divider: '#E6E1D5',
-  grey: {
-    50: '#F7F5F0',
-    100: '#F1EEE6',
-    200: '#E6E1D5',
-  },
-  accent: '#B8892D', // זהב - לקישוטים בלבד, לא לטקסט
-  sidebar: {
-    bg: '#0F4A4A',
-    text: '#E6EFEC',
-    textInactive: '#D3E2DE',
-    textActive: '#FFFFFF',
-    selected: 'rgba(255, 255, 255, 0.14)',
-    selectedHover: 'rgba(255, 255, 255, 0.20)',
-    hover: 'rgba(230, 239, 236, 0.08)',
-    divider: 'rgba(255, 255, 255, 0.14)',
-  },
-};
+export type { PaletteSpec, SidebarTokens };
 
 /**
  * יצירת theme מרוכז

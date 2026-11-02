@@ -338,6 +338,16 @@ describe('Multi-Theme Contrast Tests', () => {
         expect(ratio, `${label}: text on grey.100 ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
       });
 
+      it('text.secondary על background.paper', () => {
+        const ratio = getContrastRatio(palette.text.secondary, palette.background.paper);
+        expect(ratio, `${label}: text.secondary on paper ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+      });
+
+      it('text.secondary על grey.100', () => {
+        const ratio = getContrastRatio(palette.text.secondary, palette.grey[100]);
+        expect(ratio, `${label}: text.secondary on grey.100 ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+      });
+
       it('sidebar.text על sidebar.bg', () => {
         const ratio = getContrastRatio(palette.sidebar.text, palette.sidebar.bg);
         expect(ratio, `${label}: sidebar.text contrast ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
