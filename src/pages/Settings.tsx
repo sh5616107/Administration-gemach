@@ -420,157 +420,182 @@ export default function Settings() {
               </FormControl>
 
               {/* בחירת ערכת נושא */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <PaletteIcon fontSize="small" /> ערכת צבעים
-                </Typography>
-                <Grid
-                  container
-                  spacing={2}
-                  role="radiogroup"
-                  aria-label="בחירת ערכת צבעים"
+              <Accordion 
+                sx={{ 
+                  mb: 3,
+                  border: 2,
+                  borderColor: 'primary.main',
+                  borderRadius: 1,
+                  boxShadow: 2,
+                  '&:before': {
+                    display: 'none',
+                  },
+                  '& .MuiAccordionSummary-root': {
+                    bgcolor: alpha('#000', 0.02),
+                  },
+                }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  aria-controls="theme-selector-content"
+                  id="theme-selector-header"
                 >
-                  {availableThemes.map((theme) => {
-                    const isActive = themeId === theme.id
-                    return (
-                      <Grid item xs={12} sm={6} key={theme.id}>
-                        <Paper
-                          role="radio"
-                          aria-checked={isActive}
-                          tabIndex={isActive ? 0 : -1}
-                          onClick={() => {
-                            setThemeId(theme.id)
-                            setSnackbar({ open: true, message: `ערכת "${theme.label}" הופעלה`, severity: 'success' })
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <PaletteIcon fontSize="small" color="primary" />
+                    <Typography variant="subtitle2" fontWeight="bold" color="primary">
+                      ערכת צבעים
+                    </Typography>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Grid
+                    container
+                    spacing={2}
+                    role="radiogroup"
+                    aria-label="בחירת ערכת צבעים"
+                  >
+                    {availableThemes.map((theme) => {
+                      const isActive = themeId === theme.id
+                      return (
+                        <Grid item xs={12} sm={6} key={theme.id}>
+                          <Paper
+                            role="radio"
+                            aria-checked={isActive}
+                            tabIndex={isActive ? 0 : -1}
+                            onClick={() => {
                               setThemeId(theme.id)
                               setSnackbar({ open: true, message: `ערכת "${theme.label}" הופעלה`, severity: 'success' })
-                            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-                              e.preventDefault()
-                              const currentIndex = availableThemes.findIndex(t => t.id === themeId)
-                              const nextIndex = (currentIndex + 1) % availableThemes.length
-                              const nextTheme = availableThemes[nextIndex]
-                              setThemeId(nextTheme.id)
-                              setSnackbar({ open: true, message: `ערכת "${nextTheme.label}" הופעלה`, severity: 'success' })
-                            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-                              e.preventDefault()
-                              const currentIndex = availableThemes.findIndex(t => t.id === themeId)
-                              const prevIndex = (currentIndex - 1 + availableThemes.length) % availableThemes.length
-                              const prevTheme = availableThemes[prevIndex]
-                              setThemeId(prevTheme.id)
-                              setSnackbar({ open: true, message: `ערכת "${prevTheme.label}" הופעלה`, severity: 'success' })
-                            }
-                          }}
-                          sx={{
-                            p: 2,
-                            cursor: 'pointer',
-                            border: 2,
-                            borderColor: isActive ? 'primary.main' : 'divider',
-                            transition: 'all 0.2s',
-                            '&:hover': {
-                              borderColor: isActive ? 'primary.dark' : 'primary.light',
-                              transform: 'translateY(-2px)',
-                              boxShadow: 2,
-                            },
-                            '&:focus': {
-                              outline: '3px solid',
-                              outlineColor: 'primary.main',
-                              outlineOffset: '2px',
-                            },
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                              {theme.label}
-                            </Typography>
-                            {isActive && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'primary.main' }}>
-                                <CheckCircleIcon fontSize="small" />
-                                <Typography variant="caption" fontWeight="bold">פעילה</Typography>
-                              </Box>
-                            )}
-                          </Box>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                            {theme.description}
-                          </Typography>
-                          
-                          {/* תצוגה מקדימה של צבעים */}
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
-                            <Box
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                bgcolor: theme.spec.primary.main,
-                                borderRadius: 1,
-                                border: 1,
-                                borderColor: 'divider',
-                              }}
-                              title={`ראשי: ${theme.spec.primary.main}`}
-                            />
-                            <Box
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                bgcolor: theme.spec.secondary.main,
-                                borderRadius: 1,
-                                border: 1,
-                                borderColor: 'divider',
-                              }}
-                              title={`משני: ${theme.spec.secondary.main}`}
-                            />
-                            <Box
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                bgcolor: theme.spec.accent,
-                                borderRadius: 1,
-                                border: 1,
-                                borderColor: 'divider',
-                              }}
-                              title={`מבטא: ${theme.spec.accent}`}
-                            />
-                            <Box
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                bgcolor: theme.spec.info.main,
-                                borderRadius: 1,
-                                border: 1,
-                                borderColor: 'divider',
-                              }}
-                              title={`אינפו: ${theme.spec.info.main}`}
-                            />
-                            <Box
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                bgcolor: theme.spec.sidebar.bg,
-                                borderRadius: 1,
-                                border: 1,
-                                borderColor: 'divider',
-                              }}
-                              title={`רקע תפריט: ${theme.spec.sidebar.bg}`}
-                            />
-                          </Box>
-                          {/* פס רקע ברירת מחדל */}
-                          <Box
-                            sx={{
-                              height: 4,
-                              bgcolor: theme.spec.background.default,
-                              borderRadius: 0.5,
-                              border: 1,
-                              borderColor: 'divider',
                             }}
-                            title={`רקע: ${theme.spec.background.default}`}
-                          />
-                        </Paper>
-                      </Grid>
-                    )
-                  })}
-                </Grid>
-              </Box>
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setThemeId(theme.id)
+                                setSnackbar({ open: true, message: `ערכת "${theme.label}" הופעלה`, severity: 'success' })
+                              } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                                e.preventDefault()
+                                const currentIndex = availableThemes.findIndex(t => t.id === themeId)
+                                const nextIndex = (currentIndex + 1) % availableThemes.length
+                                const nextTheme = availableThemes[nextIndex]
+                                setThemeId(nextTheme.id)
+                                setSnackbar({ open: true, message: `ערכת "${nextTheme.label}" הופעלה`, severity: 'success' })
+                              } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                                e.preventDefault()
+                                const currentIndex = availableThemes.findIndex(t => t.id === themeId)
+                                const prevIndex = (currentIndex - 1 + availableThemes.length) % availableThemes.length
+                                const prevTheme = availableThemes[prevIndex]
+                                setThemeId(prevTheme.id)
+                                setSnackbar({ open: true, message: `ערכת "${prevTheme.label}" הופעלה`, severity: 'success' })
+                              }
+                            }}
+                            sx={{
+                              p: 2,
+                              cursor: 'pointer',
+                              border: 2,
+                              borderColor: isActive ? 'primary.main' : 'divider',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                borderColor: isActive ? 'primary.dark' : 'primary.light',
+                                transform: 'translateY(-2px)',
+                                boxShadow: 2,
+                              },
+                              '&:focus': {
+                                outline: '3px solid',
+                                outlineColor: 'primary.main',
+                                outlineOffset: '2px',
+                              },
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                {theme.label}
+                              </Typography>
+                              {isActive && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'primary.main' }}>
+                                  <CheckCircleIcon fontSize="small" />
+                                  <Typography variant="caption" fontWeight="bold">פעילה</Typography>
+                                </Box>
+                              )}
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                              {theme.description}
+                            </Typography>
+                            
+                            {/* תצוגה מקדימה של צבעים */}
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  bgcolor: theme.spec.primary.main,
+                                  borderRadius: 1,
+                                  border: 1,
+                                  borderColor: 'divider',
+                                }}
+                                title={`ראשי: ${theme.spec.primary.main}`}
+                              />
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  bgcolor: theme.spec.secondary.main,
+                                  borderRadius: 1,
+                                  border: 1,
+                                  borderColor: 'divider',
+                                }}
+                                title={`משני: ${theme.spec.secondary.main}`}
+                              />
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  bgcolor: theme.spec.accent,
+                                  borderRadius: 1,
+                                  border: 1,
+                                  borderColor: 'divider',
+                                }}
+                                title={`מבטא: ${theme.spec.accent}`}
+                              />
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  bgcolor: theme.spec.info.main,
+                                  borderRadius: 1,
+                                  border: 1,
+                                  borderColor: 'divider',
+                                }}
+                                title={`אינפו: ${theme.spec.info.main}`}
+                              />
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  bgcolor: theme.spec.sidebar.bg,
+                                  borderRadius: 1,
+                                  border: 1,
+                                  borderColor: 'divider',
+                                }}
+                                title={`רקע תפריט: ${theme.spec.sidebar.bg}`}
+                              />
+                            </Box>
+                            {/* פס רקע ברירת מחדל */}
+                            <Box
+                              sx={{
+                                height: 4,
+                                bgcolor: theme.spec.background.default,
+                                borderRadius: 0.5,
+                                border: 1,
+                                borderColor: 'divider',
+                              }}
+                              title={`רקע: ${theme.spec.background.default}`}
+                            />
+                          </Paper>
+                        </Grid>
+                      )
+                    })}
+                  </Grid>
+                </AccordionDetails>
+              </Accordion>
 
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
