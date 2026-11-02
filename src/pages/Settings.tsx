@@ -579,7 +579,7 @@ export default function Settings() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Avatar
                     src={localSettings.gemach_logo || undefined}
-                    sx={{ width: 80, height: 80, bgcolor: 'primary.main' }}
+                    sx={{ width: 80, height: 80, bgcolor: 'primary.dark' }}
                   >
                     {!localSettings.gemach_logo && 'ג'}
                   </Avatar>
@@ -841,7 +841,7 @@ export default function Settings() {
               >
                 <Avatar
                   src={localSettings.gemach_logo || undefined}
-                  sx={{ width: 100, height: 100, mx: 'auto', mb: 2, bgcolor: 'primary.main' }}
+                  sx={{ width: 100, height: 100, mx: 'auto', mb: 2, bgcolor: 'primary.dark' }}
                 >
                   {!localSettings.gemach_logo && 'ג'}
                 </Avatar>
