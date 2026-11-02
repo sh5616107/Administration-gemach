@@ -60,6 +60,8 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import FundsManagement from '../components/funds/FundsManagement'
+import { useThemeContext } from '../contexts/ThemeContext'
+import { Palette as PaletteIcon } from '@mui/icons-material'
 
 const defaultFieldLabels = {
   borrower_first_name: 'שם פרטי',
@@ -79,6 +81,7 @@ export default function Settings() {
   const navigate = useNavigate()
   const { settings, updateSetting, refreshSettings } = useSettings()
   const { t, i18n } = useTranslation()
+  const { themeId, setThemeId, availableThemes } = useThemeContext()
   
   // Helper to check if text contains old template variables
   const isOldTemplate = (text: string) => text && (text.includes('{שם_') || text.includes('{סכום}') || text.includes('{תאריך}'))
@@ -414,6 +417,89 @@ export default function Settings() {
                   <MenuItem value="en">🇺🇸 English</MenuItem>
                 </Select>
               </FormControl>
+
+              {/* בחירת ערכת נושא */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PaletteIcon fontSize="small" /> ערכת צבעים
+                </Typography>
+                <Grid container spacing={2}>
+                  {availableThemes.map((theme) => (
+                    <Grid item xs={12} sm={6} key={theme.id}>
+                      <Paper
+                        onClick={() => setThemeId(theme.id)}
+                        sx={{
+                          p: 2,
+                          cursor: 'pointer',
+                          border: 2,
+                          borderColor: themeId === theme.id ? 'primary.main' : 'divider',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            borderColor: themeId === theme.id ? 'primary.dark' : 'primary.light',
+                            transform: 'translateY(-2px)',
+                            boxShadow: 2,
+                          },
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                          {theme.label}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                          {theme.description}
+                        </Typography>
+                        
+                        {/* תצוגה מקדימה של צבעים */}
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                          <Box
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              bgcolor: theme.spec.primary.main,
+                              borderRadius: 1,
+                              border: 1,
+                              borderColor: 'divider',
+                            }}
+                            title={`ראשי: ${theme.spec.primary.main}`}
+                          />
+                          <Box
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              bgcolor: theme.spec.secondary.main,
+                              borderRadius: 1,
+                              border: 1,
+                              borderColor: 'divider',
+                            }}
+                            title={`משני: ${theme.spec.secondary.main}`}
+                          />
+                          <Box
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              bgcolor: theme.spec.success.main,
+                              borderRadius: 1,
+                              border: 1,
+                              borderColor: 'divider',
+                            }}
+                            title={`הצלחה: ${theme.spec.success.main}`}
+                          />
+                          <Box
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              bgcolor: theme.spec.error.main,
+                              borderRadius: 1,
+                              border: 1,
+                              borderColor: 'divider',
+                            }}
+                            title={`שגיאה: ${theme.spec.error.main}`}
+                          />
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
 
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
