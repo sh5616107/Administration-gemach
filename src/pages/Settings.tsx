@@ -524,12 +524,23 @@ export default function Settings() {
                               sx={{
                                 width: 28,
                                 height: 28,
+                                bgcolor: theme.spec.accent,
+                                borderRadius: 1,
+                                border: 1,
+                                borderColor: 'divider',
+                              }}
+                              title={`מבטא: ${theme.spec.accent}`}
+                            />
+                            <Box
+                              sx={{
+                                width: 28,
+                                height: 28,
                                 bgcolor: theme.spec.info.main,
                                 borderRadius: 1,
                                 border: 1,
                                 borderColor: 'divider',
                               }}
-                              title={`מבטא: ${theme.spec.info.main}`}
+                              title={`אינפו: ${theme.spec.info.main}`}
                             />
                             <Box
                               sx={{

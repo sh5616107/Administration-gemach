@@ -24,35 +24,47 @@
 
 ## הערכות שיושמו
 
+ערכים נקראו ישירות מ-`src/theme/palettes.ts`:
+
 ### 1. tealGold (ברירת מחדל)
-- **ראשי:** `#0F5C5C` (טורקיז כהה)
-- **משני:** `#B8892D` (זהב)
-- **Sidebar:** כהה `#0F4A4A`
+- **primary.main:** `#0F5C5C` (טורקיז כהה)
+- **secondary.main:** `#4A5D5A` (אפור-ירקרק)
+- **accent:** `#B8892D` (זהב)
+- **sidebar.bg:** `#0F4A4A`
+- **background.default:** `#F7F5F0`
 - **תיאור:** "טורקיז וזהב אלגנטי"
 
 ### 2. classic (מנוגש)
-- **ראשי:** `#1976D2` (כחול MUI קלאסי)
-- **משני:** `#9C27B0` (סגול)
-- **Sidebar:** בהיר `#FAFAFA`
+- **primary.main:** `#1976D2` (כחול MUI קלאסי)
+- **secondary.main:** `#424242` (אפור כהה)
+- **accent:** `#1976D2` (זהה ל-primary)
+- **sidebar.bg:** `#FAFAFA` (בהיר)
+- **background.default:** `#FFFFFF`
 - **תיאור:** "כחול קלאסי מנוגש"
 - **ייחוד:** הערכה היחידה עם sidebar בהיר
 
 ### 3. royalNavy
-- **ראשי:** `#193B63` (נייבי עשיר)
-- **משני:** `#C49B4B` (זהב חם)
-- **Sidebar:** כהה `#10293F`
+- **primary.main:** `#193B63` (נייבי עשיר)
+- **secondary.main:** `#6B5F52` (חום-אפור)
+- **accent:** `#B58A4A` (זהב עמוק)
+- **sidebar.bg:** `#142D4B`
+- **background.default:** `#F4F6F9`
 - **תיאור:** "נייבי מלכותי"
 
 ### 4. burgundy
-- **ראשי:** `#702F43` (בורדו)
-- **משני:** `#A67C52` (חום-זהב)
-- **Sidebar:** כהה `#4E1F2E`
+- **primary.main:** `#702F43` (בורדו)
+- **secondary.main:** `#855D68` (ורוד-חום)
+- **accent:** `#C49A62` (זהב חם)
+- **sidebar.bg:** `#512333`
+- **background.default:** `#F8F3F3`
 - **תיאור:** "בורדו חם"
 
 ### 5. indigo
-- **ראשי:** `#4B3F8F` (אינדיגו)
-- **משני:** `#9D7A3E` (זהב עתיק)
-- **Sidebar:** כהה `#332A66`
+- **primary.main:** `#4B3F8F` (אינדיגו)
+- **secondary.main:** `#6F63A6` (סגול בהיר)
+- **accent:** `#C9A24B` (זהב-ירקרק)
+- **sidebar.bg:** `#352C6B`
+- **background.default:** `#F5F4FA`
 - **תיאור:** "אינדיגו עמוק"
 
 ---
@@ -249,7 +261,7 @@ df9c2d1 - fix(theme): improve theme selector accessibility and UI
 ### ביצועים
 - **זמן קומפילציה:** ~30 שניות (ללא שינוי)
 - **זמן טסטים:** 47-95 שניות (תלוי במכונה)
-- **זמן החלפת ערכה:** <100ms (localStorage + useMemo)
+- **החלפת ערכה:** מיידי (useMemo + localStorage סינכרוני)
 
 ---
 
