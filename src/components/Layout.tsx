@@ -187,7 +187,7 @@ export default function Layout({ children }: LayoutProps) {
             height: 56, 
             mx: 'auto', 
             mb: 1, 
-            bgcolor: 'accent',
+            bgcolor: (theme) => theme.palette.accent,
             fontSize: '1.5rem',
             color: 'white',
             border: 2,
