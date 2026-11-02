@@ -187,9 +187,11 @@ export default function Layout({ children }: LayoutProps) {
             height: 56, 
             mx: 'auto', 
             mb: 1, 
-            bgcolor: 'accent',
+            bgcolor: 'primary.dark',
             fontSize: '1.5rem',
-            color: 'sidebar.textActive',
+            color: 'white',
+            border: 2,
+            borderColor: 'rgba(255, 255, 255, 0.2)',
           }}
         >
           {!settings.gemach_logo && 'ג'}
