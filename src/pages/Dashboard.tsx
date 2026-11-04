@@ -49,6 +49,8 @@ import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmai
 import { useSettings } from '../hooks/useSettings'
 import { getDocumentLayout } from '../utils/documentLayoutHelper'
 import ItemsListDialog from '../components/ItemsListDialog'
+import { getLoanDueDate, formatDueDate, sortByDueDate } from '../utils/loanDueDate'
+import { getLastRepaymentDates } from '../services/loanDueService'
 import { REPAYMENT_RECORDED_EVENT } from '../services/repaymentHelpers'
 
 interface DashboardStats {
@@ -265,7 +267,14 @@ export default function Dashboard() {
       const active = await loansService.getActiveLoansForExistingBorrowers()
       
       console.log('📋 Active loans dialog:', active.length)
-      setActiveLoans(active)
+
+      // תאריך פירעון לכל הלוואה, וסדר התחלתי: פירעון קרוב (באיחור ראשון), בלי תאריך בסוף
+      const lastDates = await getLastRepaymentDates(active)
+      const withDue = active.map(loan => ({
+        ...loan,
+        due: getLoanDueDate(loan, { lastRepaymentDate: lastDates.get(loan.id) }),
+      }))
+      setActiveLoans(sortByDueDate(withDue, loan => loan.due))
     } catch (error) {
       console.error('Error fetching active loans:', error)
       setSnackbar({ open: true, message: 'שגיאה בטעינת הלוואות פעילות', severity: 'error' })
@@ -414,8 +423,34 @@ export default function Dashboard() {
       sortValue: (loan: any) => loan.remaining || 0,
     },
     {
+      id: 'due_date',
+      label: 'פירעון',
+      align: 'center' as const,
+      format: (loan: any) => {
+        const due = loan.due
+        if (!due?.date) {
+          return <Typography component="span" variant="body2" color="text.secondary">—</Typography>
+        }
+        const color =
+          due.status === 'overdue' ? 'error.main' :
+          due.status === 'due-soon' ? 'warning.main' :
+          'text.primary'
+        return (
+          <Typography
+            component="span"
+            variant="body2"
+            sx={{ color, fontWeight: due.status === 'overdue' || due.status === 'due-soon' ? 600 : 400 }}
+          >
+            {formatDueDate(due.date)}
+          </Typography>
+        )
+      },
+      // בלי תאריך = undefined, כדי שיישאר בסוף גם במיון יורד
+      sortValue: (loan: any) => loan.due?.date,
+    },
+    {
       id: 'loan_date',
-      label: 'תאריך',
+      label: 'תאריך הלוואה',
       align: 'center' as const,
       format: (loan: any) => new Date(loan.loan_date).toLocaleDateString('he-IL'),
       sortValue: (loan: any) => new Date(loan.loan_date).getTime(),

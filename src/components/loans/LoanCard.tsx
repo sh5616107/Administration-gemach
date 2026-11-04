@@ -1,5 +1,6 @@
 import { Card, CardContent, Box, Typography, Chip, Stack } from '@mui/material';
 import type { Loan } from '../../services/database';
+import { getLoanDueDate, formatDueDate } from '../../utils/loanDueDate';
 
 interface LoanCardProps {
   loan: Loan;
@@ -9,28 +10,15 @@ interface LoanCardProps {
   recurringRepaymentInfo?: {
     number: number;
     count: number;
-    nextDueDate?: string; // ISO date string
   };
+  lastRepaymentDate?: string; // YYYY-MM-DD, להלוואות עם פירעון אוטומטי (לחישוב פירעון הבא)
 }
 
-type DueStatus = 'overdue' | 'due-soon' | 'ok' | null;
-
-function getDueStatus(nextDueDate?: string): DueStatus {
-  if (!nextDueDate) return null;
-  const due = new Date(nextDueDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  due.setHours(0, 0, 0, 0);
-  const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) return 'overdue';
-  if (diffDays <= 3) return 'due-soon';
-  return 'ok';
-}
-
-export default function LoanCard({ loan, fundName, borrowerName, onClick, recurringRepaymentInfo }: LoanCardProps) {
+export default function LoanCard({ loan, fundName, borrowerName, onClick, recurringRepaymentInfo, lastRepaymentDate }: LoanCardProps) {
   const balance = loan.amount - (loan.total_repaid ?? 0);
   const isPaid = balance <= 0;
-  const dueStatus = getDueStatus(recurringRepaymentInfo?.nextDueDate);
+  const due = getLoanDueDate({ ...loan, remaining: balance }, { lastRepaymentDate });
+  const dueStatus = due.status;
   
   const borderColor =
     dueStatus === 'overdue' ? 'error.main' :
@@ -52,12 +40,13 @@ export default function LoanCard({ loan, fundName, borrowerName, onClick, recurr
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            הלוואה #{loan.loan_number} • {new Date(loan.loan_date).toLocaleDateString('he-IL')}
+            הלוואה #{loan.loan_number} • ניתנה: {new Date(loan.loan_date).toLocaleDateString('he-IL')}
             {borrowerName ? ` • ${borrowerName}` : ''}
           </Typography>
           <Stack direction="row" spacing={0.5}>
             {fundName ? <Chip label={`קופה: ${fundName}`} variant="outlined" size="small" /> : null}
             {loan.is_recurring ? <Chip label="מחזורית" color="info" size="small" /> : null}
+            {dueStatus === 'overdue' ? <Chip label="באיחור" color="error" size="small" /> : null}
             {recurringRepaymentInfo && (
               <Chip
                 label={`${recurringRepaymentInfo.number}/${recurringRepaymentInfo.count}`}
@@ -78,6 +67,26 @@ export default function LoanCard({ loan, fundName, borrowerName, onClick, recurr
             <Typography>₪{(loan.total_repaid ?? 0).toLocaleString()}</Typography>
           </Box>
         </Stack>
+
+        {due.date ? (
+          <Typography
+            variant="body2"
+            sx={{
+              mb: 1,
+              fontWeight: dueStatus === 'overdue' || dueStatus === 'due-soon' ? 600 : 400,
+              color:
+                dueStatus === 'overdue' ? 'error.main' :
+                dueStatus === 'due-soon' ? 'warning.main' :
+                'text.primary',
+            }}
+          >
+            {due.kind === 'recurring' ? 'פירעון הבא' : 'פירעון'}: {formatDueDate(due.date)}
+          </Typography>
+        ) : !isPaid && ['active', 'overdue', 'planned'].includes(loan.status) ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            פירעון: לא נקבע
+          </Typography>
+        ) : null}
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6">יתרה: ₪{balance.toLocaleString()}</Typography>

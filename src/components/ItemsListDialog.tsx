@@ -24,7 +24,8 @@ export interface ColumnDefinition<T> {
   align?: 'left' | 'center' | 'right'
   format?: (item: T) => string | React.ReactNode
   sortable?: boolean
-  sortValue?: (item: T) => string | number
+  // undefined/null = אין ערך; פריט כזה נשלח תמיד לסוף, בשני כיווני המיון
+  sortValue?: (item: T) => string | number | null | undefined
 }
 
 export interface ItemsListDialogProps<T> {

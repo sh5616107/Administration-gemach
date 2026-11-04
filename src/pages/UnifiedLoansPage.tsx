@@ -1,5 +1,6 @@
 import { alpha } from '@mui/material/styles';
 import { toLocalDateStr } from '../utils/localDate'
+import { getLastRepaymentDates } from '../services/loanDueService'
 import { toHebrewDate } from '../utils/dateUtils';
 import { validateEventDate } from '../utils/dateValidation';
 import { useState, useEffect, useMemo } from 'react';
@@ -70,33 +71,6 @@ import { EditRecurringDialog } from '../components/recurring/EditRecurringDialog
  *   of three plain fields.
  */
 
-// helper: חישוב תאריך פירעון הבא מיום בחודש
-function calculateNextDueDate(repaymentDay?: number): string | undefined {
-  if (!repaymentDay) return undefined;
-  
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  
-  // בדיקת יום אחרון בחודש הנוכחי
-  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-  const effectiveDay = Math.min(repaymentDay, lastDayOfMonth);
-  
-  // אם היום עדיין לא חלף החודש
-  if (today.getDate() <= effectiveDay) {
-    return toLocalDateStr(new Date(year, month, effectiveDay));
-  }
-  
-  // התאריך כבר עבר החודש - עובר לחודש הבא
-  const nextMonth = month + 1;
-  const nextYear = nextMonth > 11 ? year + 1 : year;
-  const actualNextMonth = nextMonth > 11 ? 0 : nextMonth;
-  const lastDayOfNextMonth = new Date(nextYear, actualNextMonth + 1, 0).getDate();
-  const effectiveDayNextMonth = Math.min(repaymentDay, lastDayOfNextMonth);
-  
-  return toLocalDateStr(new Date(nextYear, actualNextMonth, effectiveDayNextMonth));
-}
-
 interface UnifiedLoansPageProps {
   initialBorrowerId?: string | null
   initialWaitlistId?: string | null
@@ -117,6 +91,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
 
   // Map of loan ID to first recurring repayment (for auto-repayment management)
   const [loanRecurringRepayments, setLoanRecurringRepayments] = useState<Map<string, any>>(new Map());
+  // תאריך פירעון אחרון לכל הלוואה עם פירעון אוטומטי - לחישוב "פירעון הבא" בכרטיס
+  const [lastRepaymentDates, setLastRepaymentDates] = useState<Map<string, string>>(new Map());
 
   // Side panel state — one piece of state drives both "new loan" and "edit loan"
   const [loanPanelOpen, setLoanPanelOpen] = useState(false);
@@ -226,7 +202,11 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
     (async () => {
       const all = (await loansService.getAll()) as Loan[];
       const filtered = fundView === 'all' ? all : all.filter(l => l.fund_id === fundView);
-      if (!cancelled) setFundViewLoans(filtered);
+      const lastDates = await getLastRepaymentDates(filtered);
+      if (!cancelled) {
+        setLastRepaymentDates(lastDates);
+        setFundViewLoans(filtered);
+      }
     })().catch(err => console.error('Error loading fund loans:', err));
     return () => { cancelled = true; };
   }, [fundView, selectedBorrower]);
@@ -333,6 +313,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
       const sorted = [...data].sort(
         (a, b) => new Date(b.loan_date).getTime() - new Date(a.loan_date).getTime()
       );
+      setLastRepaymentDates(await getLastRepaymentDates(sorted));
       setLoans(sorted as Loan[]);
 
       // Load recurring repayments for each loan with auto_repayment
@@ -1053,6 +1034,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                                 >
                                   <LoanCard 
                                     loan={loan} 
+                                    lastRepaymentDate={lastRepaymentDates.get(loan.id!)}
                                     fundName={fundNameFor(loan.fund_id)}
                                     onClick={() => handleOpenLoan(loan)}
                                     recurringRepaymentInfo={
@@ -1060,7 +1042,6 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                                         ? {
                                             number: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_number!,
                                             count: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_count!,
-                                            nextDueDate: calculateNextDueDate(loan.repayment_day),
                                           }
                                         : undefined
                                     }
@@ -1139,6 +1120,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                       >
                         <LoanCard 
                           loan={loan} 
+                          lastRepaymentDate={lastRepaymentDates.get(loan.id!)}
                           fundName={fundNameFor(loan.fund_id)}
                           onClick={() => handleOpenLoan(loan)}
                           recurringRepaymentInfo={
@@ -1146,7 +1128,6 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                               ? {
                                   number: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_number!,
                                   count: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_count!,
-                                  nextDueDate: calculateNextDueDate(loan.repayment_day),
                                 }
                               : undefined
                           }
@@ -1445,6 +1426,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                 <Grid item xs={12} sm={6} md={4} key={loan.id}>
                   <LoanCard
                     loan={loan}
+                    lastRepaymentDate={lastRepaymentDates.get(loan.id!)}
                     fundName={fundNameFor(loan.fund_id)}
                     borrowerName={loan.borrower_name}
                     onClick={() => handleOpenLoanFromFundView(loan)}
