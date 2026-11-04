@@ -1,4 +1,3 @@
-import { toLocalDateStr } from './utils/localDate'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,6 +33,7 @@ const BankHistoryPage = lazy(() => import('./pages/bank/BankHistoryPage'))
 const BankDebugPage = lazy(() => import('./pages/bank/BankDebugPage'))
 
 import { exportAllData } from './services/database'
+import { runAutoBackup } from './services/autoBackupService'
 import { isProtectionEnabled, checkAuthenticated } from './services/protection'
 import { runPendingMigrations } from './services/migrations'
 import { runStartupChecks, activatePlannedLoans, activatePlannedDeposits } from './services/scheduler'
@@ -50,51 +50,10 @@ const PageLoader = () => (
   </Box>
 )
 
-// Auto backup function
+// Auto backup: ר' src/services/autoBackupService.ts (כותב לנתיב שהוגדר בהגדרות, ובלי נתיב - להורדות)
 async function checkAutoBackup() {
-  try {
-    const autoBackup = await settingsStore.getItem<string>('auto_backup')
-    if (!autoBackup || autoBackup === 'off') return
-
-    const lastBackup = await settingsStore.getItem<string>('last_auto_backup')
-    const now = new Date()
-    const lastBackupDate = lastBackup ? new Date(lastBackup) : null
-
-    let shouldBackup = false
-    if (!lastBackupDate) {
-      shouldBackup = true
-    } else {
-      const diffDays = Math.floor((now.getTime() - lastBackupDate.getTime()) / (1000 * 60 * 60 * 24))
-      
-      if (autoBackup === 'daily' && diffDays >= 1) shouldBackup = true
-      if (autoBackup === 'weekly' && diffDays >= 7) shouldBackup = true
-      if (autoBackup === 'monthly' && diffDays >= 30) shouldBackup = true
-    }
-
-    if (shouldBackup) {
-      console.log('🔄 Running auto backup...')
-      const data = await exportAllData()
-      const exportData = {
-        exportDate: now.toISOString(),
-        version: '1.0',
-        autoBackup: true,
-        ...data
-      }
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `gemach_auto_backup_${toLocalDateStr(now)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-
-      await settingsStore.setItem('last_auto_backup', now.toISOString())
-      console.log('✅ Auto backup completed')
-    }
-  } catch (error) {
-    console.error('Auto backup error:', error)
-  }
+  const result = await runAutoBackup(exportAllData)
+  if (result.status !== 'skipped') console.log('Auto backup result:', result.status)
 }
 
 function App() {

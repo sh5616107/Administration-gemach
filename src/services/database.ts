@@ -1001,7 +1001,7 @@ export interface Borrower {
 }
 
 export const borrowersService = {
-  async getAll(): Promise<Borrower[]> { return getAllItems<Borrower>('borrowers').filter(b => !b.is_deleted).sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)) },
+  async getAll(): Promise<Borrower[]> { return getAllItems<Borrower>('borrowers').filter(b => !b.is_deleted).sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, 'he')) },
   async getById(id: string): Promise<Borrower | null> { 
     const b = getItem<Borrower>('borrowers', id)
     return (b && !b.is_deleted) ? b : null

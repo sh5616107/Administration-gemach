@@ -55,6 +55,7 @@ import {
   CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material'
 import { useSettings } from '../hooks/useSettings'
+import { getAutoBackupError, clearAutoBackupError, type AutoBackupError } from '../services/autoBackupService'
 import { isProtectionEnabled, setProtectionEnabled, setUserPassword, getUserPassword, setCustomHint, getCustomHint } from '../services/protection'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -83,6 +84,12 @@ export default function Settings() {
   const { settings, updateSetting, refreshSettings } = useSettings()
   const { t, i18n } = useTranslation()
   const { themeId, setThemeId, availableThemes } = useThemeContext()
+
+  // כשל אחרון בכתיבת הגיבוי האוטומטי לנתיב שהוגדר (הגיבוי נשמר אז בהורדות)
+  const [backupError, setBackupError] = useState<AutoBackupError | null>(null)
+  useEffect(() => {
+    getAutoBackupError().then(setBackupError)
+  }, [])
   
   // Helper to check if text contains old template variables
   const isOldTemplate = (text: string) => text && (text.includes('{שם_') || text.includes('{סכום}') || text.includes('{תאריך}'))
@@ -227,6 +234,19 @@ export default function Settings() {
     setSnackbar({ open: true, message: t('settings.hintSaved'), severity: 'success' })
   }
 
+  const handleBrowseBackupFolder = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({ directory: true, multiple: false })
+      if (typeof selected === 'string' && selected) {
+        setLocalSettings(prev => ({ ...prev, auto_backup_path: selected }))
+      }
+    } catch (error) {
+      console.error('Error selecting backup folder:', error)
+      setSnackbar({ open: true, message: t('settings.autoBackupBrowseError'), severity: 'error' })
+    }
+  }
+
   const handleSave = async () => {
     try {
       await updateSetting('gemach_name', localSettings.gemach_name)
@@ -238,6 +258,10 @@ export default function Settings() {
       await updateSetting('default_loan_type', localSettings.default_loan_type)
       await updateSetting('auto_backup', localSettings.auto_backup)
       await updateSetting('auto_backup_path', localSettings.auto_backup_path)
+      if (localSettings.auto_backup_path !== settings.auto_backup_path) {
+        await clearAutoBackupError()
+        setBackupError(null)
+      }
       await updateSetting('show_recurring_options', localSettings.show_recurring_options)
       await updateSetting('show_waitlist_tab', localSettings.show_waitlist_tab)
       await updateSetting('date_format', localSettings.date_format)
@@ -915,14 +939,28 @@ export default function Settings() {
               </FormControl>
 
               {localSettings.auto_backup !== 'off' && (
-                <TextField
-                  fullWidth
-                  label={t('settings.autoBackupPath')}
-                  value={localSettings.auto_backup_path}
-                  onChange={(e) => setLocalSettings({ ...localSettings, auto_backup_path: e.target.value })}
-                  placeholder="C:\Backups\Gemach"
-                  helperText={t('settings.autoBackupPathHelp')}
-                />
+                <>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                    <TextField
+                      fullWidth
+                      label={t('settings.autoBackupPath')}
+                      value={localSettings.auto_backup_path}
+                      onChange={(e) => setLocalSettings({ ...localSettings, auto_backup_path: e.target.value })}
+                      placeholder="C:\Backups\Gemach"
+                      helperText={t('settings.autoBackupPathHelp')}
+                    />
+                    {('__TAURI__' in window || '__TAURI_INTERNALS__' in window) && (
+                      <Button variant="outlined" onClick={handleBrowseBackupFolder} sx={{ whiteSpace: 'nowrap', height: 56 }}>
+                        {t('settings.autoBackupBrowse')}
+                      </Button>
+                    )}
+                  </Box>
+                  {backupError && (
+                    <Alert severity="warning" sx={{ mt: 2 }}>
+                      {t('settings.autoBackupFallbackWarning', { path: backupError.path })}
+                    </Alert>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

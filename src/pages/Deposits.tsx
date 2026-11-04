@@ -260,7 +260,7 @@ export default function Deposits() {
       }));
       
       setDepositors(depositorsWithStats.sort((a, b) => 
-        `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+        `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, 'he')
       ));
       
       // Empty string = depositor was deleted, clear selection
