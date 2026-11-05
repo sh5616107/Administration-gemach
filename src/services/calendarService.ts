@@ -8,6 +8,7 @@ import { loansService, Loan, repaymentsService, depositorsService } from './data
 import { db } from './database'
 import { repaymentRepository } from './repositories/repaymentRepository'
 import { depositRepository } from './repositories/depositRepository'
+import { nextRecurringDue } from '../utils/loanDueDate'
 
 // סוגי אירועים
 export type EventType = 
@@ -162,117 +163,140 @@ export async function getEventsForMonth(year: number, month: number): Promise<Ca
     }
   }
 
-  // 2.5. טעינת פירעונות מחזוריים עתידיים
-  // הלוואות עם פירעון אוטומטי שאמורות להתבצע בחודש הנוכחי
-  const autoRepaymentLoans = loans.filter(l => 
-    l.auto_repayment === 1 && 
-    l.repayment_amount > 0 && 
+  // 2.5. טעינת פירעונות מחזוריים עתידיים (פירעון אוטומטי)
+  //
+  // לוח הפירעונות מחושב מהמצב הנוכחי של ההלוואה, ולא "כל חודש לנצח":
+  //   - מתחיל מאותו תאריך שמוצג בכרטיס ההלוואה (nextRecurringDue): כבר שולם החודש -> החודש הבא,
+  //     לא לפני repayment_start_date (או תאריך ההלוואה אם לא הוגדר).
+  //   - נמשך רק ceil(יתרה / סכום פירעון) חודשים; הפירעון האחרון מוגבל ליתרה שנשארה.
+  // כך שינוי יום/תאריך התחלה/סכום משתקף מיד, ואחרי תום החוב לא נשאר אירוע בלוח.
+  const todayStr = toLocalDateStr()
+  const viewedMonthIndex = year * 12 + month
+
+  // תאריך הפירעון האחרון לכל הלוואה (לצורך "כבר שולם החודש")
+  const lastRepaymentDateByLoan = new Map<string, string>()
+  for (const r of allRepayments) {
+    if (!r.payment_date) continue
+    const d = r.payment_date.split('T')[0]
+    const prev = lastRepaymentDateByLoan.get(r.loan_id)
+    if (!prev || d > prev) lastRepaymentDateByLoan.set(r.loan_id, d)
+  }
+
+  const autoRepaymentLoans = loans.filter(l =>
+    l.auto_repayment === 1 &&
+    (l.repayment_amount ?? 0) > 0 &&
     l.status === 'active' &&
     (l.remaining || 0) > 0
   )
-  
+
   for (const loan of autoRepaymentLoans) {
-    // בדיקה אם יש תאריך התחלה ואם הוא עבר
-    const startDateStr = loan.repayment_start_date?.split('T')[0]
-    if (startDateStr) {
-      const repaymentStartDate = parseLocalDate(startDateStr)
-      if (repaymentStartDate > endDate) {
-        // תאריך ההתחלה עדיין לא הגיע
-        continue
-      }
-    }
-    
-    // חישוב היום בחודש שבו אמור להתבצע הפירעון
+    const repaymentAmount = loan.repayment_amount as number
+    const remaining = loan.remaining as number
     const repaymentDay = loan.repayment_day || 1
-    const lastDayOfMonth = endDate.getDate()
-    const effectiveDay = Math.min(repaymentDay, lastDayOfMonth)
-    const eventDate = new Date(year, month, effectiveDay)
-    
-    // בדיקה אם התאריך בטווח
-    if (isInRange(eventDate, startDate, endDate)) {
-      // בדיקה אם כבר בוצע פירעון בחודש הזה
-      const firstDayOfMonth = new Date(year, month, 1)
-      const existingRepaymentThisMonth = allRepayments.find(r => 
-        r.loan_id === loan.id &&
-        r.payment_date &&
-        parseLocalDate(r.payment_date.split('T')[0]) >= firstDayOfMonth &&
-        parseLocalDate(r.payment_date.split('T')[0]) <= endDate
-      )
-      
-      // אם לא בוצע פירעון בחודש הזה, מציגים את הפירעון העתידי
-      if (!existingRepaymentThisMonth) {
-        const remaining = loan.remaining || loan.amount
-        const repaymentAmount = Math.min(loan.repayment_amount, remaining)
-        
-        events.push({
-          id: `future_repayment_${loan.id}_${year}_${month}`,
-          type: 'repayment',
-          date: formatLocalDate(eventDate),
-          title: 'פירעון מחזורי מתוכנן',
-          description: `פירעון מתוכנן של ${loan.borrower_name || ''}`,
-          amount: repaymentAmount,
-          relatedId: loan.id,
-          relatedName: loan.borrower_name || '',
-          metadata: {
-            remaining: remaining,
-            loanType: loan.loan_type
-          }
-        })
+    const startStr = (loan.repayment_start_date || loan.loan_date)?.split('T')[0]
+
+    // התאריך של הפירעון הבא; מכאן ואילך - פירעון אחד בכל חודש
+    const firstDueStr = nextRecurringDue(
+      repaymentDay,
+      todayStr,
+      lastRepaymentDateByLoan.get(loan.id),
+      startStr
+    )
+    const [firstYear, firstMonth] = firstDueStr.split('-').map(Number)
+    const monthsFromFirst = viewedMonthIndex - (firstYear * 12 + (firstMonth - 1))
+
+    // כמה פירעונות נשארו עד תום החוב (טולרנס לשברים עשרוניים)
+    const paymentsLeft = Math.max(1, Math.ceil(remaining / repaymentAmount - 1e-9))
+    if (monthsFromFirst < 0 || monthsFromFirst >= paymentsLeft) continue
+
+    // היום בחודש (חודש קצר מקבל את היום האחרון שלו). בחודש הראשון - התאריך המדויק של הפירעון הבא.
+    const effectiveDay = Math.min(repaymentDay, endDate.getDate())
+    const eventDateStr = monthsFromFirst === 0
+      ? firstDueStr
+      : formatLocalDate(new Date(year, month, effectiveDay))
+
+    // הפירעון האחרון = מה שנשאר מהחוב
+    const leftAfterPrevious = remaining - monthsFromFirst * repaymentAmount
+    const amount = Math.round(Math.min(repaymentAmount, leftAfterPrevious) * 100) / 100
+
+    events.push({
+      id: `future_repayment_${loan.id}_${year}_${month}`,
+      type: 'repayment',
+      date: eventDateStr,
+      title: 'פירעון מחזורי מתוכנן',
+      description: `פירעון מתוכנן של ${loan.borrower_name || ''}`,
+      amount,
+      relatedId: loan.id,
+      relatedName: loan.borrower_name || '',
+      metadata: {
+        remaining: remaining,
+        loanType: loan.loan_type
       }
-    }
+    })
   }
 
   // 2.6. טעינת הלוואות מחזוריות עתידיות
-  // הלוואות מחזוריות שאמורות להיווצר בחודש הנוכחי
-  const recurringLoans = loans.filter(l => 
-    l.is_recurring === 1 && 
-    l.recurring_months > 0 && 
+  //
+  // כל משפחת הלוואות מחזוריות (אותו recurring_series_id) מייצרת אירועים לפי ההלוואה
+  // האחרונה בסדרה בלבד - בדיוק כמו ה-scheduler (getLatestLoanInSeries). עריכת סדרה
+  // (עריכת יום/סכום) מעדכנת רק פריטים עתידיים + האחרון, ולכן הלוואות ישנות בסדרה
+  // נשארות עם היום המקורי; קריאה מהן הציגה אירוע "תקוע" על התאריך הישן וגם כפילויות.
+  //
+  // ההלוואה האחרונה אומרת כמה הלוואות עוד ייווצרו (recurring_months), ולכן אחריהן אין אירועים.
+  const seriesKey = (l: Loan) =>
+    l.recurring_series_id ? `s:${l.recurring_series_id}` : `b:${l.borrower_id}:${l.recurring_day ?? ''}`
+
+  const latestInSeries = new Map<string, Loan>()
+  for (const l of loans) {
+    if (l.is_recurring !== 1) continue
+    const key = seriesKey(l)
+    const current = latestInSeries.get(key)
+    if (!current || (l.recurring_loan_number || 1) > (current.recurring_loan_number || 1)) {
+      latestInSeries.set(key, l)
+    }
+  }
+
+  const recurringLoans = Array.from(latestInSeries.values()).filter(l =>
+    (l.recurring_months ?? 0) > 0 &&
     l.status === 'active'
   )
-  
-  console.log('📅 Calendar: Found recurring loans:', recurringLoans.length)
-  
+
+  console.log('📅 Calendar: Found recurring loan series:', recurringLoans.length)
+
   for (const loan of recurringLoans) {
+    // ההלוואה הבאה נוצרת החל מהחודש שאחרי ההלוואה האחרונה (ה-scheduler לא יוצר באותו חודש),
+    // ולא לפני החודש הנוכחי (אם ה-scheduler מפגר - היא תיווצר מיד כשיופעל).
+    const latestLoanStr = loan.loan_date?.split('T')[0]
+    if (!latestLoanStr) continue
+    const [latestYear, latestMonth] = latestLoanStr.split('-').map(Number)
+    const nowYear = Number(todayStr.slice(0, 4))
+    const nowMonth = Number(todayStr.slice(5, 7)) - 1
+    const firstPlannedMonthIndex = Math.max(
+      latestYear * 12 + (latestMonth - 1) + 1,
+      nowYear * 12 + nowMonth
+    )
+    const plannedIndex = viewedMonthIndex - firstPlannedMonthIndex
+    if (plannedIndex < 0 || plannedIndex >= (loan.recurring_months as number)) continue
+
     // חישוב היום בחודש שבו אמורה להיווצר ההלוואה
     const recurringDay = loan.recurring_day || 1
-    const lastDayOfMonth = endDate.getDate()
-    const effectiveDay = Math.min(recurringDay, lastDayOfMonth)
+    const effectiveDay = Math.min(recurringDay, endDate.getDate())
     const eventDate = new Date(year, month, effectiveDay)
-    
-    // בדיקה אם התאריך בטווח
-    if (isInRange(eventDate, startDate, endDate)) {
-      // בדיקה אם כבר נוצרה הלוואה בחודש הזה
-      const firstDayOfMonth = new Date(year, month, 1)
-      const currentRecurringNumber = loan.recurring_loan_number || 1
-      const nextRecurringNumber = currentRecurringNumber + 1
-      
-      const existingLoanThisMonth = loans.find(l => 
-        l.borrower_id === loan.borrower_id &&
-        l.amount === loan.amount &&
-        l.is_recurring === 1 &&
-        l.recurring_loan_number === nextRecurringNumber &&
-        l.loan_date &&
-        parseLocalDate(l.loan_date.split('T')[0]) >= firstDayOfMonth &&
-        parseLocalDate(l.loan_date.split('T')[0]) <= endDate
-      )
-      
-      // אם לא נוצרה הלוואה בחודש הזה, מציגים את ההלוואה העתידית
-      if (!existingLoanThisMonth) {
-        events.push({
-          id: `future_recurring_loan_${loan.id}_${year}_${month}`,
-          type: 'planned_loan',
-          date: formatLocalDate(eventDate),
-          title: 'הלוואה מחזורית מתוכננת',
-          description: `הלוואה מחזורית מתוכננת ל${loan.borrower_name || ''} (${nextRecurringNumber}/${loan.recurring_loan_count || ''})`,
-          amount: loan.amount,
-          relatedId: loan.id,
-          relatedName: loan.borrower_name || '',
-          metadata: {
-            loanType: loan.loan_type
-          }
-        })
+    const plannedNumber = (loan.recurring_loan_number || 1) + 1 + plannedIndex
+
+    events.push({
+      id: `future_recurring_loan_${loan.id}_${year}_${month}`,
+      type: 'planned_loan',
+      date: formatLocalDate(eventDate),
+      title: 'הלוואה מחזורית מתוכננת',
+      description: `הלוואה מחזורית מתוכננת ל${loan.borrower_name || ''} (${plannedNumber}/${loan.recurring_loan_count || ''})`,
+      amount: loan.amount,
+      relatedId: loan.id,
+      relatedName: loan.borrower_name || '',
+      metadata: {
+        loanType: loan.loan_type
       }
-    }
+    })
   }
 
   // 3. טעינת הפקדות

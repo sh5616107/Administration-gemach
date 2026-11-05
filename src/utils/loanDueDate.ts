@@ -86,8 +86,11 @@ function addDays(dateStr: string, days: number): string {
  * הפירעון האוטומטי הבא של הלוואה, באותו היגיון של ה-scheduler:
  * אם החודש כבר נרשם פירעון -> החודש הבא.
  * אם לא נרשם ויום הפירעון עבר -> התאריך של החודש הנוכחי (וזה "באיחור").
+ *
+ * מיוצא כדי שלוח השנה (calendarService) יתחיל את לוח הפירעונות העתידי
+ * מאותו תאריך בדיוק שמוצג בכרטיס ההלוואה - מקור אמת יחיד.
  */
-function nextRecurringDue(
+export function nextRecurringDue(
   repaymentDay: number,
   today: string,
   lastRepaymentDate: string | undefined,
