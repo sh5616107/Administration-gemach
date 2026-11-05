@@ -1,6 +1,8 @@
 import { alpha } from '@mui/material/styles';
 import { toLocalDateStr } from '../utils/localDate'
 import { getLastRepaymentDates } from '../services/loanDueService'
+import { getLoanDueDate } from '../utils/loanDueDate'
+import { buildLoanListItems, LOAN_SORT_LABELS, type LoanSortMode } from '../utils/loanListSort'
 import { toHebrewDate } from '../utils/dateUtils';
 import { validateEventDate } from '../utils/dateValidation';
 import { useState, useEffect, useMemo } from 'react';
@@ -134,6 +136,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
 
   // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortMode, setSortMode] = useState<LoanSortMode>('due');
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
@@ -421,6 +424,18 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
 
     return { families, standaloneLoans };
   }, [filteredLoans]);
+
+  // רשימה אחת ממוינת: משפחות מחזוריות והלוואות בודדות יחד
+  const displayItems = useMemo(
+    () =>
+      buildLoanListItems(
+        loanFamilies.families,
+        loanFamilies.standaloneLoans,
+        sortMode,
+        (loan) => getLoanDueDate(loan, { lastRepaymentDate: lastRepaymentDates.get(loan.id!) }).date
+      ),
+    [loanFamilies, sortMode, lastRepaymentDates]
+  );
 
   const clearFilters = () => {
     setFilters({
@@ -763,6 +778,20 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                   >
                     סינון {hasActiveFilters && `(${filteredLoans.length}/${loans.length})`}
                   </Button>
+                  <Select
+                    size="small"
+                    value={sortMode}
+                    onChange={(e) => setSortMode(e.target.value as LoanSortMode)}
+                    renderValue={(value) => `מיון: ${LOAN_SORT_LABELS[value as LoanSortMode]}`}
+                    inputProps={{ 'aria-label': 'מיון הלוואות' }}
+                    sx={{ minWidth: 150, fontSize: '0.875rem' }}
+                  >
+                    {(Object.keys(LOAN_SORT_LABELS) as LoanSortMode[]).map((mode) => (
+                      <MenuItem key={mode} value={mode}>
+                        {LOAN_SORT_LABELS[mode]}
+                      </MenuItem>
+                    ))}
+                  </Select>
                   {loans.some(loan => (loan.remaining || 0) > 0 && loan.loan_date <= toLocalDateStr()) && (
                     <Button
                       variant="outlined"
@@ -918,8 +947,175 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                 </Box>
               ) : (
                 <Grid container spacing={2}>
-                  {/* Render loan families (recurring loans grouped) */}
-                  {loanFamilies.families.map((family) => {
+                  {/* Loan families + standalone loans, one sorted list */}
+                  {displayItems.map((item) => {
+                    if (item.kind === 'loan') {
+                      const loan = item.loan;
+                      return (
+                    <Grid item xs={12} sm={6} key={loan.id}>
+                      <Box 
+                        sx={{ 
+                          position: 'relative',
+                          '&:hover .action-buttons': {
+                            opacity: 1,
+                          }
+                        }}
+                      >
+                        <LoanCard 
+                          loan={loan} 
+                          lastRepaymentDate={lastRepaymentDates.get(loan.id!)}
+                          fundName={fundNameFor(loan.fund_id)}
+                          onClick={() => handleOpenLoan(loan)}
+                          recurringRepaymentInfo={
+                            loan.auto_repayment === 1 && loanRecurringRepayments.has(loan.id!)
+                              ? {
+                                  number: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_number!,
+                                  count: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_count!,
+                                }
+                              : undefined
+                          }
+                        />
+                        {/* Action buttons overlay - shown on hover */}
+                        <Stack
+                          className="action-buttons"
+                          direction="row"
+                          spacing={0.5}
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            zIndex: 10,
+                            opacity: 0,
+                            transition: 'opacity 0.2s',
+                            bgcolor: (theme) => alpha(theme.palette.background.paper, 0.95),
+                            borderRadius: 1,
+                            padding: 0.5,
+                            boxShadow: 2,
+                          }}
+                        >
+                          {/* Edit recurring loan - show on all recurring loans */}
+                          {loan.is_recurring === 1 && (
+                            <Tooltip title="נהל הלוואה מחזורית">
+                              <IconButton
+                                size="small"
+                                color="info"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRecurringLoanId(loan.id!);
+                                  setEditRecurringLoanDialogOpen(true);
+                                }}
+                                sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                              >
+                                <AutorenewIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          
+                          {/* Edit auto repayment - show on all loans with auto repayment */}
+                          {loan.auto_repayment === 1 && loan.id && (
+                            <>
+                              <Tooltip title={loanRecurringRepayments.has(loan.id) ? "נהל פירעון אוטומטי" : "ערוך הגדרות פירעון אוטומטי"}>
+                                <IconButton
+                                  size="small"
+                                  color="success"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const firstRepayment = loanRecurringRepayments.get(loan.id!);
+                                    if (firstRepayment?.id) {
+                                      // Has existing repayments - open recurring repayment manager
+                                      setSelectedAutoRepaymentLoanId(firstRepayment.id);
+                                      setEditAutoRepaymentDialogOpen(true);
+                                    } else {
+                                      // No repayments yet - open loan edit form to modify settings
+                                      handleOpenLoan(loan);
+                                    }
+                                  }}
+                                  sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                                >
+                                  <EditNoteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+
+                          {/* Add repayment button - show for all active loans (not planned) */}
+                          {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= toLocalDateStr() && (
+                            <Tooltip title="הוסף פירעון">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRepaymentLoanId(loan.id!);
+                                  setRepaymentAmount(0);
+                                  setRepaymentPaymentMethod({ payment_method: '' });
+                                  setRepaymentDate(toLocalDateStr());
+                                  setRepaymentDialogOpen(true);
+                                }}
+                                sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                              >
+                                <PaymentIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          <Tooltip title="עריכה">
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenLoan(loan);
+                              }}
+                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="הפק שטר">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGenerateDocument(loan);
+                              }}
+                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                            >
+                              <DocIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="שלח במייל">
+                            <IconButton
+                              size="small"
+                              color="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendEmail(loan);
+                              }}
+                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                            >
+                              <EmailIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="מחק">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteLoan(loan);
+                              }}
+                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </Box>
+                    </Grid>
+                      );
+                    }
+                    const family = item.family;
                     const firstLoan = family[0];
                     const familyKey = firstLoan.recurring_series_id!;
                     const isExpanded = expandedFamilies.has(familyKey);
@@ -1106,171 +1302,6 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                       </Grid>
                     );
                   })}
-                  
-                  {/* Render standalone loans (not in families) */}
-                  {loanFamilies.standaloneLoans.map((loan) => (
-                    <Grid item xs={12} sm={6} key={loan.id}>
-                      <Box 
-                        sx={{ 
-                          position: 'relative',
-                          '&:hover .action-buttons': {
-                            opacity: 1,
-                          }
-                        }}
-                      >
-                        <LoanCard 
-                          loan={loan} 
-                          lastRepaymentDate={lastRepaymentDates.get(loan.id!)}
-                          fundName={fundNameFor(loan.fund_id)}
-                          onClick={() => handleOpenLoan(loan)}
-                          recurringRepaymentInfo={
-                            loan.auto_repayment === 1 && loanRecurringRepayments.has(loan.id!)
-                              ? {
-                                  number: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_number!,
-                                  count: loanRecurringRepayments.get(loan.id!)!.recurring_repayment_count!,
-                                }
-                              : undefined
-                          }
-                        />
-                        {/* Action buttons overlay - shown on hover */}
-                        <Stack
-                          className="action-buttons"
-                          direction="row"
-                          spacing={0.5}
-                          sx={{
-                            position: 'absolute',
-                            top: 8,
-                            right: 8,
-                            zIndex: 10,
-                            opacity: 0,
-                            transition: 'opacity 0.2s',
-                            bgcolor: (theme) => alpha(theme.palette.background.paper, 0.95),
-                            borderRadius: 1,
-                            padding: 0.5,
-                            boxShadow: 2,
-                          }}
-                        >
-                          {/* Edit recurring loan - show on all recurring loans */}
-                          {loan.is_recurring === 1 && (
-                            <Tooltip title="נהל הלוואה מחזורית">
-                              <IconButton
-                                size="small"
-                                color="info"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedRecurringLoanId(loan.id!);
-                                  setEditRecurringLoanDialogOpen(true);
-                                }}
-                                sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                              >
-                                <AutorenewIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          
-                          {/* Edit auto repayment - show on all loans with auto repayment */}
-                          {loan.auto_repayment === 1 && loan.id && (
-                            <>
-                              <Tooltip title={loanRecurringRepayments.has(loan.id) ? "נהל פירעון אוטומטי" : "ערוך הגדרות פירעון אוטומטי"}>
-                                <IconButton
-                                  size="small"
-                                  color="success"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const firstRepayment = loanRecurringRepayments.get(loan.id!);
-                                    if (firstRepayment?.id) {
-                                      // Has existing repayments - open recurring repayment manager
-                                      setSelectedAutoRepaymentLoanId(firstRepayment.id);
-                                      setEditAutoRepaymentDialogOpen(true);
-                                    } else {
-                                      // No repayments yet - open loan edit form to modify settings
-                                      handleOpenLoan(loan);
-                                    }
-                                  }}
-                                  sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                                >
-                                  <EditNoteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          )}
-
-                          {/* Add repayment button - show for all active loans (not planned) */}
-                          {loan.id && (loan.amount - (loan.total_repaid ?? 0) > 0) && loan.loan_date <= toLocalDateStr() && (
-                            <Tooltip title="הוסף פירעון">
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRepaymentLoanId(loan.id!);
-                                  setRepaymentAmount(0);
-                                  setRepaymentPaymentMethod({ payment_method: '' });
-                                  setRepaymentDate(toLocalDateStr());
-                                  setRepaymentDialogOpen(true);
-                                }}
-                                sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                              >
-                                <PaymentIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-
-                          <Tooltip title="עריכה">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenLoan(loan);
-                              }}
-                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="הפק שטר">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleGenerateDocument(loan);
-                              }}
-                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                            >
-                              <DocIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="שלח במייל">
-                            <IconButton
-                              size="small"
-                              color="secondary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSendEmail(loan);
-                              }}
-                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                            >
-                              <EmailIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="מחק">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteLoan(loan);
-                              }}
-                              sx={{ '&:hover': { bgcolor: 'grey.200' } }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </Box>
-                    </Grid>
-                  ))}
                 </Grid>
               )}
 
