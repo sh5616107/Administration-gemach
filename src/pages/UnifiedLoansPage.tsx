@@ -2,7 +2,7 @@ import { alpha } from '@mui/material/styles';
 import { toLocalDateStr } from '../utils/localDate'
 import { getLastRepaymentDates } from '../services/loanDueService'
 import { getLoanDueDate } from '../utils/loanDueDate'
-import { buildLoanListItems, LOAN_SORT_LABELS, type LoanSortMode } from '../utils/loanListSort'
+import { buildLoanListItems, LOAN_SORT_LABELS, LOAN_SORT_SHORT_LABELS, type LoanSortMode } from '../utils/loanListSort'
 import { toHebrewDate } from '../utils/dateUtils';
 import { validateEventDate } from '../utils/dateValidation';
 import { useState, useEffect, useMemo } from 'react';
@@ -766,9 +766,9 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
           {/* Loans — Cards, 70% */}
           <Grid item xs={12} md={8} order={{ xs: 2, md: 1 }}>
             <Paper sx={{ p: 2, position: 'relative' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                 <Typography variant="h6">הלוואות הלווה</Typography>
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
                   <Button
                     variant={hasActiveFilters ? 'contained' : 'outlined'}
                     color={hasActiveFilters ? 'secondary' : 'inherit'}
@@ -782,9 +782,9 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                     size="small"
                     value={sortMode}
                     onChange={(e) => setSortMode(e.target.value as LoanSortMode)}
-                    renderValue={(value) => `מיון: ${LOAN_SORT_LABELS[value as LoanSortMode]}`}
+                    renderValue={(value) => `מיון: ${LOAN_SORT_SHORT_LABELS[value as LoanSortMode]}`}
                     inputProps={{ 'aria-label': 'מיון הלוואות' }}
-                    sx={{ minWidth: 150, fontSize: '0.875rem' }}
+                    sx={{ width: 140, flexShrink: 0, fontSize: '0.875rem' }}
                   >
                     {(Object.keys(LOAN_SORT_LABELS) as LoanSortMode[]).map((mode) => (
                       <MenuItem key={mode} value={mode}>
@@ -798,11 +798,12 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                       color="secondary"
                       startIcon={<PaymentIcon />}
                       onClick={() => { setMultiRepaymentDate(toLocalDateStr()); setMultiRepaymentDialogOpen(true); }}
+                      sx={{ whiteSpace: 'nowrap' }}
                     >
                       פירעון מרובה
                     </Button>
                   )}
-                  <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenNewLoan}>
+                  <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenNewLoan} sx={{ whiteSpace: 'nowrap' }}>
                     הלוואה חדשה
                   </Button>
                 </Stack>

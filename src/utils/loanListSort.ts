@@ -14,6 +14,13 @@ export const LOAN_SORT_LABELS: Record<LoanSortMode, string> = {
   balance: 'יתרה (גבוהה לנמוכה)',
 }
 
+// תוויות קצרות לתצוגה בכפתור הסגור, כדי שהרוחב שלו לא ישתנה לפי הבחירה
+export const LOAN_SORT_SHORT_LABELS: Record<LoanSortMode, string> = {
+  due: 'פירעון',
+  newest: 'תאריך',
+  balance: 'יתרה',
+}
+
 export type LoanListItem<T> =
   | { kind: 'family'; family: T[] }
   | { kind: 'loan'; loan: T }
