@@ -20,6 +20,7 @@
 import { toLocalDateStr } from '../utils/localDate'
 import JSZip from 'jszip'
 import { exportAllData } from './database'
+import { saveBackupFile, type SaveBackupResult } from './saveBackupFile'
 
 const ARCHIVE_ROOT = 'מסמכי_הגמח'
 
@@ -62,15 +63,16 @@ async function listArchiveFilesRecursive(relativeDir: string): Promise<string[]>
 export interface FullBackupResult {
   fileCount: number
   totalBytes: number
+  /** איך הקובץ נשמר בפועל (חלון "שמירה בשם", הורדה, או ביטול) */
+  saved: SaveBackupResult
 }
 
 /**
  * Builds a ZIP containing gemach_data.json (the same content as the
  * existing JSON export) plus every file currently in the attachments
- * archive, and triggers a browser download for it — same delivery
- * mechanism as the existing handleExport in AdvancedTools.tsx (an
- * in-memory Blob + a synthetic <a download> click), so this works
- * identically whether running in Tauri or a plain browser tab.
+ * archive, and saves it via saveBackupFile: a "save as" dialog that opens in
+ * the configured backup folder when running in Tauri, or a browser download
+ * in a plain browser tab.
  */
 export async function exportFullBackupZip(
   onProgress?: (message: string) => void
@@ -114,16 +116,17 @@ export async function exportFullBackupZip(
   // JSON, just without documents, same as the regular export in that case.
 
   onProgress?.('בונה קובץ ZIP...')
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+  const zipBytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 } })
 
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `gemach_backup_full_${toLocalDateStr()}.zip`
-  a.click()
-  URL.revokeObjectURL(url)
+  const saved = await saveBackupFile({
+    fileName: `gemach_backup_full_${toLocalDateStr()}.zip`,
+    data: zipBytes,
+    filterName: 'גיבוי מלא (ZIP)',
+    extension: 'zip',
+    title: 'שמירת גיבוי מלא',
+  })
 
-  return { fileCount, totalBytes }
+  return { fileCount, totalBytes, saved }
 }
 
 /**

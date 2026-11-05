@@ -9,6 +9,7 @@
     "fs:default",
     "dialog:default",
     "dialog:allow-open",
+    "dialog:allow-save",
     {
       "identifier": "fs:allow-read-file",
       "allow": [{ "path": "**" }]

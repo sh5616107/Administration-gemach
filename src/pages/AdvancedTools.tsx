@@ -70,6 +70,7 @@ import { exportToExcel, exportPeriodicTransactionsToExcel } from '../services/ex
 import { getTransactionsForPeriod, getMonthRange, getYearRange } from '../services/reportsService'
 import AttachmentMaintenanceTools from '../components/attachments/AttachmentMaintenanceTools'
 import { exportFullBackupZip, importFullBackupZip, parseBackupJson } from '../services/fullBackupService'
+import { saveBackupFile, describeSaveResult } from '../services/saveBackupFile'
 import { filterFeePayments, getFeePaymentsStats } from '../services/feePaymentsService'
 import type { FeePaymentsFilter } from '../types/feePayments'
 import FundSelector from '../components/funds/FundSelector'
@@ -317,15 +318,15 @@ export default function AdvancedTools() {
         ...data
       }
 
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `gemach_backup_${toLocalDateStr()}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-
-      setSnackbar({ open: true, message: 'הגיבוי יוצא בהצלחה', severity: 'success' })
+      const saved = await saveBackupFile({
+        fileName: `gemach_backup_${toLocalDateStr()}.json`,
+        data: JSON.stringify(exportData, null, 2),
+        filterName: 'גיבוי (JSON)',
+        extension: 'json',
+        title: 'שמירת גיבוי',
+      })
+      const note = describeSaveResult(saved, 'הגיבוי יוצא בהצלחה')
+      if (note) setSnackbar({ open: true, message: note.message, severity: note.severity })
     } catch (error) {
       console.error('Error exporting:', error)
       setSnackbar({ open: true, message: 'שגיאה בייצוא', severity: 'error' })
@@ -340,11 +341,8 @@ export default function AdvancedTools() {
     setFullBackupProgress('')
     try {
       const result = await exportFullBackupZip(msg => setFullBackupProgress(msg))
-      setSnackbar({
-        open: true,
-        message: `הגיבוי המלא יוצא בהצלחה (${result.fileCount} מסמכים כלולים)`,
-        severity: 'success',
-      })
+      const note = describeSaveResult(result.saved, `הגיבוי המלא יוצא בהצלחה (${result.fileCount} מסמכים כלולים)`)
+      if (note) setSnackbar({ open: true, message: note.message, severity: note.severity })
     } catch (error) {
       console.error('Error exporting full backup:', error)
       setSnackbar({ open: true, message: 'שגיאה בייצוא הגיבוי המלא', severity: 'error' })
