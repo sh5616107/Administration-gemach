@@ -6,6 +6,7 @@
  * rename, exists, stat, remove, mkdir בתיקיות AppLocalData / AppData).
  */
 
+import { explainLockError, retryOnLock } from './fileRetry'
 import { DB_FILE, LEGACY_JSON_FILE, LEGACY_JSON_MIGRATED_FILE, RECOVERY_FILES, type StorageIO } from './sqliteBackend'
 
 type FsModule = typeof import('@tauri-apps/plugin-fs')
@@ -66,8 +67,9 @@ function makeIO(fs: FsModule, baseDir: BaseDirValue): StorageIO {
         if (info.size !== bytes.length) {
           throw new Error(`כתיבה חלקית: נכתבו ${info.size} מתוך ${bytes.length} בתים`)
         }
-        await fs.rename(tmp, name, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir })
-      } catch (e) {
+        await retryOnLock(() => fs.rename(tmp, name, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir }))
+      } catch (e0) {
+        const e = explainLockError(e0)
         try {
           if (await fs.exists(tmp, { baseDir })) await fs.remove(tmp, { baseDir })
         } catch {
@@ -76,7 +78,7 @@ function makeIO(fs: FsModule, baseDir: BaseDirValue): StorageIO {
         throw e
       }
     },
-    rename: (from, to) => fs.rename(from, to, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir }),
+    rename: (from, to) => retryOnLock(() => fs.rename(from, to, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir })),
     remove: name => fs.remove(name, { baseDir }),
   }
 }
