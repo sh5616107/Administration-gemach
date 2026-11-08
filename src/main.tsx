@@ -6,6 +6,7 @@ import { CacheProvider } from '@emotion/react'
 import createCache from '@emotion/cache'
 import rtlPlugin from 'stylis-plugin-rtl'
 import App from './App'
+import StorageStatusGate from './components/StorageStatusGate'
 import { AppThemeProvider, useThemeContext } from './contexts/ThemeContext'
 import './i18n/config'
 
@@ -27,7 +28,9 @@ function ThemedApp() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <App />
+      <StorageStatusGate>
+        <App />
+      </StorageStatusGate>
     </ThemeProvider>
   );
 }
