@@ -43,6 +43,18 @@ export const BAK2_FILE = 'gemach.sqlite.bak2'
 export const RECOVERY_FILES = [BAK1_FILE, PREV_FILE, BAK2_FILE] as const
 /** כל כמה זמן לכל היותר מתגלגל גיבוי חדש בזמן עבודה */
 export const BACKUP_INTERVAL_MS = 10 * 60 * 1000
+/**
+ * Safety snapshots taken right before destructive actions (delete all, import). Newest first.
+ * Deliberately NOT part of RECOVERY_FILES: auto-recovering from them could resurrect data that
+ * the user deleted on purpose. Restoring from a safety snapshot is manual only.
+ */
+export const SAFETY_FILES = [
+  'gemach.sqlite.safety1',
+  'gemach.sqlite.safety2',
+  'gemach.sqlite.safety3',
+  'gemach.sqlite.safety4',
+  'gemach.sqlite.safety5',
+] as const
 export const LEGACY_JSON_FILE = 'gemach_data.json'
 export const LEGACY_JSON_MIGRATED_FILE = 'gemach_data.pre-sqlite.json'
 
@@ -606,6 +618,27 @@ export class SqliteBackend {
   /** ממתין לסיום כל השמירות שהתחילו עד כה */
   idle(): Promise<void> {
     return this.enqueue(async () => {})
+  }
+
+  /**
+   * Writes a validated copy of the current in-memory database to a safety slot (rolling, 5 slots).
+   * Runs inside the save queue, so it comes after every save that is already queued.
+   * Unlike the rolling backup, errors are thrown: the caller must not continue a destructive action.
+   */
+  createSafetySnapshot(): Promise<void> {
+    return this.enqueue(async () => {
+      if (this.blockedReason) throw new Error(this.blockedReason)
+      const db = this.db
+      if (!db) throw new Error('\u05de\u05e1\u05d3 \u05d4\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05dc\u05d0 \u05e0\u05d8\u05e2\u05df - \u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea')
+      const bytes = db.export()
+      this.validateLight(bytes)
+      const last = SAFETY_FILES.length - 1
+      if (await this.io.exists(SAFETY_FILES[last])) await this.io.remove(SAFETY_FILES[last])
+      for (let i = last - 1; i >= 0; i--) {
+        if (await this.io.exists(SAFETY_FILES[i])) await this.io.rename(SAFETY_FILES[i], SAFETY_FILES[i + 1])
+      }
+      await this.io.writeBytesAtomic(SAFETY_FILES[0], bytes)
+    })
   }
 
   private enqueue<T>(fn: () => Promise<T>): Promise<T> {

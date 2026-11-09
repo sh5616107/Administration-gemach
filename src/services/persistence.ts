@@ -544,3 +544,26 @@ export async function startFreshAfterStorageError(): Promise<void> {
 export async function flushStorage(): Promise<void> {
   if (backend) await backend.idle()
 }
+
+/** (flat shape on purpose: this project does not enable strict null checks, so unions do not narrow) */
+export interface PreDestructiveBackupResult {
+  ok: boolean
+  skipped?: boolean
+  error?: string
+}
+
+/**
+ * Safety snapshot before a destructive action. Outside SQLite mode (browser / tests / legacy
+ * fallback) there is nothing to snapshot: returns skipped. On failure the caller must abort.
+ */
+export async function createPreDestructiveBackup(): Promise<PreDestructiveBackupResult> {
+  try {
+    await ensureStorage()
+    if (mode !== 'sqlite') return { ok: true, skipped: true }
+    if (!backend) throw initError ?? new Error('\u05de\u05e1\u05d3 \u05d4\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d0\u05d9\u05e0\u05d5 \u05d6\u05de\u05d9\u05df - \u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea')
+    await backend.createSafetySnapshot()
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}

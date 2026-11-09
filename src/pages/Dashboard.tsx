@@ -45,6 +45,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { statsService, borrowersService, loansService, db, waitlistService, attachmentsService } from '../services/database'
 import { clearEntireArchive } from '../services/attachmentsStorage'
+import { ensureSafetyBackup, confirmSavedToDisk } from '../services/destructiveGuard'
 import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmailData, EmailProvider } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { getDocumentLayout } from '../utils/documentLayoutHelper'
@@ -161,6 +162,13 @@ export default function Dashboard() {
     if (clearConfirmText !== 'מחק הכל') return
     
     try {
+      // Safety snapshot first; if it fails, abort before deleting anything
+      const guard = await ensureSafetyBackup()
+      if (!guard.ok) {
+        setSnackbar({ open: true, message: '\u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea, \u05d5\u05dc\u05db\u05df \u05d4\u05de\u05d7\u05d9\u05e7\u05d4 \u05d1\u05d5\u05d8\u05dc\u05d4. ' + guard.error, severity: 'error' })
+        return
+      }
+
       // Clear all tables
       await db.run('DELETE FROM repayments')
       await db.run('DELETE FROM loans')
@@ -187,6 +195,16 @@ export default function Dashboard() {
         await attachmentsService.hardDeleteMany(allAttachments.map(a => a.id))
       }
       await clearEntireArchive()
+
+      // Make sure the deletion really reached the disk before reporting success
+      const saveError = await confirmSavedToDisk()
+      if (saveError) {
+        setClearConfirmOpen(false)
+        setClearConfirmText('')
+        setSnackbar({ open: true, message: saveError, severity: 'error' })
+        loadData()
+        return
+      }
       
       setClearConfirmOpen(false)
       setClearConfirmText('')
