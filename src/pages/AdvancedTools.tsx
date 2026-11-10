@@ -1523,10 +1523,6 @@ export default function AdvancedTools() {
           </Card>
         </Grid>
 
-        <Grid item xs={12}>
-          <SafetyBackupsCard />
-        </Grid>
-
         {/* Reports */}
         <Grid item xs={12} md={6}>
           <Card>
@@ -1786,6 +1782,10 @@ export default function AdvancedTools() {
       {/* Attachments maintenance - בדיקת מסמכים חסרים וניקוי מסמכים ישנים */}
       <Box sx={{ mt: 3 }}>
         <AttachmentMaintenanceTools />
+      </Box>
+
+      <Box sx={{ mt: 3 }}>
+        <SafetyBackupsCard />
       </Box>
 
       {/* Expense Dialog */}
