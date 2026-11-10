@@ -163,7 +163,7 @@ export default function Dashboard() {
     
     try {
       // Safety snapshot first; if it fails, abort before deleting anything
-      const guard = await ensureSafetyBackup()
+      const guard = await ensureSafetyBackup('delete-all')
       if (!guard.ok) {
         setSnackbar({ open: true, message: '\u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea, \u05d5\u05dc\u05db\u05df \u05d4\u05de\u05d7\u05d9\u05e7\u05d4 \u05d1\u05d5\u05d8\u05dc\u05d4. ' + guard.error, severity: 'error' })
         return
@@ -210,6 +210,9 @@ export default function Dashboard() {
       setClearConfirmText('')
       setSnackbar({ open: true, message: 'כל הנתונים נמחקו בהצלחה', severity: 'success' })
       loadData()
+      if (!guard.skipped) {
+        setSnackbar(prev => ({ ...prev, message: prev.message + '. \u05e0\u05d9\u05ea\u05df \u05dc\u05e9\u05d7\u05d6\u05e8 \u05de: \u05db\u05dc\u05d9\u05dd \u05de\u05ea\u05e7\u05d3\u05de\u05d9\u05dd > \u05d2\u05d9\u05d1\u05d5\u05d9\u05d9\u05dd \u05d5\u05e9\u05d7\u05d6\u05d5\u05e8' }))
+      }
     } catch (error) {
       console.error('Error clearing data:', error)
       setSnackbar({ open: true, message: 'שגיאה במחיקת הנתונים', severity: 'error' })

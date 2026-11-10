@@ -18,7 +18,7 @@
  */
 
 import logger from '../utils/logger'
-import { DB_FILE, LegacyReadError, RECOVERY_FILES, SqliteBackend, StorageBlockedError, type LegacySource, type LoadOrigin } from './storage/sqliteBackend'
+import { DB_FILE, LegacyReadError, RECOVERY_FILES, SqliteBackend, StorageBlockedError, type BackupInfo, type LegacySource, type LoadOrigin } from './storage/sqliteBackend'
 import { loadSqlJs } from './storage/sqlJsLoader'
 import { createTauriStorage, type TauriStorage } from './storage/tauriStorageIO'
 
@@ -556,12 +556,40 @@ export interface PreDestructiveBackupResult {
  * Safety snapshot before a destructive action. Outside SQLite mode (browser / tests / legacy
  * fallback) there is nothing to snapshot: returns skipped. On failure the caller must abort.
  */
-export async function createPreDestructiveBackup(): Promise<PreDestructiveBackupResult> {
+export async function createPreDestructiveBackup(reason: string = 'manual'): Promise<PreDestructiveBackupResult> {
   try {
     await ensureStorage()
     if (mode !== 'sqlite') return { ok: true, skipped: true }
     if (!backend) throw initError ?? new Error('\u05de\u05e1\u05d3 \u05d4\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d0\u05d9\u05e0\u05d5 \u05d6\u05de\u05d9\u05df - \u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea')
-    await backend.createSafetySnapshot()
+    await backend.createSafetySnapshot(reason)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** Safety snapshots and automatic copies available for restore (empty outside SQLite mode). */
+export async function listBackups(): Promise<BackupInfo[]> {
+  try {
+    await ensureStorage()
+  } catch {
+    return []
+  }
+  if (mode !== 'sqlite' || !backend) return []
+  return backend.listBackups()
+}
+
+/**
+ * Restores one of the listed copies over the main database. Does NOT reload: the caller must reload
+ * the app afterwards (the in-memory data object is stale and further saves are ignored).
+ */
+export async function restoreBackup(file: string): Promise<PreDestructiveBackupResult> {
+  try {
+    await ensureStorage()
+    if (mode !== 'sqlite' || !backend) throw new Error('\u05e9\u05d7\u05d6\u05d5\u05e8 \u05d6\u05de\u05d9\u05df \u05e8\u05e7 \u05d1\u05d2\u05e8\u05e1\u05ea \u05e9\u05d5\u05dc\u05d7\u05df \u05d4\u05e2\u05d1\u05d5\u05d3\u05d4')
+    await backend.restoreFromBackup(file)
+    clearRetryTimer()
+    latestToSave = undefined
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }

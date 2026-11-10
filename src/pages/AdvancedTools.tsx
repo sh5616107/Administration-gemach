@@ -72,6 +72,7 @@ import AttachmentMaintenanceTools from '../components/attachments/AttachmentMain
 import { exportFullBackupZip, importFullBackupZip, parseBackupJson } from '../services/fullBackupService'
 import { saveBackupFile, describeSaveResult } from '../services/saveBackupFile'
 import { ensureSafetyBackup, confirmSavedToDisk } from '../services/destructiveGuard'
+import SafetyBackupsCard from '../components/SafetyBackupsCard'
 import { filterFeePayments, getFeePaymentsStats } from '../services/feePaymentsService'
 import type { FeePaymentsFilter } from '../types/feePayments'
 import FundSelector from '../components/funds/FundSelector'
@@ -386,7 +387,7 @@ export default function AdvancedTools() {
           : { ...parseBackupJson(await file.text()), restoredFileCount: undefined as number | undefined }
 
         // Safety snapshot first; if it fails, abort before replacing any data
-        const guard = await ensureSafetyBackup()
+        const guard = await ensureSafetyBackup('import')
         if (!guard.ok) {
           setSnackbar({ open: true, message: '\u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea, \u05d5\u05dc\u05db\u05df \u05d4\u05d9\u05d9\u05d1\u05d5\u05d0 \u05d1\u05d5\u05d8\u05dc. ' + guard.error, severity: 'error' })
           return
@@ -1520,6 +1521,10 @@ export default function AdvancedTools() {
               </Box>
             </CardContent>
           </Card>
+        </Grid>
+
+        <Grid item xs={12}>
+          <SafetyBackupsCard />
         </Grid>
 
         {/* Reports */}

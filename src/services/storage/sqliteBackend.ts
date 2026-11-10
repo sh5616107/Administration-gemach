@@ -55,6 +55,23 @@ export const SAFETY_FILES = [
   'gemach.sqlite.safety4',
   'gemach.sqlite.safety5',
 ] as const
+
+export interface BackupInfo {
+  /** file name inside the data folder (also the id used for restoring) */
+  file: string
+  /** 'safety' = taken before a destructive action; 'auto' = rolling automatic copies */
+  kind: 'safety' | 'auto'
+  /** safety: delete-all | import | before-restore | manual; auto: auto-bak1 | auto-bak2 | auto-prev */
+  reason: string
+  /** ISO time the copy was made / last saved (null if unknown) */
+  createdAt: string | null
+  sizeBytes: number
+  /** rows per store, from the file's own metadata */
+  counts: Record<string, number>
+  /** false when the file fails the light validation: it cannot be restored */
+  valid: boolean
+}
+
 export const LEGACY_JSON_FILE = 'gemach_data.json'
 export const LEGACY_JSON_MIGRATED_FILE = 'gemach_data.pre-sqlite.json'
 
@@ -193,6 +210,8 @@ export class SqliteBackend {
   private lastBackupAt = 0
   /** הנתונים שנטענו, למסירה חד-פעמית ל-peek() (חוסך קריאה ופענוח שניים של כל המסד) */
   private handoff: Record<string, unknown> | null = null
+  /** After a restore the file on disk is the restored one; saves are ignored until the app reloads. */
+  private restoredPendingReload = false
 
   constructor(
     private readonly SQL: SqlJsStatic,
@@ -561,6 +580,7 @@ export class SqliteBackend {
 
   save(obj: unknown): Promise<void> {
     return this.enqueue(async () => {
+      if (this.restoredPendingReload) return
       if (this.blockedReason) throw new Error(this.blockedReason)
       const db = this.db
       if (!db) throw new Error('מסד הנתונים לא נטען - לא ניתן לשמור')
@@ -622,22 +642,113 @@ export class SqliteBackend {
 
   /**
    * Writes a validated copy of the current in-memory database to a safety slot (rolling, 5 slots).
+   * The reason and time are stored inside the copy (meta), so the list screen can describe it.
    * Runs inside the save queue, so it comes after every save that is already queued.
    * Unlike the rolling backup, errors are thrown: the caller must not continue a destructive action.
    */
-  createSafetySnapshot(): Promise<void> {
+  createSafetySnapshot(reason: string = 'manual'): Promise<void> {
+    return this.enqueue(() => this.writeSafetySnapshot(reason))
+  }
+
+  /** Must run inside the queue (callers wrap it with enqueue). */
+  private async writeSafetySnapshot(reason: string): Promise<void> {
+    if (this.blockedReason) throw new Error(this.blockedReason)
+    const db = this.db
+    if (!db) throw new Error('\u05de\u05e1\u05d3 \u05d4\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05dc\u05d0 \u05e0\u05d8\u05e2\u05df - \u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea')
+    const bytes = this.withSafetyMeta(db.export(), reason)
+    this.validateLight(bytes)
+    const last = SAFETY_FILES.length - 1
+    if (await this.io.exists(SAFETY_FILES[last])) await this.io.remove(SAFETY_FILES[last])
+    for (let i = last - 1; i >= 0; i--) {
+      if (await this.io.exists(SAFETY_FILES[i])) await this.io.rename(SAFETY_FILES[i], SAFETY_FILES[i + 1])
+    }
+    await this.io.writeBytesAtomic(SAFETY_FILES[0], bytes)
+  }
+
+  /** Returns a copy of the database bytes with the reason and creation time added to meta. */
+  private withSafetyMeta(raw: Uint8Array, reason: string): Uint8Array {
+    const copy = new this.SQL.Database(raw)
+    try {
+      writeInfoMeta(copy, { safety_reason: reason, safety_created_at: this.now().toISOString() })
+      return copy.export()
+    } finally {
+      copy.close()
+    }
+  }
+
+  /** Lists the safety snapshots and the rolling automatic copies that exist, newest first. */
+  listBackups(): Promise<BackupInfo[]> {
     return this.enqueue(async () => {
-      if (this.blockedReason) throw new Error(this.blockedReason)
-      const db = this.db
-      if (!db) throw new Error('\u05de\u05e1\u05d3 \u05d4\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05dc\u05d0 \u05e0\u05d8\u05e2\u05df - \u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea')
-      const bytes = db.export()
-      this.validateLight(bytes)
-      const last = SAFETY_FILES.length - 1
-      if (await this.io.exists(SAFETY_FILES[last])) await this.io.remove(SAFETY_FILES[last])
-      for (let i = last - 1; i >= 0; i--) {
-        if (await this.io.exists(SAFETY_FILES[i])) await this.io.rename(SAFETY_FILES[i], SAFETY_FILES[i + 1])
+      const sources: Array<{ file: string; kind: 'safety' | 'auto'; autoReason?: string }> = [
+        ...SAFETY_FILES.map(file => ({ file, kind: 'safety' as const })),
+        { file: BAK1_FILE, kind: 'auto', autoReason: 'auto-bak1' },
+        { file: BAK2_FILE, kind: 'auto', autoReason: 'auto-bak2' },
+        { file: PREV_FILE, kind: 'auto', autoReason: 'auto-prev' },
+      ]
+      const out: BackupInfo[] = []
+      for (const s of sources) {
+        if (!(await this.io.exists(s.file))) continue
+        try {
+          out.push(this.describeBackup(s.file, s.kind, s.autoReason, await this.io.readBytes(s.file)))
+        } catch {
+          out.push({ file: s.file, kind: s.kind, reason: s.autoReason ?? 'manual', createdAt: null, sizeBytes: 0, counts: {}, valid: false })
+        }
       }
-      await this.io.writeBytesAtomic(SAFETY_FILES[0], bytes)
+      out.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+      return out
+    })
+  }
+
+  private describeBackup(file: string, kind: 'safety' | 'auto', autoReason: string | undefined, bytes: Uint8Array): BackupInfo {
+    let valid = true
+    try {
+      this.validateLight(bytes)
+    } catch {
+      valid = false
+    }
+    const db = new this.SQL.Database(bytes)
+    try {
+      const meta = new Map<string, string>()
+      for (const row of db.exec('SELECT key, value FROM meta')[0]?.values ?? []) meta.set(String(row[0]), String(row[1]))
+      const counts: Record<string, number> = {}
+      try {
+        const parsed = JSON.parse(meta.get('row_counts') ?? '{}') as Record<string, unknown>
+        for (const [k, v] of Object.entries(parsed)) if (typeof v === 'number') counts[k] = v
+      } catch {
+        // counts stay empty
+      }
+      return {
+        file,
+        kind,
+        reason: autoReason ?? meta.get('info_safety_reason') ?? 'manual',
+        createdAt: meta.get('info_safety_created_at') ?? meta.get('info_saved_at') ?? null,
+        sizeBytes: bytes.length,
+        counts,
+        valid,
+      }
+    } finally {
+      db.close()
+    }
+  }
+
+  /**
+   * Replaces the main database file with one of the listed copies. Order matters:
+   *  1. read + validate the chosen copy (before any rotation can move it),
+   *  2. take a safety snapshot of the CURRENT state (so the restore itself can be undone),
+   *  3. write the chosen bytes over the main file.
+   * Afterwards saves are ignored and the app must reload, which loads (and upgrades) the file normally.
+   */
+  restoreFromBackup(file: string): Promise<void> {
+    return this.enqueue(async () => {
+      const allowed: readonly string[] = [...SAFETY_FILES, ...RECOVERY_FILES]
+      if (!allowed.includes(file)) throw new Error('\u05e7\u05d5\u05d1\u05e5 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05dc\u05d0 \u05de\u05d5\u05db\u05e8')
+      if (this.blockedReason) throw new Error(this.blockedReason)
+      if (!(await this.io.exists(file))) throw new Error('\u05e7\u05d5\u05d1\u05e5 \u05d4\u05d2\u05d9\u05d1\u05d5\u05d9 \u05dc\u05d0 \u05e0\u05de\u05e6\u05d0')
+      const bytes = await this.io.readBytes(file)
+      this.validateLight(bytes)
+      await this.writeSafetySnapshot('before-restore')
+      await this.io.writeBytesAtomic(DB_FILE, bytes)
+      this.restoredPendingReload = true
     })
   }
 
