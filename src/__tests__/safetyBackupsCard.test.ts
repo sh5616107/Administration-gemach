@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../services/persistence', () => ({ listBackups: mocks.listBackups }))
 vi.mock('../services/destructiveGuard', () => ({ restoreBackupSafely: mocks.restoreBackupSafely }))
 
-import SafetyBackupsCard, { isEmptyBackup } from '../components/SafetyBackupsCard'
+import SafetyBackupsCard, { describeCounts, isEmptyBackup } from '../components/SafetyBackupsCard'
 
 const items = [
   { file: 'gemach.sqlite.safety1', kind: 'safety', reason: 'delete-all', createdAt: '2026-11-09T10:00:00.000Z', sizeBytes: 360000, counts: { borrowers: 14, loans: 89 }, valid: true },
@@ -105,14 +105,28 @@ describe('SafetyBackupsCard', () => {
 describe('isEmptyBackup', () => {
   const base = { file: 'f', kind: 'safety' as const, reason: 'manual', createdAt: null, sizeBytes: 1, valid: true }
 
-  it('empty only when readable and every data store is zero', () => {
+  it('empty only when readable and there are no financial records', () => {
     expect(isEmptyBackup({ ...base, counts: { borrowers: 0, loans: 0, settings: 5, audit_log: 9 } })).toBe(true)
+    expect(isEmptyBackup({ ...base, counts: { borrowers: 0, loans: 0, donors: 3, guarantors: 2, depositors: 1 } })).toBe(true)
     expect(isEmptyBackup({ ...base, counts: { borrowers: 0, loans: 0, deposits: 1 } })).toBe(false)
     expect(isEmptyBackup({ ...base, counts: { donations: 2 } })).toBe(false)
+    expect(isEmptyBackup({ ...base, counts: { borrowers: 0, loans: 0, repayments: 4 } })).toBe(false)
   })
 
   it('unknown counts or a damaged file are never treated as empty (they stay visible)', () => {
     expect(isEmptyBackup({ ...base, counts: {} })).toBe(false)
     expect(isEmptyBackup({ ...base, counts: { borrowers: 0, loans: 0 }, valid: false })).toBe(false)
+  })
+})
+
+describe('describeCounts', () => {
+  it('always lists borrowers and loans, and other stores only when above zero', () => {
+    expect(describeCounts({ borrowers: 14, loans: 88 })).toBe('14 \u05dc\u05d5\u05d5\u05d9\u05dd, 88 \u05d4\u05dc\u05d5\u05d5\u05d0\u05d5\u05ea')
+    const withExtra = describeCounts({ borrowers: 0, loans: 0, deposits: 3, donors: 2, donations: 0 })
+    expect(withExtra.startsWith('0 \u05dc\u05d5\u05d5\u05d9\u05dd, 0 \u05d4\u05dc\u05d5\u05d5\u05d0\u05d5\u05ea, ')).toBe(true)
+    expect(withExtra).toContain('3 ')
+    expect(withExtra).toContain('2 ')
+    expect(withExtra.split(', ')).toHaveLength(4)
+    expect(describeCounts({})).toBe('')
   })
 })

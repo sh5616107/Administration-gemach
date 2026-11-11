@@ -45,6 +45,12 @@ const S = {
   failed: '\u05d4\u05e9\u05d7\u05d6\u05d5\u05e8 \u05e0\u05db\u05e9\u05dc: ',
   borrowers: '\u05dc\u05d5\u05d5\u05d9\u05dd',
   loans: '\u05d4\u05dc\u05d5\u05d5\u05d0\u05d5\u05ea',
+  repayments: '\u05e4\u05d9\u05e8\u05e2\u05d5\u05e0\u05d5\u05ea',
+  deposits: '\u05d4\u05e4\u05e7\u05d3\u05d5\u05ea',
+  donations: '\u05ea\u05e8\u05d5\u05de\u05d5\u05ea',
+  guarantors: '\u05e2\u05e8\u05d1\u05d9\u05dd',
+  donors: '\u05ea\u05d5\u05e8\u05de\u05d9\u05dd',
+  depositors: '\u05de\u05e4\u05e7\u05d9\u05d3\u05d9\u05dd',
   unknownTime: '\u05d6\u05de\u05df \u05dc\u05d0 \u05d9\u05d3\u05d5\u05e2',
   showEmpty: '\u05d4\u05e6\u05d2 \u05d2\u05dd \u05e2\u05d5\u05ea\u05e7\u05d9\u05dd \u05e8\u05d9\u05e7\u05d9\u05dd',
   hideEmpty: '\u05d4\u05e1\u05ea\u05e8 \u05e2\u05d5\u05ea\u05e7\u05d9\u05dd \u05e8\u05d9\u05e7\u05d9\u05dd',
@@ -53,6 +59,7 @@ const S = {
 // empty: no backups with data | refresh/restore/cancel/confirm: button labels | invalid: file is damaged
 // dialogBody1/2: restore warning | restoring/success/failed: progress and result | borrowers/loans: count labels
 // showEmpty/hideEmpty: toggle for copies that contain no data
+// repayments/deposits/donations/guarantors/donors/depositors: count labels, shown only when above zero
 
 const REASON_LABELS: Record<string, string> = {
   'delete-all': '\u05dc\u05e4\u05e0\u05d9 \u05de\u05d7\u05d9\u05e7\u05ea \u05db\u05dc \u05d4\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd',
@@ -66,12 +73,25 @@ const REASON_LABELS: Record<string, string> = {
 // delete-all: before deleting all data | import: before importing a backup | before-restore: before an earlier restore
 // manual: safety backup | auto-bak1/bak2: rolling automatic copies | auto-prev: copy from start of last session
 
-/** The stores whose rows are the user's real data (settings, funds, audit log and the like do not count). */
-const DATA_STORES = ['borrowers', 'guarantors', 'loans', 'repayments', 'donors', 'donations', 'depositors', 'deposits']
+/** Financial records: a copy with none of these is not worth restoring (lists of donors, guarantors and the like do not count). */
+const FINANCIAL_STORES = ['borrowers', 'loans', 'repayments', 'donations', 'deposits']
+/** Counts shown in each row besides borrowers and loans, only when above zero. */
+const EXTRA_COUNT_STORES = ['repayments', 'deposits', 'donations', 'guarantors', 'donors', 'depositors'] as const
 
-/** True for a readable copy that holds no borrowers, loans, donations or deposits: restoring it would only empty the app. */
+/** True for a readable copy with no borrowers, loans, repayments, donations or deposits: restoring it would only empty the app. */
 export function isEmptyBackup(item: BackupInfo): boolean {
-  return item.valid && Object.keys(item.counts).length > 0 && DATA_STORES.every(store => !item.counts[store])
+  return item.valid && Object.keys(item.counts).length > 0 && FINANCIAL_STORES.every(store => !item.counts[store])
+}
+
+/** e.g. "14 borrowers, 88 loans, 3 deposits": borrowers and loans always, the other stores only when above zero. */
+export function describeCounts(counts: Record<string, number>): string {
+  const parts: string[] = []
+  if (counts.borrowers !== undefined) parts.push(`${counts.borrowers} ${S.borrowers}`)
+  if (counts.loans !== undefined) parts.push(`${counts.loans} ${S.loans}`)
+  for (const store of EXTRA_COUNT_STORES) {
+    if (counts[store] > 0) parts.push(`${counts[store]} ${S[store]}`)
+  }
+  return parts.join(', ')
 }
 
 export function reasonLabel(reason: string): string {
@@ -169,12 +189,7 @@ export default function SafetyBackupsCard({ onRestored, defaultExpanded = false 
           ) : (
             <Stack divider={<Divider flexItem />}>
               {visible.map(item => {
-                const counts = [
-                  item.counts.borrowers !== undefined ? `${item.counts.borrowers} ${S.borrowers}` : '',
-                  item.counts.loans !== undefined ? `${item.counts.loans} ${S.loans}` : '',
-                ]
-                  .filter(Boolean)
-                  .join(', ')
+                const counts = describeCounts(item.counts)
                 return (
                   <Box key={item.file} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.5 }}>
                     <Box sx={{ flex: 1 }}>
