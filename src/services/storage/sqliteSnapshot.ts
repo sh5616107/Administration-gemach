@@ -6,7 +6,8 @@
  *
  * עקרונות (מכוונים להבטיח שהמעבר ל-SQLite לא ישנה התנהגות):
  *  1. כל רשומה נשמרת כ-JSON מלא בעמודת data. JSON היא מקור האמת - אין עמודות כפולות
- *     שעלולות להיות לא עקביות. הקוד העסקי (database.ts ומעלה) לא משתנה בכלל.
+ *     שעלולות להיות לא עקביות (מבנה 2 מוסיף רק עמודות VIRTUAL מחושבות מה-JSON, ר'
+ *     derivedSchema.ts). הקוד העסקי (database.ts ומעלה) לא משתנה בכלל.
  *  2. הסריאליזציה זהה בדיוק למה שנעשה עד היום בקובץ ה-JSON (JSON.stringify), ולכן
  *     מה שנטען חזרה זהה למה שנטען בעבר מ-gemach_data.json.
  *  3. סדר הרשומות בתוך כל store נשמר (עמודת seq), כי getAllItems מחזיר Object.values.
@@ -17,8 +18,13 @@
  */
 
 import type { Database } from 'sql.js'
+import { applyDerivedSchema } from './derivedSchema'
 
-export const SCHEMA_VERSION = 1
+/**
+ * מבנה 1: טבלאות (seq, id, data) בלבד.
+ * מבנה 2: מבנה 1 + עמודות נגזרות (VIRTUAL, מחושבות מ-data) ואינדקסים - ר' derivedSchema.ts.
+ */
+export const SCHEMA_VERSION = 2
 
 /** שם store באפליקציה -> שם טבלה. רשימה קבועה בקוד (אין שמות טבלאות שנגזרים מנתונים). */
 export const STORE_TABLES: Readonly<Record<string, string>> = {
@@ -141,6 +147,8 @@ export function createSchema(db: Database, version: number = SCHEMA_VERSION): vo
   db.run('BEGIN')
   try {
     for (const sql of statements) db.run(sql)
+    // מסד חדש נוצר ישר במבנה הנוכחי (אותו קוד כמו שלב השדרוג 1 -> 2, כך ששניהם זהים)
+    if (version >= 2) applyDerivedSchema(db)
     db.run(
       'INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)',
       [META_SCHEMA_VERSION, String(version)]
@@ -153,9 +161,12 @@ export function createSchema(db: Database, version: number = SCHEMA_VERSION): vo
   }
 }
 
-/** שלבי שדרוג מבנה: מפתח N = שדרוג ממבנה N למבנה N+1. כרגע אין (המבנה היחיד הוא 1). */
+/** שלבי שדרוג מבנה: מפתח N = שדרוג ממבנה N למבנה N+1. */
 export type SchemaMigrations = Record<number, (db: Database) => void>
-export const SCHEMA_MIGRATIONS: SchemaMigrations = {}
+export const SCHEMA_MIGRATIONS: SchemaMigrations = {
+  // 1 -> 2: עמודות נגזרות ואינדקסים. הנתונים (data) לא נוגעים.
+  1: applyDerivedSchema,
+}
 
 /**
  * משדרג מסד ממבנה `from` למבנה `to` בטרנזקציה אחת. אם חסר שלב כלשהו או שהוא נכשל -

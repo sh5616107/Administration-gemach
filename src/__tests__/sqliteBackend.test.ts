@@ -28,6 +28,11 @@ function backendFor(io: MemoryStorageIO, legacy: LegacySource | null = null) {
   return new SqliteBackend(SQL, io, { readLegacySource: async () => legacy })
 }
 
+/** backend שיוצר ושומר מבנה 1 (הישן): משמש בבדיקות שמדמות קובץ שנכתב לפני שדרוג המבנה */
+function backendV1(io: MemoryStorageIO) {
+  return new SqliteBackend(SQL, io, { readLegacySource: async () => null, schemaVersion: 1, migrations: {} })
+}
+
 const sameJson = (a: unknown, b: unknown) => expect(JSON.stringify(a)).toBe(JSON.stringify(b))
 
 describe('SqliteBackend - התקנה חדשה ושמירה/טעינה', () => {
@@ -370,7 +375,7 @@ describe('SqliteBackend - קובץ פגום, שחזור וחסימה', () => {
 describe('SqliteBackend - התאמת גרסאות מבנה', () => {
   async function fileWith(mutate: (db: any) => void) {
     const io = new MemoryStorageIO()
-    const b = backendFor(io)
+    const b = backendV1(io)
     await b.load()
     await b.save(makeSampleData())
     const db = new SQL.Database(io.files.get(DB_FILE)!)
@@ -403,7 +408,7 @@ describe('SqliteBackend - התאמת גרסאות מבנה', () => {
 describe('SqliteBackend - שדרוג מבנה בטעינה', () => {
   async function v1File() {
     const io = new MemoryStorageIO()
-    const b = backendFor(io)
+    const b = backendV1(io)
     await b.load()
     const data = makeSampleData()
     await b.save(data)

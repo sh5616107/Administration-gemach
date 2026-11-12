@@ -354,6 +354,13 @@ describe('sqliteSnapshot - רשת ביטחון לסדר רשומות', () => {
 })
 
 describe('sqliteSnapshot - שדרוג מבנה', () => {
+  /** מסד במבנה 1 (הישן) - נקודת המוצא של שלבי השדרוג */
+  const newDb = (): Database => {
+    const db = new SQL.Database()
+    createSchema(db, 1)
+    return db
+  }
+
   it('מריץ את השלבים לפי הסדר, מעדכן user_version ו-meta, ושומר נתונים', () => {
     const data = makeSampleData()
     const db = newDb()
