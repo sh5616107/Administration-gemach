@@ -1,7 +1,5 @@
-// שכבת הנתונים של התוכנה: האובייקט החי בזיכרון (DataStore) וה-API העסקי מעליו.
-// השמירה עצמה אינה כאן: persistence.ts שומר ל-SQLite (services/storage) כשהתוכנה רצה ב-Tauri.
-// מחוץ ל-Tauri (דפדפן/פיתוח), או אם המעבר ל-SQLite נדחה, נשמר ב-localStorage (אחסון ישן).
-// גיבוי/שחזור לקובץ JSON הוא כלי נפרד.
+// Simple JSON file storage
+// Uses localStorage with manual backup/restore to JSON file
 
 import { toLocalDateStr } from '../utils/localDate'
 import type { Attachment, AttachmentEntityType } from '../types/attachments'

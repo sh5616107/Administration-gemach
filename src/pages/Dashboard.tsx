@@ -45,8 +45,6 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { statsService, borrowersService, loansService, db, waitlistService, attachmentsService } from '../services/database'
 import { clearEntireArchive } from '../services/attachmentsStorage'
-import { ensureSafetyBackup, confirmSavedToDisk } from '../services/destructiveGuard'
-import { clearAllDataKeepSettings } from '../services/clearAllData'
 import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmailData, EmailProvider } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { getDocumentLayout } from '../utils/documentLayoutHelper'
@@ -163,17 +161,21 @@ export default function Dashboard() {
     if (clearConfirmText !== 'מחק הכל') return
     
     try {
-      // Safety snapshot first; if it fails, abort before deleting anything
-      const guard = await ensureSafetyBackup('delete-all')
-      if (!guard.ok) {
-        setSnackbar({ open: true, message: '\u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d2\u05d9\u05d1\u05d5\u05d9 \u05d1\u05d8\u05d9\u05d7\u05d5\u05ea, \u05d5\u05dc\u05db\u05df \u05d4\u05de\u05d7\u05d9\u05e7\u05d4 \u05d1\u05d5\u05d8\u05dc\u05d4. ' + guard.error, severity: 'error' })
-        return
-      }
-
       // Clear all tables
-      // One atomic step (a single save) that clears every store, including fee payments,
-      // guarantor refunds, funds, contacts and the audit log; only the settings are kept
-      await clearAllDataKeepSettings()
+      await db.run('DELETE FROM repayments')
+      await db.run('DELETE FROM loans')
+      await db.run('DELETE FROM borrowers')
+      await db.run('DELETE FROM guarantors')
+      await db.run('DELETE FROM donations')
+      await db.run('DELETE FROM donors')
+      await db.run('DELETE FROM depositWithdrawals')
+      await db.run('DELETE FROM deposits')
+      await db.run('DELETE FROM depositors')
+      await db.run('DELETE FROM blacklist')
+      await db.run('DELETE FROM waitlist')
+      await db.run('DELETE FROM expenses')
+      await db.run('DELETE FROM guarantorLoanRepayments')
+      await db.run('DELETE FROM guarantorLoans')
 
       // Attachments: cleared separately from the DELETE FROM chain above,
       // since attachmentsService doesn't go through the SQL-string shim
@@ -185,24 +187,11 @@ export default function Dashboard() {
         await attachmentsService.hardDeleteMany(allAttachments.map(a => a.id))
       }
       await clearEntireArchive()
-
-      // Make sure the deletion really reached the disk before reporting success
-      const saveError = await confirmSavedToDisk()
-      if (saveError) {
-        setClearConfirmOpen(false)
-        setClearConfirmText('')
-        setSnackbar({ open: true, message: saveError, severity: 'error' })
-        loadData()
-        return
-      }
       
       setClearConfirmOpen(false)
       setClearConfirmText('')
       setSnackbar({ open: true, message: 'כל הנתונים נמחקו בהצלחה', severity: 'success' })
       loadData()
-      if (!guard.skipped) {
-        setSnackbar(prev => ({ ...prev, message: prev.message + '. \u05e0\u05d9\u05ea\u05df \u05dc\u05e9\u05d7\u05d6\u05e8 \u05de: \u05db\u05dc\u05d9\u05dd \u05de\u05ea\u05e7\u05d3\u05de\u05d9\u05dd > \u05d2\u05d9\u05d1\u05d5\u05d9\u05d9\u05dd \u05d5\u05e9\u05d7\u05d6\u05d5\u05e8' }))
-      }
     } catch (error) {
       console.error('Error clearing data:', error)
       setSnackbar({ open: true, message: 'שגיאה במחיקת הנתונים', severity: 'error' })
