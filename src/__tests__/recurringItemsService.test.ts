@@ -4,7 +4,7 @@
  * Feature: recurring-items-management
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   recurringItemsService,
   validateRecurringUpdate,
@@ -281,6 +281,15 @@ describe('Recurring Items Service', () => {
   // ============================================================================
 
   describe('Property 1: Update recurring_day in all items', () => {
+    // הבדיקה מניחה שאוקטובר 2026 כבר עבר ונובמבר/דצמבר עתידיים - מקבעים את התאריך כדי שלא תיכשל עם הזמן
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(2026, 9, 20, 12, 0, 0))
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it('should update recurring_day in future items + latest', async () => {
       // Create series of 3 loans with same recurring_series_id
       const seriesId = crypto.randomUUID()
@@ -357,6 +366,15 @@ describe('Recurring Items Service', () => {
   // ============================================================================
 
   describe('Property 2: Update amount in all items', () => {
+    // הבדיקה מניחה שאוקטובר 2026 כבר עבר ונובמבר/דצמבר עתידיים - מקבעים את התאריך כדי שלא תיכשל עם הזמן
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(2026, 9, 20, 12, 0, 0))
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it('should update amount in future items + latest', async () => {
       // Create series of 3 loans with same recurring_series_id
       const seriesId = crypto.randomUUID()

@@ -45,6 +45,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { statsService, borrowersService, loansService, db, waitlistService, attachmentsService } from '../services/database'
 import { clearEntireArchive } from '../services/attachmentsStorage'
+import { clearAllDataKeepSettings } from '../services/clearAllData'
 import { generateBorrowerReport, openEmailWithDocument, createBorrowerReportEmailData, EmailProvider } from '../services/documents'
 import { useSettings } from '../hooks/useSettings'
 import { getDocumentLayout } from '../utils/documentLayoutHelper'
@@ -161,21 +162,9 @@ export default function Dashboard() {
     if (clearConfirmText !== 'מחק הכל') return
     
     try {
-      // Clear all tables
-      await db.run('DELETE FROM repayments')
-      await db.run('DELETE FROM loans')
-      await db.run('DELETE FROM borrowers')
-      await db.run('DELETE FROM guarantors')
-      await db.run('DELETE FROM donations')
-      await db.run('DELETE FROM donors')
-      await db.run('DELETE FROM depositWithdrawals')
-      await db.run('DELETE FROM deposits')
-      await db.run('DELETE FROM depositors')
-      await db.run('DELETE FROM blacklist')
-      await db.run('DELETE FROM waitlist')
-      await db.run('DELETE FROM expenses')
-      await db.run('DELETE FROM guarantorLoanRepayments')
-      await db.run('DELETE FROM guarantorLoans')
+      // One atomic step (a single save) that clears every store, including fee payments,
+      // guarantor refunds, funds, contacts and the audit log; only the settings are kept
+      await clearAllDataKeepSettings()
 
       // Attachments: cleared separately from the DELETE FROM chain above,
       // since attachmentsService doesn't go through the SQL-string shim
