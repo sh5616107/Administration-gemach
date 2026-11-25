@@ -56,6 +56,14 @@ interface ExpectedFundsBreakdown {
     period: 'week' | 'month' | 'threeMonths'
     total_deduction: number
   }>
+  fixedDepositReturns?: Array<{
+    id: string
+    depositor_name: string
+    amount: number
+    due_date: string
+    overdue: boolean
+    period: 'week' | 'month' | 'threeMonths'
+  }>
   totals: {
     week: { income: number; deduction: number; net: number }
     month: { income: number; deduction: number; net: number }
@@ -103,12 +111,14 @@ export default function ExpectedFundsDialog({
     const loansWithAutoRepayment = (breakdown.loansWithAutoRepayment || []).filter(l => l.period === period)
     const deposits = (breakdown.recurringDeposits || []).filter(d => d.period === period)
     const deductions = (breakdown.recurringLoansDeduction || []).filter(d => d.period === period)
+    const depositReturns = (breakdown.fixedDepositReturns || []).filter(d => d.period === period)
 
     const hasData =
       loansWithDueDate.length > 0 ||
       loansWithAutoRepayment.length > 0 ||
       deposits.length > 0 ||
-      deductions.length > 0
+      deductions.length > 0 ||
+      depositReturns.length > 0
 
     if (!hasData) return null
 
@@ -301,6 +311,52 @@ export default function ExpectedFundsDialog({
           </Box>
         )}
 
+        {/* החזר הפקדות קבועות - גריעה */}
+        {depositReturns.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" color="error.main" sx={{ mb: 1 }}>
+              ↩️ החזר הפקדות ({depositReturns.length})
+            </Typography>
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 1 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: getTint('error', 0.08) }}>
+                    <TableCell>מפקיד</TableCell>
+                    <TableCell align="center">תאריך החזר</TableCell>
+                    <TableCell align="center">החזר הפקדה</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {depositReturns.map(ret => (
+                    <TableRow key={ret.id}>
+                      <TableCell>{ret.depositor_name}</TableCell>
+                      <TableCell align="center">
+                        {formatDisplayDate(ret.due_date, dateFormat)}
+                        {ret.overdue && (
+                          <Chip label="מועד ההחזר עבר" color="error" size="small" variant="outlined" sx={{ mr: 1 }} />
+                        )}
+                      </TableCell>
+                      <TableCell align="center" sx={{ color: 'error.main' }}>
+                        -{formatCurrency(ret.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow sx={{ bgcolor: getTint('error', 0.16) }}>
+                    <TableCell colSpan={2}>
+                      <strong>סה"כ החזר הפקדות</strong>
+                    </TableCell>
+                    <TableCell align="center" sx={{ color: 'error.main' }}>
+                      <strong>
+                        -{formatCurrency(depositReturns.reduce((sum, d) => sum + d.amount, 0))}
+                      </strong>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
         {/* סיכום */}
         <Box sx={{ bgcolor: color + '.50', p: 2, borderRadius: 1 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -311,7 +367,7 @@ export default function ExpectedFundsDialog({
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography>גריעות (הלוואות מחויבות):</Typography>
+            <Typography>גריעות (הלוואות מחויבות והחזר הפקדות):</Typography>
             <Typography color="error.main">
               <TrendingDownIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 0.5 }} />
               {formatCurrency(breakdown.totals[period].deduction)}
@@ -344,7 +400,8 @@ export default function ExpectedFundsDialog({
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2">
             החישוב כולל רק הלוואות עם תאריך פירעון קבוע או פירעון מחזורי. הלוואות גמישות לא
-            נכללות כי אין ודאות מתי יפרעו.
+            נכללות כי אין ודאות מתי יפרעו. הפקדות קבועות שמועד ההחזר שלהן מגיע מנוכות
+            כ"החזר הפקדה".
           </Typography>
         </Alert>
 

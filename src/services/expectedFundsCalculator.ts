@@ -33,12 +33,100 @@ export interface Deposit {
   recurring_day?: number
   recurring_series_id?: string  // UUID - מזהה קנוני למשפחת הפקדות מחזוריות
   fund_id?: string  // UUID foreign key - קופה משוייכת
+  period_type?: string  // 'fixed' = הפקדה לתקופה קבועה, 'flexible' = גמישה
+  due_date?: string  // תאריך החזר ההפקדה (רק בהפקדה קבועה)
+  withdrawn_amount?: number  // כמה כבר נמשך מההפקדה
 }
 
 export interface ExpectedFunds {
   week: number
   month: number
   threeMonths: number
+  /** כמה מתוך הסכומים למעלה נוכה בגלל החזר הפקדות קבועות (מספר חיובי) */
+  depositReturns: {
+    week: number
+    month: number
+    threeMonths: number
+  }
+}
+
+export type ExpectedPeriod = 'week' | 'month' | 'threeMonths'
+
+export interface FixedDepositReturn {
+  id: string
+  depositor_id: string
+  /** הסכום שצריך להחזיר: סכום ההפקדה פחות מה שכבר נמשך */
+  amount: number
+  due_date: string
+  /** true כשתאריך ההחזר כבר עבר וההפקדה עדיין לא הוחזרה */
+  overdue: boolean
+  /** הטווחים שההחזר נופל בהם (מצטבר: החזר של השבוע הקרוב נכלל גם בחודש וב-3 חודשים) */
+  periods: ExpectedPeriod[]
+}
+
+function getRanges(referenceDate: Date) {
+  const today = new Date(referenceDate)
+  today.setHours(0, 0, 0, 0)
+  return {
+    today,
+    oneWeek: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000),
+    oneMonth: new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000),
+    threeMonths: new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000),
+  }
+}
+
+/** YYYY-MM-DD -> Date בשעון מקומי (new Date('2026-02-05') מפרש כ-UTC) */
+function parseLocalDate(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return new Date(value)
+}
+
+/**
+ * הפקדות קבועות שצריך להחזיר למפקיד ב-3 החודשים הקרובים.
+ *
+ * הפקדה קבועה (period_type = 'fixed') עם תאריך החזר (due_date) היא כסף שהגמ"ח
+ * יצטרך להוציא. לכן היא מנוכה מהכסף הצפוי להשתחרר, כדי שמנהל הגמ"ח יוכל לתכנן.
+ * הפקדה שתאריך ההחזר שלה כבר עבר ועדיין לא הוחזרה נחשבת כמי שצריך להחזיר מיד.
+ * נכללות רק הפקדות פעילות (כסף שכבר נכנס לקופה), בניכוי משיכות חלקיות.
+ */
+export function getFixedDepositReturns(
+  deposits: Deposit[],
+  referenceDate: Date = new Date(),
+  fundId?: string
+): FixedDepositReturn[] {
+  const { today, oneWeek, oneMonth, threeMonths } = getRanges(referenceDate)
+  const result: FixedDepositReturn[] = []
+
+  for (const deposit of deposits) {
+    if (fundId && deposit.fund_id !== fundId) continue
+    if (deposit.period_type !== 'fixed') continue
+    if (deposit.status !== 'active') continue
+    if (!deposit.due_date) continue
+
+    const amount = (deposit.amount || 0) - (deposit.withdrawn_amount || 0)
+    if (amount <= 0) continue
+
+    const dueDate = parseLocalDate(deposit.due_date)
+    if (isNaN(dueDate.getTime())) continue
+    dueDate.setHours(0, 0, 0, 0)
+    if (dueDate > threeMonths) continue
+
+    const periods: ExpectedPeriod[] = ['threeMonths']
+    if (dueDate <= oneMonth) periods.unshift('month')
+    if (dueDate <= oneWeek) periods.unshift('week')
+
+    result.push({
+      id: deposit.id,
+      depositor_id: deposit.depositor_id,
+      amount,
+      due_date: deposit.due_date,
+      overdue: dueDate < today,
+      periods,
+    })
+  }
+
+  return result.sort((a, b) => a.due_date.localeCompare(b.due_date))
 }
 
 /**
@@ -211,5 +299,16 @@ export function calculateExpectedFunds(
     }
   }
 
-  return { week: weekFunds, month: monthFunds, threeMonths: threeMonthsFunds }
+  // גריעת החזר הפקדות קבועות שמועד ההחזר שלהן מגיע
+  const depositReturns = { week: 0, month: 0, threeMonths: 0 }
+  for (const ret of getFixedDepositReturns(filteredDeposits, referenceDate)) {
+    for (const period of ret.periods) {
+      depositReturns[period] += ret.amount
+    }
+  }
+  weekFunds -= depositReturns.week
+  monthFunds -= depositReturns.month
+  threeMonthsFunds -= depositReturns.threeMonths
+
+  return { week: weekFunds, month: monthFunds, threeMonths: threeMonthsFunds, depositReturns }
 }
