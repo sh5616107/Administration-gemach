@@ -2,6 +2,7 @@ import { toLocalDateStr } from '../utils/localDate'
 import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import {
+  useTheme,
   Box,
   Card,
   CardContent,
@@ -74,6 +75,7 @@ import { saveBackupFile, describeSaveResult } from '../services/saveBackupFile'
 import { filterFeePayments, getFeePaymentsStats } from '../services/feePaymentsService'
 import type { FeePaymentsFilter } from '../types/feePayments'
 import FundSelector from '../components/funds/FundSelector'
+import { buildLoanBreakdown, type LoanBreakdown, type BreakdownRow } from '../utils/loanBreakdown'
 
 interface OverdueLoan {
   id: string  // UUID
@@ -144,6 +146,7 @@ interface TransferDialogData {
 
 export default function AdvancedTools() {
   const { settings } = useSettings()
+  const theme = useTheme()
   const [overdueLoans, setOverdueLoans] = useState<OverdueLoan[]>([])
   const [blacklist, setBlacklist] = useState<BlacklistItem[]>([])
   const [blacklistDialogOpen, setBlacklistDialogOpen] = useState(false)
@@ -196,6 +199,7 @@ export default function AdvancedTools() {
     deposits: { byMethod: Record<string, { count: number; total: number }> }
     donations: { byMethod: Record<string, { count: number; total: number }> }
     guarantorLoans: { count: number; totalAmount: number; totalRemaining: number }
+    loanBreakdown: LoanBreakdown
   } | null>(null)
   
   // Expenses
@@ -1037,7 +1041,9 @@ export default function AdvancedTools() {
           count: guarantorLoansData.length,
           totalAmount: guarantorLoansData.reduce((sum, gl) => sum + gl.amount, 0),
           totalRemaining: guarantorLoansData.filter(gl => gl.status === 'active').reduce((sum, gl) => sum + gl.remaining, 0)
-        }
+        },
+        // פילוח לפי גודל ותקופה - כל ההלוואות שניתנו (כולל שנפרעו), כדי לראות מה מבוקש
+        loanBreakdown: buildLoanBreakdown(loansToExistingBorrowers)
       })
       setFullStatsDialogOpen(true)
     } catch (error) {
@@ -2519,6 +2525,59 @@ export default function AdvancedTools() {
                     </Paper>
                   </Grid>
                 </Grid>
+
+                {/* Loan breakdown by amount and period */}
+                <Typography variant="h6" sx={{ mt: 3, mb: 1, borderBottom: 2, borderColor: 'primary.main', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <BarChartIcon /> פילוח הלוואות לפי גודל ותקופה
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  כל ההלוואות שניתנו ({fullStats.loanBreakdown.totalCount}), כולל הלוואות שנפרעו.
+                  {' '}סכום ממוצע: {formatCurrency(fullStats.loanBreakdown.averageAmount)}
+                  {fullStats.loanBreakdown.averageMonths !== null && ` · תקופה ממוצעת: ${fullStats.loanBreakdown.averageMonths} חודשים`}
+                </Typography>
+                {fullStats.loanBreakdown.totalCount === 0 ? (
+                  <Typography color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>אין הלוואות להצגה</Typography>
+                ) : (
+                  <Grid container spacing={2}>
+                    {([
+                      ['לפי סכום ההלוואה', 'טווח סכום', fullStats.loanBreakdown.byAmount],
+                      ['לפי תקופת ההלוואה', 'תקופה', fullStats.loanBreakdown.byPeriod],
+                    ] as Array<[string, string, BreakdownRow[]]>).map(([title, column, rows]) => {
+                      const maxCount = Math.max(...rows.map(r => r.count), 1)
+                      return (
+                        <Grid item xs={12} md={6} key={title}>
+                          <Paper sx={{ p: 2 }} className="section">
+                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>{title}</Typography>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                  <TableCell>{column}</TableCell>
+                                  <TableCell align="center">מספר</TableCell>
+                                  <TableCell align="center">%</TableCell>
+                                  <TableCell align="center">סכום</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {rows.filter(r => r.count > 0).map(row => (
+                                  <TableRow key={row.key}>
+                                    <TableCell>
+                                      {row.label}
+                                      {/* סרגל יחסי - style ולא sx כדי שיופיע גם בהדפסה */}
+                                      <div style={{ height: 6, marginTop: 4, borderRadius: 3, background: theme.palette.primary.main, opacity: 0.6, width: `${Math.max(4, (row.count / maxCount) * 100)}%` }} />
+                                    </TableCell>
+                                    <TableCell align="center">{row.count}</TableCell>
+                                    <TableCell align="center">{row.percent}%</TableCell>
+                                    <TableCell align="center">{formatCurrency(row.total)}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </Paper>
+                        </Grid>
+                      )
+                    })}
+                  </Grid>
+                )}
 
                 {/* Guarantor Loans Summary */}
                 <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: 2, borderColor: 'primary.main', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
