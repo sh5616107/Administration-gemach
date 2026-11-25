@@ -220,7 +220,12 @@ export default function WaitlistTab() {
   const [editingEntry, setEditingEntry] = useState<WaitlistEntry | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   const [availableFunds, setAvailableFunds] = useState(0)
-  const [expectedFunds, setExpectedFunds] = useState({ week: 0, month: 0, threeMonths: 0 })
+  const [expectedFunds, setExpectedFunds] = useState({
+    week: 0,
+    month: 0,
+    threeMonths: 0,
+    depositReturns: { week: 0, month: 0, threeMonths: 0 },
+  })
   const [expectedFundsDialogOpen, setExpectedFundsDialogOpen] = useState(false)
   const [expectedFundsBreakdown, setExpectedFundsBreakdown] = useState<any>(null)
   const [orderBy, setOrderBy] = useState<string | null>(null)
@@ -278,20 +283,35 @@ export default function WaitlistTab() {
     }
   }
 
+  // הפקדות שלא נמחקו, עם סכום המשיכות בפועל (מטבלת המשיכות) - לחישוב יתרה להחזר
+  const loadDepositsWithWithdrawn = async () => {
+    const { depositsService, depositWithdrawalsService } = await import('../../services/database')
+    const [deposits, withdrawals] = await Promise.all([
+      depositsService.getAll(),
+      depositWithdrawalsService.getAll(),
+    ])
+    const withdrawnByDeposit = new Map<string, number>()
+    for (const w of withdrawals) {
+      withdrawnByDeposit.set(w.deposit_id, (withdrawnByDeposit.get(w.deposit_id) || 0) + (w.amount || 0))
+    }
+    return deposits.map(d => ({
+      ...d,
+      withdrawn_amount: Math.max(d.withdrawn_amount || 0, withdrawnByDeposit.get(d.id) || 0),
+    }))
+  }
+
   const calculateExpectedFunds = async () => {
     try {
-      const { loansService, db } = await import('../../services/database')
+      const { loansService } = await import('../../services/database')
       const { calculateExpectedFunds: calculate } = await import('../../services/expectedFundsCalculator')
       
       // טעינת נתונים
       const allLoans = await loansService.getAll()
-      const recurringDeposits = await db.query(
-        'SELECT * FROM deposits WHERE is_recurring = 1 AND status IN (?, ?)', 
-        ['active', 'planned']
-      ) as any[]
+      // כל ההפקדות: מחזוריות (הכנסה צפויה) וקבועות (החזר צפוי - גריעה)
+      const deposits = await loadDepositsWithWithdrawn()
       
       // חישוב באמצעות הפונקציה המרכזית
-      const result = calculate(allLoans as any[], recurringDeposits as any[])
+      const result = calculate(allLoans as any[], deposits as any[])
       
       setExpectedFunds(result)
     } catch (error) {
@@ -301,7 +321,8 @@ export default function WaitlistTab() {
 
   const prepareExpectedFundsBreakdown = async () => {
     try {
-      const { loansService, borrowersService, depositorsService, db } = await import('../../services/database')
+      const { loansService, borrowersService, depositorsService } = await import('../../services/database')
+      const { getFixedDepositReturns } = await import('../../services/expectedFundsCalculator')
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const oneWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -330,12 +351,13 @@ export default function WaitlistTab() {
           const borrower = allBorrowers.find(b => b.id === loan.borrower_id)
           const borrowerName = borrower ? `${borrower.first_name} ${borrower.last_name}` : 'לא ידוע'
           
-          let period: 'week' | 'month' | 'threeMonths' | null = null
-          if (dueDate <= oneWeek) period = 'week'
-          else if (dueDate <= oneMonth) period = 'month'
-          else if (dueDate <= threeMonths) period = 'threeMonths'
+          // מצטבר, כמו בכרטיס "כסף צפוי להשתחרר": פירעון של השבוע הקרוב נכלל גם בחודש וב-3 חודשים
+          const periods: Array<'week' | 'month' | 'threeMonths'> = []
+          if (dueDate <= oneWeek) periods.push('week')
+          if (dueDate <= oneMonth) periods.push('month')
+          if (dueDate <= threeMonths) periods.push('threeMonths')
           
-          if (period) {
+          for (const period of periods) {
             loansWithDueDate.push({
               id: loan.id,
               borrower_name: borrowerName,
@@ -392,17 +414,36 @@ export default function WaitlistTab() {
       }
       
       // הפקדות מחזוריות (כולל מתוכננות)
-      const recurringDeposits = await db.query(
-        'SELECT * FROM deposits WHERE is_recurring = 1 AND status IN (?, ?)', 
-        ['active', 'planned']
-      ) as any[]
+      const allDeposits = await loadDepositsWithWithdrawn()
+      const recurringDeposits = allDeposits.filter(d =>
+        d.is_recurring === 1 && (d.status === 'active' || d.status === 'planned')
+      )
       
       const allDepositors = await depositorsService.getAll()
+      const depositorNameOf = (depositorId: string) => {
+        const depositor = allDepositors.find(d => String(d.id) === String(depositorId))
+        return depositor ? `${depositor.first_name} ${depositor.last_name}` : 'לא ידוע'
+      }
+
+      // החזר הפקדות קבועות - גריעה
+      const fixedDepositReturns: any[] = []
+      for (const ret of getFixedDepositReturns(allDeposits as any[], today)) {
+        for (const period of ret.periods) {
+          fixedDepositReturns.push({
+            id: ret.id,
+            depositor_name: depositorNameOf(ret.depositor_id),
+            amount: ret.amount,
+            due_date: ret.due_date,
+            overdue: ret.overdue,
+            period,
+          })
+        }
+      }
       
       for (const deposit of recurringDeposits) {
         const amount = deposit.amount || 0
         const recurringMonths = deposit.recurring_months || 1
-        const depositor = allDepositors.find(d => d.id === deposit.depositor_id)
+        const depositor = allDepositors.find(d => String(d.id) === String(deposit.depositor_id))
         const depositorName = depositor ? `${depositor.first_name} ${depositor.last_name}` : 'לא ידוע'
         
         // בדיקות תקינות
@@ -593,6 +634,10 @@ export default function WaitlistTab() {
         totals[d.period].deduction += d.total_deduction
       })
       
+      fixedDepositReturns.forEach(d => {
+        totals[d.period].deduction += d.amount
+      })
+      
       totals.week.net = totals.week.income - totals.week.deduction
       totals.month.net = totals.month.income - totals.month.deduction
       totals.threeMonths.net = totals.threeMonths.income - totals.threeMonths.deduction
@@ -602,6 +647,7 @@ export default function WaitlistTab() {
         loansWithAutoRepayment,
         recurringDeposits: recurringDepositsBreakdown,
         recurringLoansDeduction,
+        fixedDepositReturns,
         totals
       })
     } catch (error) {
@@ -880,9 +926,14 @@ export default function WaitlistTab() {
                 <Typography variant="body2" color="text.secondary">
                   בשבוע הקרוב
                 </Typography>
-                <Typography variant="h5" color="success.main" fontWeight={600}>
+                <Typography variant="h5" color={expectedFunds.week >= 0 ? 'success.main' : 'error.main'} fontWeight={600}>
                   {formatCurrency(expectedFunds.week)}
                 </Typography>
+                {expectedFunds.depositReturns.week > 0 && (
+                  <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
+                    כולל החזר הפקדה: -{formatCurrency(expectedFunds.depositReturns.week)}
+                  </Typography>
+                )}
               </Box>
             </Grid>
             <Grid item xs={12} md={4}>
@@ -890,9 +941,14 @@ export default function WaitlistTab() {
                 <Typography variant="body2" color="text.secondary">
                   בחודש הקרוב
                 </Typography>
-                <Typography variant="h5" color="success.main" fontWeight={600}>
+                <Typography variant="h5" color={expectedFunds.month >= 0 ? 'success.main' : 'error.main'} fontWeight={600}>
                   {formatCurrency(expectedFunds.month)}
                 </Typography>
+                {expectedFunds.depositReturns.month > 0 && (
+                  <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
+                    כולל החזר הפקדה: -{formatCurrency(expectedFunds.depositReturns.month)}
+                  </Typography>
+                )}
               </Box>
             </Grid>
             <Grid item xs={12} md={4}>
@@ -900,9 +956,14 @@ export default function WaitlistTab() {
                 <Typography variant="body2" color="text.secondary">
                   ב-3 חודשים
                 </Typography>
-                <Typography variant="h5" color="success.main" fontWeight={600}>
+                <Typography variant="h5" color={expectedFunds.threeMonths >= 0 ? 'success.main' : 'error.main'} fontWeight={600}>
                   {formatCurrency(expectedFunds.threeMonths)}
                 </Typography>
+                {expectedFunds.depositReturns.threeMonths > 0 && (
+                  <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
+                    כולל החזר הפקדה: -{formatCurrency(expectedFunds.depositReturns.threeMonths)}
+                  </Typography>
+                )}
               </Box>
             </Grid>
           </Grid>
@@ -920,7 +981,7 @@ export default function WaitlistTab() {
             </Button>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
-            * כולל פירעון הלוואות פעילות והפקדות מחזוריות צפויות
+            * כולל פירעון הלוואות פעילות והפקדות מחזוריות צפויות, בניכוי הלוואות מחזוריות מחויבות והחזר הפקדות קבועות
           </Typography>
         </CardContent>
       </Card>
