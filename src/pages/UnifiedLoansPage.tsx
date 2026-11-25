@@ -723,7 +723,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
           attach to an existing borrower, so it stays as its own panel/dialog) */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={8}>
+          <Grid item xs={12} md={7}>
             <Autocomplete
               options={borrowers}
               value={selectedBorrower}
@@ -763,8 +763,8 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
               )}
             />
           </Grid>
-          <Grid item xs={12} md={4}>
-            <Stack direction="row" spacing={1}>
+          <Grid item xs={12} md={5}>
+            <Stack direction="row" spacing={1} sx={{ '& .MuiButton-root': { whiteSpace: 'nowrap' } }}>
               <Button
                 fullWidth
                 variant={selectedBorrower ? 'outlined' : 'contained'}
