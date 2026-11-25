@@ -3,6 +3,8 @@ import { toLocalDateStr } from '../utils/localDate'
 import { getLastRepaymentDates } from '../services/loanDueService'
 import { getLoanDueDate } from '../utils/loanDueDate'
 import { buildLoanListItems, LOAN_SORT_LABELS, LOAN_SORT_SHORT_LABELS, type LoanSortMode } from '../utils/loanListSort'
+import { buildAllLoansList, loanBalance, ALL_LOANS_SORT_LABELS, ALL_LOANS_STATUS_LABELS, type AllLoansSortMode, type AllLoansStatusFilter } from '../utils/allLoansView'
+import { formatDueDate } from '../utils/loanDueDate'
 import { toHebrewDate } from '../utils/dateUtils';
 import { validateEventDate } from '../utils/dateValidation';
 import { useState, useEffect, useMemo } from 'react';
@@ -30,6 +32,14 @@ import {
   MenuItem,
   Collapse,
   Divider,
+  ToggleButton,
+  ToggleButtonGroup,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -46,6 +56,9 @@ import {
   FilterList as FilterIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
+  ViewList as ViewListIcon,
+  ViewModule as ViewModuleIcon,
+  FormatListBulleted as AllLoansIcon,
 } from '@mui/icons-material';
 import { borrowersService, loansService, guarantorLoansService, repaymentsService, guarantorsService, fundsService, type Borrower, type Loan, type Guarantor, type Fund } from '../services/database';
 import { generateLoanDocument, openEmailWithDocument, createLoanEmailData, EmailProvider } from '../services/documents';
@@ -152,6 +165,12 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
   // תצוגת "הלוואות לפי קופה": מזהה קופה או 'all'; פעילה רק כשאין לווה נבחר
   const [fundView, setFundView] = useState<string | null>(null);
   const [fundViewLoans, setFundViewLoans] = useState<Loan[]>([]);
+  // מיון וסינון בתצוגת "כל ההלוואות" - לפי תאריך הלוואה ולא לפי שם הלווה
+  const [allLoansSort, setAllLoansSort] = useState<AllLoansSortMode>('dateDesc');
+  const [allLoansStatus, setAllLoansStatus] = useState<AllLoansStatusFilter>('all');
+  const [allLoansFrom, setAllLoansFrom] = useState('');
+  const [allLoansTo, setAllLoansTo] = useState('');
+  const [allLoansLayout, setAllLoansLayout] = useState<'table' | 'cards'>('table');
 
   // שם הקופה מוצג בכרטיסים רק כשיש יותר מקופה אחת
   const fundNameFor = (fundId?: string) =>
@@ -213,6 +232,22 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
     })().catch(err => console.error('Error loading fund loans:', err));
     return () => { cancelled = true; };
   }, [fundView, selectedBorrower]);
+
+  const sortedFundViewLoans = useMemo(
+    () =>
+      buildAllLoansList(
+        fundViewLoans,
+        { sort: allLoansSort, status: allLoansStatus, fromDate: allLoansFrom || undefined, toDate: allLoansTo || undefined },
+        (loan) => getLoanDueDate(loan, { lastRepaymentDate: lastRepaymentDates.get(loan.id!) }).date
+      ),
+    [fundViewLoans, allLoansSort, allLoansStatus, allLoansFrom, allLoansTo, lastRepaymentDates]
+  );
+
+  const openAllLoansView = () => {
+    setSelectedBorrower(null);
+    setAutocompleteOpen(false);
+    setFundView('all');
+  };
 
   // פתיחת הלוואה מתוך תצוגת הקופה: בוחרים את הלווה ופותחים את ההלוואה
   const handleOpenLoanFromFundView = (loan: Loan) => {
@@ -740,6 +775,15 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
                 }}
               >
                 לווה חדש
+              </Button>
+              <Button
+                fullWidth
+                variant={!selectedBorrower && fundView ? 'contained' : 'outlined'}
+                color="secondary"
+                startIcon={<AllLoansIcon />}
+                onClick={openAllLoansView}
+              >
+                כל ההלוואות
               </Button>
               {selectedBorrower && (
                 <Button
@@ -1434,7 +1478,7 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
             <Typography variant="h6">
               הלוואות {fundView === 'all' ? 'בכל הקופות' : `בקופה: ${allFunds.find(f => f.id === fundView)?.name || ''}`}
-              {` (${fundViewLoans.length})`}
+              {` (${sortedFundViewLoans.length}${sortedFundViewLoans.length !== fundViewLoans.length ? `/${fundViewLoans.length}` : ''})`}
             </Typography>
             {allFunds.length > 1 && (
               <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -1448,13 +1492,122 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
               </FormControl>
             )}
           </Box>
-          {fundViewLoans.length === 0 ? (
+
+          {/* מיון וסינון */}
+          <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
+            <FormControl size="small" sx={{ minWidth: 210 }}>
+              <InputLabel>מיון</InputLabel>
+              <Select value={allLoansSort} label="מיון" onChange={(e) => setAllLoansSort(e.target.value as AllLoansSortMode)}>
+                {(Object.keys(ALL_LOANS_SORT_LABELS) as AllLoansSortMode[]).map(mode => (
+                  <MenuItem key={mode} value={mode}>{ALL_LOANS_SORT_LABELS[mode]}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 170 }}>
+              <InputLabel>סטטוס</InputLabel>
+              <Select value={allLoansStatus} label="סטטוס" onChange={(e) => setAllLoansStatus(e.target.value as AllLoansStatusFilter)}>
+                {(Object.keys(ALL_LOANS_STATUS_LABELS) as AllLoansStatusFilter[]).map(st => (
+                  <MenuItem key={st} value={st}>{ALL_LOANS_STATUS_LABELS[st]}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              type="date"
+              label="ניתנה מתאריך"
+              value={allLoansFrom}
+              onChange={(e) => setAllLoansFrom(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ width: 165 }}
+            />
+            <TextField
+              size="small"
+              type="date"
+              label="עד תאריך"
+              value={allLoansTo}
+              onChange={(e) => setAllLoansTo(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ width: 165 }}
+            />
+            {(allLoansFrom || allLoansTo || allLoansStatus !== 'all') && (
+              <Button size="small" onClick={() => { setAllLoansFrom(''); setAllLoansTo(''); setAllLoansStatus('all'); }}>
+                נקה סינון
+              </Button>
+            )}
+            <Box sx={{ flexGrow: 1 }} />
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={allLoansLayout}
+              onChange={(_, v) => v && setAllLoansLayout(v)}
+            >
+              <ToggleButton value="table" aria-label="טבלה"><Tooltip title="טבלה"><ViewListIcon fontSize="small" /></Tooltip></ToggleButton>
+              <ToggleButton value="cards" aria-label="כרטיסים"><Tooltip title="כרטיסים"><ViewModuleIcon fontSize="small" /></Tooltip></ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+
+          {sortedFundViewLoans.length > 0 && (
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+              <Chip size="small" label={`סה"כ סכום: ₪${sortedFundViewLoans.reduce((s, l) => s + l.amount, 0).toLocaleString()}`} />
+              <Chip size="small" color="error" variant="outlined" label={`יתרה לגבייה: ₪${sortedFundViewLoans.reduce((s, l) => s + loanBalance(l), 0).toLocaleString()}`} />
+            </Stack>
+          )}
+
+          {sortedFundViewLoans.length === 0 ? (
             <Typography color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-              {fundView === 'all' ? 'אין הלוואות להצגה' : 'אין הלוואות בקופה זו'}
+              {fundViewLoans.length > 0 ? 'אין הלוואות שמתאימות לסינון' : fundView === 'all' ? 'אין הלוואות להצגה' : 'אין הלוואות בקופה זו'}
             </Typography>
+          ) : allLoansLayout === 'table' ? (
+            <TableContainer sx={{ maxHeight: '65vh' }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>מס'</TableCell>
+                    <TableCell>תאריך הלוואה</TableCell>
+                    <TableCell>לווה</TableCell>
+                    {allFunds.length > 1 && <TableCell>קופה</TableCell>}
+                    <TableCell align="center">סכום</TableCell>
+                    <TableCell align="center">שולם</TableCell>
+                    <TableCell align="center">יתרה</TableCell>
+                    <TableCell align="center">פירעון</TableCell>
+                    <TableCell align="center">סטטוס</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sortedFundViewLoans.map(loan => {
+                    const balance = loanBalance(loan);
+                    const due = getLoanDueDate({ ...loan, remaining: balance }, { lastRepaymentDate: lastRepaymentDates.get(loan.id!) });
+                    return (
+                      <TableRow key={loan.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpenLoanFromFundView(loan)}>
+                        <TableCell>{loan.loan_number}</TableCell>
+                        <TableCell>{formatDueDate(loan.loan_date)}</TableCell>
+                        <TableCell>{loan.borrower_name || 'לא ידוע'}</TableCell>
+                        {allFunds.length > 1 && <TableCell>{fundNameFor(loan.fund_id) || ''}</TableCell>}
+                        <TableCell align="center">₪{loan.amount.toLocaleString()}</TableCell>
+                        <TableCell align="center">₪{(loan.total_repaid ?? 0).toLocaleString()}</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>₪{balance.toLocaleString()}</TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{ color: due.status === 'overdue' ? 'error.main' : due.status === 'due-soon' ? 'warning.main' : undefined }}
+                        >
+                          {due.date ? formatDueDate(due.date) : balance > 0 ? 'לא נקבע' : '-'}
+                        </TableCell>
+                        <TableCell align="center">
+                          {due.status === 'overdue' ? (
+                            <Chip label="באיחור" color="error" size="small" />
+                          ) : (
+                            <Chip label={balance <= 0 ? 'נפרעה' : 'פעילה'} color={balance <= 0 ? 'success' : 'primary'} size="small" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
           ) : (
             <Grid container spacing={1.5}>
-              {fundViewLoans.map(loan => (
+              {sortedFundViewLoans.map(loan => (
                 <Grid item xs={12} sm={6} md={4} key={loan.id}>
                   <LoanCard
                     loan={loan}
@@ -1470,7 +1623,10 @@ export default function UnifiedLoansPage({ initialBorrowerId, initialWaitlistId,
         </Paper>
       ) : (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="text.secondary">בחר לווה כדי להציג את ההלוואות שלו</Typography>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>בחר לווה כדי להציג את ההלוואות שלו</Typography>
+          <Button variant="outlined" color="secondary" startIcon={<AllLoansIcon />} onClick={openAllLoansView}>
+            או הצג את כל ההלוואות
+          </Button>
         </Paper>
       )}
 
