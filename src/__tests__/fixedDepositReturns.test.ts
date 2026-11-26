@@ -45,9 +45,15 @@ describe('החזר הפקדות קבועות', () => {
     expect(result.depositReturns.threeMonths).toBe(0)
   })
 
-  it('מתעלם מהפקדה גמישה, ממשוכה ומהפקדה בלי תאריך החזר', () => {
+  it('מנכה גם הפקדה גמישה שמולא לה תאריך החזרה צפוי', () => {
+    const deposits = [fixed({ id: 'a', period_type: 'flexible' })]
+    expect(getFixedDepositReturns(deposits, today).map(r => r.id)).toEqual(['a'])
+    expect(calculateExpectedFunds([], deposits, today).depositReturns.threeMonths).toBeGreaterThan(0)
+  })
+
+  it('מתעלם מהפקדה גמישה בלי תאריך, ממשוכה ומהפקדה בלי תאריך החזר', () => {
     const deposits = [
-      fixed({ id: 'a', period_type: 'flexible' }),
+      fixed({ id: 'a', period_type: 'flexible', due_date: undefined }),
       fixed({ id: 'b', status: 'withdrawn' }),
       fixed({ id: 'c', due_date: '' }),
       fixed({ id: 'd', status: 'planned' }),

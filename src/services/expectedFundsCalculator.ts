@@ -34,7 +34,7 @@ export interface Deposit {
   recurring_series_id?: string  // UUID - מזהה קנוני למשפחת הפקדות מחזוריות
   fund_id?: string  // UUID foreign key - קופה משוייכת
   period_type?: string  // 'fixed' = הפקדה לתקופה קבועה, 'flexible' = גמישה
-  due_date?: string  // תאריך החזר ההפקדה (רק בהפקדה קבועה)
+  due_date?: string  // תאריך החזרת ההפקדה (בקבועה - מוסכם, בגמישה - צפוי, לא חובה)
   withdrawn_amount?: number  // כמה כבר נמשך מההפקדה
 }
 
@@ -42,7 +42,7 @@ export interface ExpectedFunds {
   week: number
   month: number
   threeMonths: number
-  /** כמה מתוך הסכומים למעלה נוכה בגלל החזר הפקדות קבועות (מספר חיובי) */
+  /** כמה מתוך הסכומים למעלה נוכה בגלל החזר הפקדות (מספר חיובי) */
   depositReturns: {
     week: number
     month: number
@@ -83,10 +83,10 @@ function parseLocalDate(value: string): Date {
 }
 
 /**
- * הפקדות קבועות שצריך להחזיר למפקיד ב-3 החודשים הקרובים.
+ * הפקדות שצריך להחזיר למפקיד ב-3 החודשים הקרובים.
  *
- * הפקדה קבועה (period_type = 'fixed') עם תאריך החזר (due_date) היא כסף שהגמ"ח
- * יצטרך להוציא. לכן היא מנוכה מהכסף הצפוי להשתחרר, כדי שמנהל הגמ"ח יוכל לתכנן.
+ * הפקדה עם תאריך החזרה (due_date) היא כסף שהגמ"ח יצטרך להוציא: בהפקדה קבועה
+ * זה המועד המוסכם, ובהפקדה גמישה זה מועד צפוי שהמנהל מילא (לא חובה). לכן היא מנוכה מהכסף הצפוי להשתחרר, כדי שמנהל הגמ"ח יוכל לתכנן.
  * הפקדה שתאריך ההחזר שלה כבר עבר ועדיין לא הוחזרה נחשבת כמי שצריך להחזיר מיד.
  * נכללות רק הפקדות פעילות (כסף שכבר נכנס לקופה), בניכוי משיכות חלקיות.
  */
@@ -100,7 +100,6 @@ export function getFixedDepositReturns(
 
   for (const deposit of deposits) {
     if (fundId && deposit.fund_id !== fundId) continue
-    if (deposit.period_type !== 'fixed') continue
     if (deposit.status !== 'active') continue
     if (!deposit.due_date) continue
 
@@ -299,7 +298,7 @@ export function calculateExpectedFunds(
     }
   }
 
-  // גריעת החזר הפקדות קבועות שמועד ההחזר שלהן מגיע
+  // גריעת החזר הפקדות (קבועות וגמישות עם תאריך החזרה) שמועד ההחזר שלהן מגיע
   const depositReturns = { week: 0, month: 0, threeMonths: 0 }
   for (const ret of getFixedDepositReturns(filteredDeposits, referenceDate)) {
     for (const period of ret.periods) {
