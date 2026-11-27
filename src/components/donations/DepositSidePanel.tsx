@@ -301,16 +301,24 @@ export default function DepositSidePanel({ open, deposit, depositor, onClose, on
             </Select>
           </FormControl>
           
-          {formData.period_type === 'fixed' && (
-            <TextField
-              label="תאריך פירעון"
-              type="date"
-              value={formData.due_date}
-              onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-          )}
+          {/* תאריך החזרה: בהפקדה קבועה - המועד המוסכם; בגמישה - מועד צפוי, לא חובה.
+              כשממולא, ההחזר מנוכה מ"כסף צפוי להשתחרר" (אינו תאריך משיכה בפועל) */}
+          <TextField
+            label={formData.period_type === 'fixed' ? 'תאריך החזרה' : 'תאריך החזרה צפוי (לא חובה)'}
+            type="date"
+            value={formData.due_date}
+            onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            helperText={
+              formData.due_date
+                ? 'ההחזר ינוכה מהכסף הצפוי להשתחרר לפי תאריך זה'
+                : formData.period_type === 'fixed'
+                  ? 'מתי צריך להחזיר את ההפקדה למפקיד'
+                  : 'אם ידוע מתי המפקיד צפוי לבקש את הכסף, מלאו כדי שינוכה מהכסף הצפוי'
+            }
+            error={!!formData.due_date && !!formData.deposit_date && formData.due_date < formData.deposit_date}
+            fullWidth
+          />
 
           {/* Recurring deposit option - only available when creating a new deposit */}
           {!deposit && (

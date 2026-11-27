@@ -311,7 +311,7 @@ export default function ExpectedFundsDialog({
           </Box>
         )}
 
-        {/* החזר הפקדות קבועות - גריעה */}
+        {/* החזר הפקדות - גריעה */}
         {depositReturns.length > 0 && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" color="error.main" sx={{ mb: 1 }}>
@@ -400,8 +400,8 @@ export default function ExpectedFundsDialog({
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2">
             החישוב כולל רק הלוואות עם תאריך פירעון קבוע או פירעון מחזורי. הלוואות גמישות לא
-            נכללות כי אין ודאות מתי יפרעו. הפקדות קבועות שמועד ההחזר שלהן מגיע מנוכות
-            כ"החזר הפקדה".
+            נכללות כי אין ודאות מתי יפרעו. הפקדות עם תאריך החזרה (קבועות, או גמישות שמולא להן תאריך
+            צפוי) שמועד ההחזר שלהן מגיע מנוכות כ"החזר הפקדה".
           </Typography>
         </Alert>
 

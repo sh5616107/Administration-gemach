@@ -307,7 +307,7 @@ export default function WaitlistTab() {
       
       // טעינת נתונים
       const allLoans = await loansService.getAll()
-      // כל ההפקדות: מחזוריות (הכנסה צפויה) וקבועות (החזר צפוי - גריעה)
+      // כל ההפקדות: מחזוריות (הכנסה צפויה) ועם תאריך החזרה (החזר צפוי - גריעה)
       const deposits = await loadDepositsWithWithdrawn()
       
       // חישוב באמצעות הפונקציה המרכזית
@@ -425,7 +425,7 @@ export default function WaitlistTab() {
         return depositor ? `${depositor.first_name} ${depositor.last_name}` : 'לא ידוע'
       }
 
-      // החזר הפקדות קבועות - גריעה
+      // החזר הפקדות עם תאריך החזרה - גריעה
       const fixedDepositReturns: any[] = []
       for (const ret of getFixedDepositReturns(allDeposits as any[], today)) {
         for (const period of ret.periods) {
@@ -981,7 +981,7 @@ export default function WaitlistTab() {
             </Button>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
-            * כולל פירעון הלוואות פעילות והפקדות מחזוריות צפויות, בניכוי הלוואות מחזוריות מחויבות והחזר הפקדות קבועות
+            * כולל פירעון הלוואות פעילות והפקדות מחזוריות צפויות, בניכוי הלוואות מחזוריות מחויבות והחזר הפקדות שמועד החזרתן מגיע
           </Typography>
         </CardContent>
       </Card>
